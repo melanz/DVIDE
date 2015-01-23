@@ -1,5 +1,5 @@
 #include "include.cuh"
-#include "ANCFSystem.cuh"
+#include "System.cuh"
 
 __device__ int ancf_shape_derivative_x(double* Sx, double x, double a)
 {
@@ -459,7 +459,7 @@ __global__ void addMass(double* stiffness, Material* materials, int numElements)
 	}
 }
 
-int ANCFSystem::resetLeftHandSideMatrix()
+int System::resetLeftHandSideMatrix()
 {
 	// populate the lhs with only the mass, must be done before updating internal forces!
 	thrust::fill_n(lhs_d.begin(),elements.size()*12*12,0.0); //Clear the matrix
@@ -467,12 +467,12 @@ int ANCFSystem::resetLeftHandSideMatrix()
 	return 0;
 }
 
-int ANCFSystem::updateInternalForces()
+int System::updateInternalForces()
 {
 	int updateLhs = 1;
 	thrust::fill(fint_d.begin(),fint_d.end(),0.0); //Clear internal forces
 
-	ANCFSystem::resetLeftHandSideMatrix(); // populate the lhs with only the mass
+	System::resetLeftHandSideMatrix(); // populate the lhs with only the mass
 
 	for(int j=0;j<pt5.size();j++)
 	{

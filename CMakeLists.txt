@@ -94,8 +94,8 @@ enable_cuda_support()
 SET(IBEAMS_SOURCES
 	src/ANCFApi.h
 	src/include.cuh
-	src/ANCFSystem.cuh
-	src/ANCFSystem.cu
+	src/System.cuh
+	src/System.cu
 	src/ANCFConstraints.cu
 	src/ANCFintForce.cu
 	#src/ANCFContact.cu

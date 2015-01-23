@@ -1,7 +1,7 @@
 #include "include.cuh"
-#include "ANCFSystem.cuh"
+#include "System.cuh"
 
-int ANCFSystem::updateBoundingBoxes_CPU()
+int System::updateBoundingBoxes_CPU()
 {
 	int offset = 0;
 	// push minimum aabb
@@ -44,13 +44,13 @@ __global__ void updateBoundingBox(float3* aabb_data, double* p, Material* materi
 	}
 }
 
-int ANCFSystem::updateBoundingBoxes()
+int System::updateBoundingBoxes()
 {
 	updateBoundingBox<<<dimGridElement,dimBlockElement>>>(CASTF3(aabb_data_d),CASTD1(p_d),CASTM1(materials_d),elements.size());
 	return 0;
 }
 */
-int ANCFSystem::initializeBoundingBoxes_CPU()
+int System::initializeBoundingBoxes_CPU()
 {
 	int offset = 0;
 	// push minimum aabb
@@ -80,7 +80,7 @@ int ANCFSystem::initializeBoundingBoxes_CPU()
 	return 0;
 }
 
-int ANCFSystem::applyContactForce_CPU(int beamIndex, int particleIndex, double penetration, double xi, float3 normal)
+int System::applyContactForce_CPU(int beamIndex, int particleIndex, double penetration, double xi, float3 normal)
 {
 	double l1 = elements[beamIndex].getLength_l();
 	double R1 = elements[beamIndex].getRadius();
@@ -127,7 +127,7 @@ int ANCFSystem::applyContactForce_CPU(int beamIndex, int particleIndex, double p
 	return 0;
 }
 
-int ANCFSystem::applyContactForceParticles_CPU(int particleIndex1, int particleIndex2, double penetration, float3 normal)
+int System::applyContactForceParticles_CPU(int particleIndex1, int particleIndex2, double penetration, float3 normal)
 {
 	double R1 = particles[particleIndex1].getRadius();
 	double nu1 = particles[particleIndex1].getNu();
@@ -271,7 +271,7 @@ __global__ void countActualCollisions_GPU(double* p, double* pParticle, long lon
 	}
 }
 
-int ANCFSystem::countActualCollisions()
+int System::countActualCollisions()
 {
 	countActualCollisions_GPU<<<dimGridCollision,dimBlockCollision>>>(CASTD1(p_d), CASTD1(pParticle_d), CASTLL(detector.potentialCollisions), CASTU1(collisionCounts_d), CASTM1(materials_d), CASTMP(pMaterials_d), particles.size(), detector.number_of_contacts_possible);
 	return 0;
@@ -367,7 +367,7 @@ __global__ void populateCollisions_GPU(double* collisionAlongBeam, uint* collisi
 	}
 }
 
-int ANCFSystem::populateCollisions()
+int System::populateCollisions()
 {
 	populateCollisions_GPU<<<dimGridCollision,dimBlockCollision>>>(CASTD1(collisionAlongBeam_d), CASTU1(collisionIndices1_d), CASTU1(collisionIndices2_d), CASTF3(collisionNormals_d), CASTD1(collisionPenetrations_d), CASTD1(p_d), CASTD1(pParticle_d), CASTLL(detector.potentialCollisions), CASTU1(collisionCounts_d), CASTM1(materials_d), CASTMP(pMaterials_d), particles.size(), detector.number_of_contacts_possible);
 	return 0;
@@ -450,7 +450,7 @@ __global__ void accumulateContactForces_GPU(double* fParticle, double* collision
 	}
 }
 
-int ANCFSystem::accumulateContactForces(int numBodiesInContact)
+int System::accumulateContactForces(int numBodiesInContact)
 {
 	dimBlockCollision.x = BLOCKDIMCOLLISION;
 	dimGridCollision.x = (int)ceil(((double)(numBodiesInContact))/((double)BLOCKDIMCOLLISION));
@@ -458,7 +458,7 @@ int ANCFSystem::accumulateContactForces(int numBodiesInContact)
 	return 0;
 }
 
-int ANCFSystem::performNarrowphaseCollisionDetection()
+int System::performNarrowphaseCollisionDetection()
 {
 
 	// Step 0: Resize the collisionCounts vector to equal the potentialCollisions vector(THRUST)
@@ -542,7 +542,7 @@ int ANCFSystem::performNarrowphaseCollisionDetection()
 	return 0;
 }
 
-int ANCFSystem::performNarrowphaseCollisionDetection_CPU(long long potentialCollisions)
+int System::performNarrowphaseCollisionDetection_CPU(long long potentialCollisions)
 {
 	int2 collisionPair;
 	collisionPair.x = int(potentialCollisions >> 32);
@@ -604,7 +604,7 @@ int ANCFSystem::performNarrowphaseCollisionDetection_CPU(long long potentialColl
 	return count;
 }
 
-int ANCFSystem::accumulateContactForces_CPU()
+int System::accumulateContactForces_CPU()
 {
 	thrust::fill(fcon_h.begin(),fcon_h.end(),0);
 	thrust::fill(fParticle_h.begin(),fParticle_h.end(),0);
@@ -633,7 +633,7 @@ int ANCFSystem::accumulateContactForces_CPU()
 
 }
 
-int ANCFSystem::detectCollisions_CPU()
+int System::detectCollisions_CPU()
 {
 //	thrust::fill(fcon_h.begin(),fcon_h.end(),0);
 //	thrust::fill(fParticle_h.begin(),fParticle_h.end(),0);
@@ -654,7 +654,7 @@ int ANCFSystem::detectCollisions_CPU()
 	return 0;
 }
 
-int ANCFSystem::applyForce_CPU(int elementIndex, double l, double xi, float3 force)
+int System::applyForce_CPU(int elementIndex, double l, double xi, float3 force)
 {
 	fcon_h[0 + 12 * elementIndex]  += (1 - 3 * xi * xi + 2 * pow(xi, 3)) * force.x;
 	fcon_h[1 + 12 * elementIndex]  += (1 - 3 * xi * xi + 2 * pow(xi, 3)) * force.y;
@@ -672,7 +672,7 @@ int ANCFSystem::applyForce_CPU(int elementIndex, double l, double xi, float3 for
 	return 0;
 }
 
-int ANCFSystem::applyForceParticle_CPU(int particleIndex, float3 force)
+int System::applyForceParticle_CPU(int particleIndex, float3 force)
 {
 	fParticle_h[0 + 3 * particleIndex] += force.x;
 	fParticle_h[1 + 3 * particleIndex] += force.y;

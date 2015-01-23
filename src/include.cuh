@@ -1,5 +1,5 @@
-#ifndef ANCFINCLUDE_H
-#define ANCFINCLUDE_H
+#ifndef INCLUDE_H
+#define INCLUDE_H
 
 //#include <armadillo>
 

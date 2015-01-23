@@ -1,5 +1,5 @@
 #include "include.cuh"
-#include "ANCFSystem.cuh"
+#include "System.cuh"
 #include "Element.cuh"
 #include "Node.cuh"
 #include "Particle.cuh"
@@ -8,7 +8,7 @@ bool updateDraw = 1;
 bool showSphere = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
-ANCFSystem sys;
+System sys;
 
 #ifdef WITH_GLUT
 OpenGLCamera oglcamera(camreal3(-1,1,-1),camreal3(0,0,0),camreal3(0,1,0),.01);
