@@ -153,7 +153,7 @@ int System::add(Element* element) {
 	for (int i = 0; i < element->numDOF; i++) {
 	  massI_h.push_back(i + element->numDOF * (elements.size() - 1));
 		massJ_h.push_back(i + element->numDOF * (elements.size() - 1));
-		mass_h.push_back(1.0/element->mass);
+		mass_h.push_back(element->mass);
 	}
 
 	return elements.size();
@@ -189,7 +189,7 @@ int System::initializeDevice() {
 	thrust::device_ptr<double> wrapped_device_V(CASTD1(mass_d));
 	DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + mass_d.size());
 
-	mass = DeviceView(anew_d.size(), anew_d.size(), mass_d.size(), row_indices, column_indices, values);
+	mass = DeviceView(a_d.size(), a_d.size(), mass_d.size(), row_indices, column_indices, values);
 	// end create mass matrix
 
 	return 0;
@@ -198,13 +198,13 @@ int System::initializeDevice() {
 int System::initializeSystem() {
 
 	initializeDevice();
-//
-//	// create and setup the Spike::GPU solver
-//	m_spmv = new MySpmv(mass);
-//	mySolver = new SpikeSolver(partitions, solverOptions);
-//	mySolver->setup(mass);
-//
-//	bool success = mySolver->solve(*m_spmv, f, a);
+
+	// create and setup the Spike::GPU solver
+	m_spmv = new MySpmv(mass);
+	mySolver = new SpikeSolver(partitions, solverOptions);
+	mySolver->setup(mass);
+
+	bool success = mySolver->solve(*m_spmv, f, a);
 //	spike::Stats stats = mySolver->getStats();
 //
 //	cout << endl
@@ -228,7 +228,8 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	cusp::multiply(mass, f, a);
+	//cusp::multiply(mass, f, a);
+	bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
 	cusp::blas::axpy(v, p, h);
 
