@@ -56,60 +56,39 @@ void drawAll()
 
 		oglcamera.Update();
 
-		for (int i = 0; i < sys.particles.size(); i++) {
-			glColor3f(0.0f, 1.0f, 0.0f);
-			glPushMatrix();
-			float3 pos = sys.getXYZPositionParticle(i);
-			glTranslatef(pos.x, pos.y, pos.z);
-			glutSolidSphere(sys.particles[i].getRadius(), 30, 30);
-			glPopMatrix();
-
-			//indicate velocity
-			glLineWidth(sys.elements[i].getRadius()*500);
-			glColor3f(1.0f,0.0f,0.0f);
-			glBegin(GL_LINES);
-			glVertex3f(pos.x,pos.y,pos.z);
-			float3 vel = sys.getXYZVelocityParticle(i);
-			//cout << "v:" << vel.x << " " << vel.y << " " << vel.z << endl;
-			pos +=2*sys.particles[i].getRadius()*normalize(vel);
-			glVertex3f(pos.x,pos.y,pos.z);
-			glEnd();
-			glFlush();
-		}
-
 		for(int i=0;i<sys.elements.size();i++)
 		{
 			int xiDiv = sys.numContactPoints;
 
 			double xiInc = 1/(static_cast<double>(xiDiv-1));
 
-			if(showSphere)
+			//if(showSphere)
 			{
 				glColor3f(0.0f,0.0f,1.0f);
-				for(int j=0;j<xiDiv;j++)
+				//for(int j=0;j<xiDiv;j++)
 				{
 					glPushMatrix();
-					float3 position = sys.getXYZPosition(i,xiInc*j);
-					glTranslatef(position.x,position.y,position.z);
-					glutSolidSphere(sys.elements[i].getRadius(),10,10);
+					double3 position = sys.elements[i].getPosition();
+					glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
+					glutSolidSphere(1,10,10);
 					glPopMatrix();
 				}
 			}
-			else
-			{
-				int xiDiv = sys.numContactPoints;
-				double xiInc = 1/(static_cast<double>(xiDiv-1));
-				glLineWidth(sys.elements[i].getRadius()*500);
-				glColor3f(0.0f,1.0f,0.0f);
-				glBegin(GL_LINE_STRIP);
-				for(int j=0;j<sys.numContactPoints;j++)
-				{
-					float3 position = sys.getXYZPosition(i,xiInc*j);
-					glVertex3f(position.x,position.y,position.z);
-				}
-				glEnd();
-				glFlush();
-			}
+//			else
+//			{
+//				int xiDiv = sys.numContactPoints;
+//				double xiInc = 1/(static_cast<double>(xiDiv-1));
+//				glLineWidth(sys.elements[i].getRadius()*500);
+//				glColor3f(0.0f,1.0f,0.0f);
+//				glBegin(GL_LINE_STRIP);
+//				for(int j=0;j<sys.numContactPoints;j++)
+//				{
+//					float3 position = sys.getXYZPosition(i,xiInc*j);
+//					glVertex3f(position.x,position.y,position.z);
+//				}
+//				glEnd();
+//				glFlush();
+//			}
 		}
 
 		glutSwapBuffers();
@@ -176,7 +155,6 @@ int main(int argc, char** argv)
 	sys.setNumPartitions((int)atoi(argv[1]));
 	sys.numContactPoints = 30;
 
-
 	double t_end = 5.0;
 	int    precUpdateInterval = -1;
 	float  precMaxKrylov = -1;
@@ -184,135 +162,32 @@ int main(int argc, char** argv)
 
 	string data_folder;
 
-//	if(argc == 3)
-//	{
-//		sys.setAlpha_HHT(-10);
-//		int numElements = 1;
-//		double length = 2;
-//		double lengthElement = length/numElements;
-//		double r = 0.01;
-//		double E = 2e7;
-//		double rho = 7810;
-//		double nu = .3;
-//		double P = -60;
-//		Element element = Element(Node(0, 0, 0, 1, 0, 0), Node(lengthElement, 0, 0, 1, 0, 0), r, nu, E, rho);
-//		sys.addElement(&element);
-//		sys.addConstraint_AbsoluteFixed(0);
-//		sys.numContactPoints = 10;
-//
-//		for(int i=1;i<numElements;i++)
-//		{
-//			element = Element(Node(i*lengthElement, 0, 0, 1, 0, 0), Node((i+1)*lengthElement, 0, 0, 1, 0, 0), r, nu, E, rho);
-//			sys.addElement(&element);
-//			sys.addConstraint_RelativeFixed(sys.elements[i-1], 1,sys.elements[i], 0);
-//		}
-//		sys.addForce(&element,1,make_float3(0,P,0));
-//
-////		// should get deflection = PL^3/(3EI)
-////		double I = .25*PI*r*r*r*r;
-////		double deflection = P*pow(length,3)/(3*E*I);
-////		cout << deflection << endl;
-////		cin.get();
-//	}
-//	else
-	{
-		sys.fullJacobian = 1;
-		double length = 1;
-		double r = .02;
-		double E = 2e11;
-		double rho = 2200;
-		double nu = .3;
-		int numElementsPerSide = atoi(argv[2]);
-		sys.setSolverType((int)atoi(argv[3]));
-		sys.setPrecondType(atoi(argv[4]));
-		if(atoi(argv[4])) {
-			sys.preconditionerUpdateModulus = precUpdateInterval;
-			sys.preconditionerMaxKrylovIterations = precMaxKrylov;
-		}
-		E = atof(argv[5]);
-		data_folder = argv[6];
+	sys.fullJacobian = 1;
+	double length = 1;
+	double r = .02;
+	double E = 2e11;
+	double rho = 2200;
+	double nu = .3;
+	int numElementsPerSide = atoi(argv[2]);
+	sys.setSolverType((int)atoi(argv[3]));
+	sys.setPrecondType(atoi(argv[4]));
+	if(atoi(argv[4])) {
+	  sys.preconditionerUpdateModulus = precUpdateInterval;
+	  sys.preconditionerMaxKrylovIterations = precMaxKrylov;
+	}
+	E = atof(argv[5]);
+	data_folder = argv[6];
 
-		Element element;
-		int k = 0;
-		// Add elements in x-direction
-		for (int j = 0; j < numElementsPerSide+1; j++) {
-			for (int i = 0; i < numElementsPerSide; i++) {
-				element = Element(Node(i*length, 0, j*length, 1, 0, 0),
-								  Node((i+1)*length, 0, j*length, 1, 0, 0),
-								  r, nu, E, rho);
-				sys.addElement(&element);
-				k++;
-				if(k%100==0) printf("Elements %d\n",k);
-			}
-		}
-
-		// Add elements in z-direction
-		for (int j = 0; j < numElementsPerSide+1; j++) {
-			for (int i = 0; i < numElementsPerSide; i++) {
-				element = Element(Node(j*length, 0, i*length, 0, 0, 1),
-								  Node(j*length, 0, (i+1)*length, 0, 0, 1),
-								  r, nu, E, rho);
-				sys.addElement(&element);
-				k++;
-				if(k%100==0) printf("Elements %d\n",k);
-			}
-		}
-
-		// Fix corners to ground
-		sys.addConstraint_AbsoluteSpherical(sys.elements[0], 0);
-		sys.addConstraint_AbsoluteSpherical(sys.elements[2*numElementsPerSide*(numElementsPerSide+1)-numElementsPerSide], 0);
-		sys.addConstraint_AbsoluteSpherical(sys.elements[numElementsPerSide*(numElementsPerSide+1)-numElementsPerSide], 0);
-		sys.addConstraint_AbsoluteSpherical(sys.elements[2*numElementsPerSide*(numElementsPerSide+1)-1], 1);
-		sys.addConstraint_AbsoluteSpherical(sys.elements[numElementsPerSide*(numElementsPerSide+1)-1], 1);
-
-
-		// Constrain x-strands together
-		for(int j=0; j < numElementsPerSide+1; j++)
-		{
-			for(int i=0; i < numElementsPerSide-1; i++)
-			{
-				sys.addConstraint_RelativeFixed(
-						sys.elements[i+j*numElementsPerSide], 1,
-						sys.elements[i+1+j*numElementsPerSide], 0);
-			}
-		}
-
-		// Constrain z-strands together
-		int offset = numElementsPerSide*(numElementsPerSide+1);
-		for(int j=0; j < numElementsPerSide+1; j++)
-		{
-			for(int i=0; i < numElementsPerSide-1; i++)
-			{
-				sys.addConstraint_RelativeFixed(
-						sys.elements[i+offset+j*numElementsPerSide], 1,
-						sys.elements[i+offset+1+j*numElementsPerSide], 0);
-			}
-		}
-
-		// Constrain cross-streams together
-		for(int j=0; j < numElementsPerSide; j++)
-		{
-			for(int i=0; i < numElementsPerSide; i++)
-			{
-				sys.addConstraint_RelativeSpherical(
-						sys.elements[i*numElementsPerSide+j], 0,
-						sys.elements[offset+i+j*numElementsPerSide], 0);
-			}
-		}
-
-		for(int i=0; i < numElementsPerSide; i++)
-		{
-			sys.addConstraint_RelativeSpherical(
-						sys.elements[numElementsPerSide-1+numElementsPerSide*i], 1,
-						sys.elements[2*offset-numElementsPerSide+i], 0);
-		}
-
-		for(int i=0; i < numElementsPerSide; i++)
-		{
-			sys.addConstraint_RelativeSpherical(
-						sys.elements[numElementsPerSide*(numElementsPerSide+1)+numElementsPerSide-1+numElementsPerSide*i], 1,
-						sys.elements[numElementsPerSide*numElementsPerSide+i], 0);
-		}
+	Element element;
+	int k = 0;
+	// Add elements in x-direction
+	for (int j = 0; j < numElementsPerSide+1; j++) {
+	  for (int i = 0; i < numElementsPerSide; i++) {
+	    element = Element(make_double3(i,0,j));
+	    sys.add(&element);
+	    k++;
+	    if(k%100==0) printf("Elements %d\n",k);
+	  }
 	}
 
 	printf("%d, %d, %d\n",sys.elements.size(),sys.constraints.size(),12*sys.elements.size()+sys.constraints.size());

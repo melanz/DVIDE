@@ -12,7 +12,6 @@
 #include "Element.cuh"
 #include "Constraint.cuh"
 #include "Node.cuh"
-#include "Particle.cuh"
 
 #include <spike/solver.h>
 #include <spike/spmv.h>
@@ -35,19 +34,15 @@ class MySpmv : public cusp::linear_operator<double, cusp::device_memory>{
 public:
 	typedef cusp::linear_operator<double, cusp::device_memory> super;
 
-	//MySpmv(DeviceView& lhs_mass, DeviceView& A, DeviceValueArrayView& A) : m_A(A) {}
-	MySpmv(DeviceView& lhs_mass, DeviceView& lhs_phiq, DeviceValueArrayView& temp) : mlhs_mass(lhs_mass), mlhs_phiq(lhs_phiq), mtemp(temp) , super(temp.size(), temp.size()) {}
+
+	MySpmv(DeviceView& mass) : A(mass) {}
 
 	void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
-		cusp::multiply(mlhs_mass, v, mtemp);
-		cusp::multiply(mlhs_phiq, v, Av);
-		cusp::blas::axpy(mtemp, Av, 1);
+		cusp::multiply(A, v, Av);
 	}
 
 private:
-	DeviceView&      mlhs_mass;
-	DeviceView&      mlhs_phiq;
-	DeviceValueArrayView& mtemp;
+	DeviceView&      A;
 };
 
 #define GRAVITYx 0
@@ -74,6 +69,7 @@ struct MaterialParticle {
 
 class System {
 public:
+  double3 gravity;
 	double stepTime;
 	int stepNewtonIterations;
 	float stepKrylovIterations;
@@ -122,7 +118,7 @@ public:
 	DeviceValueArrayView anewAll;
 	DeviceValueArrayView anew;
 	DeviceValueArrayView lambda;
-	DeviceValueArrayView fext;
+	DeviceValueArrayView f;
 	DeviceValueArrayView fint;
 	DeviceValueArrayView fapp;
 	DeviceValueArrayView fcon;
@@ -137,6 +133,7 @@ public:
 	DeviceView lhs_mass;
 	DeviceView lhs_phiq;
 	DeviceView phiq;
+	DeviceView mass;
 	//DeviceView mass;
 
 	// host vectors
@@ -147,7 +144,7 @@ public:
 	thrust::host_vector<double> pnew_h;
 	thrust::host_vector<double> vnew_h;
 	thrust::host_vector<double> anew_h;
-	thrust::host_vector<double> fext_h;
+	thrust::host_vector<double> f_h;
 	thrust::host_vector<double> fint_h;
 	thrust::host_vector<double> fapp_h;
 	thrust::host_vector<double> fcon_h;
@@ -182,7 +179,7 @@ public:
 	thrust::device_vector<double> pnew_d;
 	thrust::device_vector<double> vnew_d;
 	thrust::device_vector<double> anew_d;
-	thrust::device_vector<double> fext_d;
+	thrust::device_vector<double> f_d;
 	thrust::device_vector<double> fint_d;
 	thrust::device_vector<double> fapp_d;
 	thrust::device_vector<double> fcon_d;
@@ -239,17 +236,6 @@ public:
 	dim3 dimBlockCollision;
 	dim3 dimGridCollision;
 
-	//particle stuff
-	thrust::host_vector<double> pParticle_h;
-	thrust::host_vector<double> vParticle_h;
-	thrust::host_vector<double> aParticle_h;
-	thrust::host_vector<double> fParticle_h;
-
-	thrust::device_vector<double> pParticle_d;
-	thrust::device_vector<double> vParticle_d;
-	thrust::device_vector<double> aParticle_d;
-	thrust::device_vector<double> fParticle_d;
-
 	//CollisionDetector detector;
 	thrust::host_vector<float3> aabb_data_h;
 	thrust::device_vector<float3> aabb_data_d;
@@ -281,10 +267,6 @@ public:
 	thrust::host_vector<Material> materials;
 	thrust::device_vector<Material> materials_d;
 
-	vector<Particle> particles;
-	thrust::host_vector<MaterialParticle> pMaterials_h;
-	thrust::device_vector<MaterialParticle> pMaterials_d;
-
 	int numContactPoints;
 	int numCollisions;
 	int numCollisionsSphere;
@@ -313,8 +295,7 @@ public:
 
 	void printSolverParams();
 
-	int addElement(Element* element);
-	int addParticle(Particle* particle);
+	int add(Element* element);
 	int updateParticleDynamics();
 	int addForce(Element* element, double xi, float3 force);
 	int clearAppliedForces();
@@ -413,10 +394,7 @@ public:
 //	int generateAllPossibleContacts();
 	int detectCollisions_CPU();
 	int performNarrowphaseCollisionDetection_CPU(long long potentialCollision);
-	int applyContactForce_CPU(int beamIndex, int particleIndex, double penetration, double xi, float3 normal);
-	int applyContactForceParticles_CPU(int particleIndex1, int particleIndex2, double penetration, float3 normal);
 	int applyForce_CPU(int elementIndex, double l, double xi, float3 force);
-	int applyForceParticle_CPU(int particleIndex, float3 force);
 	int performNarrowphaseCollisionDetection();
 
 	int countActualCollisions();

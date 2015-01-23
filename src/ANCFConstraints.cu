@@ -161,96 +161,96 @@ int System::addConstraint_RelativeSpherical(int nodeNum1, int nodeNum2)
 
 int System::addConstraint_AbsoluteX(Element& element, int node_local)
 {
-	addConstraint_AbsoluteX(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteX(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteY(Element& element, int node_local)
 {
-	addConstraint_AbsoluteY(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteY(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteZ(Element& element, int node_local)
 {
-	addConstraint_AbsoluteZ(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteZ(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteDX1(Element& element, int node_local)
 {
-	addConstraint_AbsoluteDX1(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteDX1(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteDY1(Element& element, int node_local)
 {
-	addConstraint_AbsoluteDY1(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteDY1(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteDZ1(Element& element, int node_local)
 {
-	addConstraint_AbsoluteDZ1(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteDZ1(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteFixed(Element& element, int node_local)
 {
-	addConstraint_AbsoluteFixed(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteFixed(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_AbsoluteSpherical(Element& element, int node_local)
 {
-	addConstraint_AbsoluteSpherical(element.getElementIndex()*2+node_local);
+	addConstraint_AbsoluteSpherical(element.getIndex()*2+node_local);
 	return 0;
 }
 
 int System::addConstraint_RelativeX(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeX(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeX(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeY(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeY(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeY(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeZ(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeZ(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeZ(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeDX1(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeDX1(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeDX1(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeDY1(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeDY1(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeDY1(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeDZ1(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeDZ1(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeDZ1(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeFixed(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeFixed(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeFixed(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }
 
 int System::addConstraint_RelativeSpherical(Element& element1, int node_local1, Element& element2, int node_local2)
 {
-	addConstraint_RelativeSpherical(element1.getElementIndex()*2+node_local1,element2.getElementIndex()*2+node_local2);
+	addConstraint_RelativeSpherical(element1.getIndex()*2+node_local1,element2.getIndex()*2+node_local2);
 	return 0;
 }

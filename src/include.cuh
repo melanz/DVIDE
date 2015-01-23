@@ -43,7 +43,7 @@
 #include <thrust/functional.h>
 #include <cusp/linear_operator.h>
 
-#include "ANCFApi.h"
+#include "DanVIApi.h"
 
 using namespace std;
 //using namespace arma;

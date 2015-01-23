@@ -92,7 +92,7 @@ enable_cuda_support()
 # List the files that make up the ImplicitBeamsGPU library
 
 SET(IBEAMS_SOURCES
-	src/ANCFApi.h
+	src/DanVIApi.h
 	src/include.cuh
 	src/System.cuh
 	src/System.cu
@@ -102,7 +102,7 @@ SET(IBEAMS_SOURCES
 	src/Constraint.cuh
 	src/Element.cuh
 	src/Node.cuh
-	src/Particle.cuh
+	#src/Particle.cuh
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})
