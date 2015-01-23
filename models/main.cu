@@ -1,8 +1,6 @@
 #include "include.cuh"
 #include "System.cuh"
 #include "Element.cuh"
-#include "Node.cuh"
-#include "Particle.cuh"
 
 bool updateDraw = 1;
 bool showSphere = 1;
@@ -58,10 +56,6 @@ void drawAll()
 
 		for(int i=0;i<sys.elements.size();i++)
 		{
-			int xiDiv = sys.numContactPoints;
-
-			double xiInc = 1/(static_cast<double>(xiDiv-1));
-
 			//if(showSphere)
 			{
 				glColor3f(0.0f,0.0f,1.0f);
@@ -74,21 +68,6 @@ void drawAll()
 					glPopMatrix();
 				}
 			}
-//			else
-//			{
-//				int xiDiv = sys.numContactPoints;
-//				double xiInc = 1/(static_cast<double>(xiDiv-1));
-//				glLineWidth(sys.elements[i].getRadius()*500);
-//				glColor3f(0.0f,1.0f,0.0f);
-//				glBegin(GL_LINE_STRIP);
-//				for(int j=0;j<sys.numContactPoints;j++)
-//				{
-//					float3 position = sys.getXYZPosition(i,xiInc*j);
-//					glVertex3f(position.x,position.y,position.z);
-//				}
-//				glEnd();
-//				glFlush();
-//			}
 		}
 
 		glutSwapBuffers();
@@ -98,7 +77,7 @@ void drawAll()
 void renderSceneAll(){
 	if(OGL){
 		//if(sys.timeIndex%10==0)
-			drawAll();
+		drawAll();
 		sys.DoTimeStep();
 	}
 }
@@ -149,34 +128,20 @@ int main(int argc, char** argv)
 	bool visualize = true;
 #endif
 
-	sys.setTimeStep(1e-3, 1e-10);
-	sys.setMaxNewtonIterations(20);
-	sys.setMaxKrylovIterations(5000);
+  sys.setTimeStep(1e-3, 1e-10);
+  sys.setMaxKrylovIterations(5000);
+  double t_end = 5.0;
+  int    precUpdateInterval = -1;
+  float  precMaxKrylov = -1;
+
 	sys.setNumPartitions((int)atoi(argv[1]));
-	sys.numContactPoints = 30;
-
-	double t_end = 5.0;
-	int    precUpdateInterval = -1;
-	float  precMaxKrylov = -1;
-	int    outputInterval = 100;
-
-	string data_folder;
-
-	sys.fullJacobian = 1;
-	double length = 1;
-	double r = .02;
-	double E = 2e11;
-	double rho = 2200;
-	double nu = .3;
-	int numElementsPerSide = atoi(argv[2]);
-	sys.setSolverType((int)atoi(argv[3]));
-	sys.setPrecondType(atoi(argv[4]));
-	if(atoi(argv[4])) {
-	  sys.preconditionerUpdateModulus = precUpdateInterval;
-	  sys.preconditionerMaxKrylovIterations = precMaxKrylov;
-	}
-	E = atof(argv[5]);
-	data_folder = argv[6];
+  int numElementsPerSide = atoi(argv[2]);
+  sys.setSolverType((int)atoi(argv[3]));
+  sys.setPrecondType(atoi(argv[4]));
+  if(atoi(argv[4])) {
+    sys.preconditionerUpdateModulus = precUpdateInterval;
+    sys.preconditionerMaxKrylovIterations = precMaxKrylov;
+  }
 
 	Element element;
 	int k = 0;
@@ -190,7 +155,6 @@ int main(int argc, char** argv)
 	  }
 	}
 
-	printf("%d, %d, %d\n",sys.elements.size(),sys.constraints.size(),12*sys.elements.size()+sys.constraints.size());
 	sys.initializeSystem();
 	printf("System initialized!\n");
 	sys.printSolverParams();
@@ -214,36 +178,12 @@ int main(int argc, char** argv)
 		glutMainLoop();
 	}
 #endif
-
-	stringstream ss_m;
-	ss_m << data_folder << "/" << "timing_" << atoi(argv[1]) << "_" << atoi(argv[2]) << "_" << atoi(argv[3]) << "_" << atoi(argv[4]) << "_" << atof(argv[5]) << ".txt";
-	string timing_file_name = ss_m.str();
-	ofstream ofile(timing_file_name.c_str());
 	
 	// if you don't want to visualize, then output the data
-	int fileIndex = 0;
 	while(sys.time < t_end)
 	{
-		if(sys.getTimeIndex()%outputInterval==0)
-		{
-			stringstream ss;
-			//cout << "Frame: " << fileIndex << endl;
-			ss << data_folder << "/" << fileIndex << ".txt";
-			sys.writeToFile(ss.str());
-			fileIndex++;
-		}
 		sys.DoTimeStep();
-		ofile << sys.time                 << ", "
-		      << sys.stepTime             << ", "
-		      << sys.stepNewtonIterations << ", "
-		      << sys.stepKrylovIterations << ", "
-		      << sys.precUpdated          << " ,     ";
-		for (size_t i = 0; i < sys.stepNewtonIterations; ++i)
-			ofile << sys.spikeSolveTime[i] << ", " << sys.spikeNumIter[i] << ",     ";
-		ofile << endl;
 	}
-	printf("Total time to simulate: %f [s]\n",sys.timeToSimulate);
-	ofile.close();
 
 	return 0;
 }

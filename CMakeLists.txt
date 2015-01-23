@@ -96,12 +96,12 @@ SET(IBEAMS_SOURCES
 	src/include.cuh
 	src/System.cuh
 	src/System.cu
-	src/ANCFConstraints.cu
-	src/ANCFintForce.cu
+	#src/ANCFConstraints.cu
+	#src/ANCFintForce.cu
 	#src/ANCFContact.cu
-	src/Constraint.cuh
+	#src/Constraint.cuh
 	src/Element.cuh
-	src/Node.cuh
+	#src/Node.cuh
 	#src/Particle.cuh
 	)
 

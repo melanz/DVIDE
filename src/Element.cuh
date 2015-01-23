@@ -9,7 +9,6 @@
 #define ELEMENT_CUH_
 
 #include "include.cuh"
-#include "Node.cuh"
 
 class Element {
   friend class System;
