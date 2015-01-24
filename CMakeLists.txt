@@ -49,12 +49,6 @@ IF (CUDA_SDK_ROOT_DIR)
 ENDIF()
 
 # ----------------------------------------------------------------------------
-# Using Armadillo
-
-#FIND_PACKAGE( Armadillo REQUIRED )
-#INCLUDE_DIRECTORIES(${ARMADILLO_INCLUDE_DIRS})
-
-# ----------------------------------------------------------------------------
 # Include OpenGL support
 
 #freeglut is not found properly on windows
@@ -96,13 +90,7 @@ SET(IBEAMS_SOURCES
 	src/include.cuh
 	src/System.cuh
 	src/System.cu
-	#src/ANCFConstraints.cu
-	#src/ANCFintForce.cu
-	#src/ANCFContact.cu
-	#src/Constraint.cuh
 	src/Element.cuh
-	#src/Node.cuh
-	#src/Particle.cuh
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})
@@ -117,7 +105,6 @@ TARGET_LINK_LIBRARIES(ImplicitBeamsGPU
 	${GLUT_LIBRARIES}
 	${FREEGLUT_LIB}
 	${OPENGL_LIBRARIES}
-#	${ARMADILLO_LIBRARIES}
 	)
 SET_TARGET_PROPERTIES(ImplicitBeamsGPU PROPERTIES COMPILE_DEFINITIONS "IBEAMS_COMPILE_LIBRARY")
 

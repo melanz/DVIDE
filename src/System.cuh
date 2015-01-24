@@ -46,10 +46,6 @@ private:
 class System {
 public:
   double3 gravity;
-	double stepTime;
-	int stepNewtonIterations;
-	float stepKrylovIterations;
-	int maxNewtonIterations;
 
 	// spike stuff
 	int partitions;
@@ -63,12 +59,12 @@ public:
 	vector<float> spikeNumIter;
 
 	bool  precUpdated;
+  float stepKrylovIterations;
 	// end spike stuff
 
 	// variables
 	int timeIndex;
 	double time; //current time
-	double simTime; //time to end simulation
 	double h; //time step
 	double tol;
 
@@ -116,12 +112,10 @@ public:
 	vector<Element> elements;
 
 	double getCurrentTime() const    {return time;}
-	double getSimulationTime() const {return simTime;}
 	double getTimeStep() const       {return h;}
 	double getTolerance() const      {return tol;}
 	int    getTimeIndex() const      {return timeIndex;}
 	void setTimeStep(double step_size, double precision = 1e-10);
-	void setSimulationTime(double sim_time)   {simTime = sim_time;}
 	void setNumPartitions(int num_partitions) {partitions = num_partitions;}
 	void setMaxKrylovIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
 	void setSolverType(int solverType);

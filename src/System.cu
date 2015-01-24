@@ -6,6 +6,10 @@
 System::System()
 {
   gravity = make_double3(0,-9.81,0);
+  tol = 1e-8;
+  h = 1e-3;
+  timeIndex = 0;
+  time = 0;
 
 	// spike stuff
 	partitions = 1;
@@ -14,11 +18,11 @@ System::System()
 	solverOptions.maxNumIterations = 5000;
 	preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
 	preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
+	mySolver = new SpikeSolver(partitions, solverOptions);
+	m_spmv = new MySpmv(mass);
+  stepKrylovIterations = 0;
+  precUpdated = 0;
 	// end spike stuff
-
-	timeIndex = 0;
-	time = 0;
-	simTime = 0;
 }
 
 void System::setSolverType(int solverType)

@@ -270,7 +270,7 @@ public:
 	}
 	void ChangeHeading(GLfloat degrees) {
 		if (fabs(degrees) < fabs(max_heading_rate)) {
-			if (camera_pitch > 90 && camera_pitch < 270
+			if ((camera_pitch > 90 && camera_pitch < 270)
 					|| (camera_pitch < -90 && camera_pitch > -270)) {
 				camera_heading -= degrees;
 			} else {
@@ -285,7 +285,7 @@ public:
 					camera_heading -= max_heading_rate;
 				}
 			} else {
-				if (camera_pitch > 90 && camera_pitch < 270
+				if ((camera_pitch > 90 && camera_pitch < 270)
 						|| (camera_pitch < -90 && camera_pitch > -270)) {
 					camera_heading -= max_heading_rate;
 				} else {

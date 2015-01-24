@@ -121,7 +121,7 @@ void CallBackMotionFunc(int x, int y) {
 int main(int argc, char** argv)
 {
 	// command line arguments
-	// ImplicitBeamsGPU <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning> <elasticModulus> <dataFolder>
+	// ImplicitBeamsGPU <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes
 
 #ifdef WITH_GLUT
