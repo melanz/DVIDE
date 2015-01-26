@@ -91,6 +91,8 @@ SET(IBEAMS_SOURCES
 	src/System.cuh
 	src/System.cu
 	src/Body.cuh
+	src/CollisionDetector.cuh
+	src/CollisionDetector.cu
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})

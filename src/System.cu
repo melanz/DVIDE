@@ -195,7 +195,4 @@ int System::DoTimeStep() {
 	return 0;
 }
 
-int System::fixBodies() {
 
-  return 0;
-}

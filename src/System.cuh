@@ -122,7 +122,6 @@ public:
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();
-	int     fixBodies();
 };
 
 #endif /* SYSTEM_CUH_ */
