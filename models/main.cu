@@ -1,15 +1,15 @@
 #include "include.cuh"
 #include "System.cuh"
-#include "Element.cuh"
+#include "Body.cuh"
 
 bool updateDraw = 1;
-bool showSphere = 1;
+bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(-1,1,-1),camreal3(0,0,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(-10,10,-10),camreal3(0,0,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -54,20 +54,40 @@ void drawAll()
 
 		oglcamera.Update();
 
-		for(int i=0;i<sys.elements.size();i++)
+		for(int i=0;i<sys.bodies.size();i++)
 		{
-			//if(showSphere)
-			{
-				glColor3f(0.0f,0.0f,1.0f);
-				//for(int j=0;j<xiDiv;j++)
-				{
-					glPushMatrix();
-					double3 position = sys.elements[i].getPosition();
-					glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
-					glutSolidSphere(1,10,10);
-					glPopMatrix();
-				}
+			if(wireFrame) {
+			  glPushMatrix();
+			  double3 position = sys.bodies[i]->getPosition();
+			  glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
+			  double3 geometry = sys.bodies[i]->getGeometry();
+			  if(geometry.y) {
+			    glColor3f(0.0f,1.0f,0.0f);
+			    glScalef(geometry.x, geometry.y, geometry.z);
+			    glutWireCube(1.0);
+			  }
+			  else {
+			    glColor3f(0.0f,0.0f,1.0f);
+			    glutWireSphere(geometry.x,10,10);
+			  }
+			  glPopMatrix();
 			}
+			else {
+        glPushMatrix();
+        double3 position = sys.bodies[i]->getPosition();
+        glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
+        double3 geometry = sys.bodies[i]->getGeometry();
+        if(geometry.y) {
+          glColor3f(0.0f,1.0f,0.0f);
+          glScalef(geometry.x, geometry.y, geometry.z);
+          glutSolidCube(1.0);
+        }
+        else {
+          glColor3f(0.0f,0.0f,1.0f);
+          glutSolidSphere(geometry.x,10,10);
+        }
+        glPopMatrix();
+      }
 		}
 
 		glutSwapBuffers();
@@ -87,6 +107,7 @@ void CallBackKeyboardFunc(unsigned char key, int x, int y) {
 	case 'w':
 		oglcamera.Forward();
 		break;
+
 	case 's':
 		oglcamera.Back();
 		break;
@@ -106,6 +127,14 @@ void CallBackKeyboardFunc(unsigned char key, int x, int y) {
 	case 'e':
 		oglcamera.Down();
 		break;
+
+	case 'i':
+	  if(wireFrame) {
+	    wireFrame = 0;
+	  }
+	  else {
+	    wireFrame = 1;
+	  }
 	}
 }
 
@@ -142,16 +171,25 @@ int main(int argc, char** argv)
     sys.preconditionerUpdateModulus = precUpdateInterval;
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
+  double radius = 0.4;
 
-	Element element;
-	int k = 0;
+  Body* groundPtr = new Body(make_double3(0,0,0));
+  groundPtr->setBodyFixed(true);
+  groundPtr->setGeometry(make_double3(numElementsPerSide*5,radius,numElementsPerSide*5));
+  sys.add(groundPtr);
+
+	Body* bodyPtr;
+	int numBodies = 0;
 	// Add elements in x-direction
-	for (int j = 0; j < numElementsPerSide+1; j++) {
-	  for (int i = 0; i < numElementsPerSide; i++) {
-	    element = Element(make_double3(i,0,j));
-	    sys.add(&element);
-	    k++;
-	    if(k%100==0) printf("Elements %d\n",k);
+	for (int i = 0; i < numElementsPerSide; i++) {
+	  for (int j = 0; j < numElementsPerSide; j++) {
+	    for (int k = 0; k < numElementsPerSide; k++) {
+        bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+1.0,k-0.5*numElementsPerSide+radius));
+        bodyPtr->setGeometry(make_double3(radius,0,0));
+        numBodies = sys.add(bodyPtr);
+
+        if(numBodies%100==0) printf("Bodies %d\n",numBodies);
+	    }
 	  }
 	}
 

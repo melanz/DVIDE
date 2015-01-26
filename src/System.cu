@@ -71,38 +71,51 @@ void System::printSolverParams()
 	printf("----------------------------\n");
 }
 
-int System::add(Element* element) {
+int System::add(Body* body) {
+  // TODO: make this function general for any Body
 	//add the element
-	element->setIdentifier(elements.size());
-	this->elements.push_back(*element);
+  body->setIndex(p_h.size()); // Indicates the Body's location in the position array
+  body->setIdentifier(bodies.size()); // Indicates the number that the Body was added
+	bodies.push_back(body);
 
 	// update p
-	p_h.push_back(element->pos.x);
-	p_h.push_back(element->pos.y);
-	p_h.push_back(element->pos.z);
+	p_h.push_back(body->pos.x);
+	p_h.push_back(body->pos.y);
+	p_h.push_back(body->pos.z);
 
   // update v
-  v_h.push_back(element->vel.x);
-  v_h.push_back(element->vel.y);
-  v_h.push_back(element->vel.z);
+  v_h.push_back(body->vel.x);
+  v_h.push_back(body->vel.y);
+  v_h.push_back(body->vel.z);
 
   // update a
-  a_h.push_back(element->acc.x);
-  a_h.push_back(element->acc.y);
-  a_h.push_back(element->acc.z);
+  a_h.push_back(body->acc.x);
+  a_h.push_back(body->acc.y);
+  a_h.push_back(body->acc.z);
 
 	// update external force vector (gravity)
-	f_h.push_back(element->mass * this->gravity.x);
-	f_h.push_back(element->mass * this->gravity.y);
-	f_h.push_back(element->mass * this->gravity.z);
+  if(body->isFixed()) {
+    f_h.push_back(0);
+    f_h.push_back(0);
+    f_h.push_back(0);
+  }
+  else {
+    f_h.push_back(body->mass * this->gravity.x);
+    f_h.push_back(body->mass * this->gravity.y);
+    f_h.push_back(body->mass * this->gravity.z);
+  }
 
-	for (int i = 0; i < element->numDOF; i++) {
-	  massI_h.push_back(i + element->numDOF * (elements.size() - 1));
-		massJ_h.push_back(i + element->numDOF * (elements.size() - 1));
-		mass_h.push_back(element->mass);
+
+	// update the mass matrix
+	for (int i = 0; i < body->numDOF; i++) {
+	  //if(!body->isFixed()) {
+      massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
+      massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
+      mass_h.push_back(1.0/body->mass);
+	  //}
 	}
 
-	return elements.size();
+	return bodies.size();
 }
 
 int System::initializeDevice() {
@@ -150,7 +163,7 @@ int System::initializeSystem() {
 	mySolver = new SpikeSolver(partitions, solverOptions);
 	mySolver->setup(mass);
 
-	bool success = mySolver->solve(*m_spmv, f, a);
+	//bool success = mySolver->solve(*m_spmv, f, a);
 
 	return 0;
 }
@@ -161,8 +174,10 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	//cusp::multiply(mass, f, a);
-	bool success = mySolver->solve(*m_spmv, f, a);
+  //fixBodies();
+
+	cusp::multiply(mass, f, a);
+	//bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
 	cusp::blas::axpy(v, p, h);
 
@@ -178,4 +193,9 @@ int System::DoTimeStep() {
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
 	return 0;
+}
+
+int System::fixBodies() {
+
+  return 0;
 }

@@ -90,7 +90,7 @@ SET(IBEAMS_SOURCES
 	src/include.cuh
 	src/System.cuh
 	src/System.cu
-	src/Element.cuh
+	src/Body.cuh
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})

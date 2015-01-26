@@ -9,7 +9,7 @@
 #define SYSTEM_CUH_
 
 #include "include.cuh"
-#include "Element.cuh"
+#include "Body.cuh"
 
 #include <spike/solver.h>
 #include <spike/spmv.h>
@@ -45,6 +45,11 @@ private:
 
 class System {
 public:
+  // variables
+  int timeIndex;
+  double time; //current time
+  double h; //time step
+  double tol;
   double3 gravity;
 
 	// spike stuff
@@ -54,19 +59,11 @@ public:
 	spike::Options  solverOptions;
 	int preconditionerUpdateModulus;
 	float preconditionerMaxKrylovIterations;
-
 	vector<float> spikeSolveTime;
 	vector<float> spikeNumIter;
-
 	bool  precUpdated;
   float stepKrylovIterations;
 	// end spike stuff
-
-	// variables
-	int timeIndex;
-	double time; //current time
-	double h; //time step
-	double tol;
 
 	// cusp
 	DeviceValueArrayView p;
@@ -109,22 +106,23 @@ public:
 
 public:
 	System();
-	vector<Element> elements;
+	vector<Body*> bodies;
 
-	double getCurrentTime() const    {return time;}
-	double getTimeStep() const       {return h;}
-	double getTolerance() const      {return tol;}
-	int    getTimeIndex() const      {return timeIndex;}
-	void setTimeStep(double step_size, double precision = 1e-10);
-	void setNumPartitions(int num_partitions) {partitions = num_partitions;}
-	void setMaxKrylovIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
-	void setSolverType(int solverType);
-	void setPrecondType(int useSpike);
-	void printSolverParams();
-	int add(Element* element);
-	int DoTimeStep();
-	int initializeDevice();
-	int initializeSystem();
+	double  getCurrentTime() const    {return time;}
+	double  getTimeStep() const       {return h;}
+	double  getTolerance() const      {return tol;}
+	int     getTimeIndex() const      {return timeIndex;}
+	void    setTimeStep(double step_size, double precision = 1e-10);
+	void    setNumPartitions(int num_partitions) {partitions = num_partitions;}
+	void    setMaxKrylovIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
+	void    setSolverType(int solverType);
+	void    setPrecondType(int useSpike);
+	void    printSolverParams();
+	int     add(Body* body);
+	int     DoTimeStep();
+	int     initializeDevice();
+	int     initializeSystem();
+	int     fixBodies();
 };
 
 #endif /* SYSTEM_CUH_ */
