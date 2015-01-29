@@ -184,7 +184,7 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
-	collisionDetector->detectPossibleCollisions_nSquared();
+	//collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -195,13 +195,20 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
+	cout << "Generate AABBs!" << endl;
+	collisionDetector->generateAxisAlignedBoundingBoxes();
+	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
 
+  cout << "Apply contact forces!" << endl;
   applyContactForces();
   cusp::blas::axpy(f, f_contact, 1.0);
+
+  cout << "Fix bodies!" << endl;
   fixBodies();
 
-	cusp::multiply(mass, f_contact, a);
+  cout << "Integrate!" << endl;
+	cusp::multiply(mass, f, a);
 	//bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
 	cusp::blas::axpy(v, p, h);
@@ -223,8 +230,9 @@ int System::DoTimeStep() {
 int System::applyContactForces() {
   // TODO: Perform in parallel
   Thrust_Fill(f_contact_h,0);
+  /*
   for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
-    int2 pairs = collisionDetector->collisionPairs_h[i];
+    uint2 pairs = collisionDetector->collisionPairs_h[i];
     double3 normal = collisionDetector->normals_h[i];
     double penetration = collisionDetector->penetrations_h[i];
 
@@ -254,7 +262,7 @@ int System::applyContactForces() {
 
   }
   f_contact_d = f_contact_h;
-
+*/
   return 0;
 }
 

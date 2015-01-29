@@ -173,10 +173,38 @@ int main(int argc, char** argv)
   }
   double radius = 0.4;
 
-  Body* groundPtr = new Body(make_double3(numElementsPerSide*5,-radius,0));
+  // Bottom
+  Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(numElementsPerSide*5,radius,numElementsPerSide*5));
+  groundPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
   sys.add(groundPtr);
+
+  // Left
+  Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-2*radius,0.5*numElementsPerSide+radius,0));
+  leftPtr->setBodyFixed(true);
+  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+  sys.add(leftPtr);
+
+  // Right
+  Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+2*radius,0.5*numElementsPerSide+radius,0));
+  rightPtr->setBodyFixed(true);
+  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+  sys.add(rightPtr);
+
+  // Back
+  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,-0.5*numElementsPerSide-2*radius));
+  backPtr->setBodyFixed(true);
+  backPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
+  sys.add(backPtr);
+
+  // Front
+  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+2*radius));
+  frontPtr->setBodyFixed(true);
+  frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
+  sys.add(frontPtr);
+
+  Body* ball1 = new Body(make_double3(0,numElementsPerSide+5,0));
+  sys.add(ball1);
 
 	Body* bodyPtr;
 	int numBodies = 0;
