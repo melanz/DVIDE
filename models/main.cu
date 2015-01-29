@@ -9,7 +9,7 @@ bool wireFrame = 1;
 System sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(-10,10,-10),camreal3(0,0,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(0,0,-4),camreal3(0,0,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -63,7 +63,7 @@ void drawAll()
 			  double3 geometry = sys.bodies[i]->getGeometry();
 			  if(geometry.y) {
 			    glColor3f(0.0f,1.0f,0.0f);
-			    glScalef(geometry.x, geometry.y, geometry.z);
+			    glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
 			    glutWireCube(1.0);
 			  }
 			  else {
@@ -79,7 +79,7 @@ void drawAll()
         double3 geometry = sys.bodies[i]->getGeometry();
         if(geometry.y) {
           glColor3f(0.0f,1.0f,0.0f);
-          glScalef(geometry.x, geometry.y, geometry.z);
+          glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
           glutSolidCube(1.0);
         }
         else {
@@ -173,7 +173,7 @@ int main(int argc, char** argv)
   }
   double radius = 0.4;
 
-  Body* groundPtr = new Body(make_double3(0,0,0));
+  Body* groundPtr = new Body(make_double3(numElementsPerSide*5,-radius,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(numElementsPerSide*5,radius,numElementsPerSide*5));
   sys.add(groundPtr);

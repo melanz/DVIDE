@@ -8,6 +8,7 @@
 #include <helper_math.h>
 #else
 #include "helper_math.h"
+#include "helper_math_double.h"
 #endif
 #include <stdlib.h>
 #include <vector>

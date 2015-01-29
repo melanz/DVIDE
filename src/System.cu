@@ -23,6 +23,8 @@ System::System()
   stepKrylovIterations = 0;
   precUpdated = 0;
 	// end spike stuff
+
+  collisionDetector = new CollisionDetector(this);
 }
 
 void System::setSolverType(int solverType)
@@ -75,6 +77,7 @@ int System::add(Body* body) {
   // TODO: make this function general for any Body
 	//add the element
   body->setIndex(p_h.size()); // Indicates the Body's location in the position array
+  indices_h.push_back(p_h.size()); // Push Body's location to global library
   body->setIdentifier(bodies.size()); // Indicates the number that the Body was added
 	bodies.push_back(body);
 
@@ -105,6 +108,9 @@ int System::add(Body* body) {
     f_h.push_back(body->mass * this->gravity.z);
   }
 
+  f_contact_h.push_back(0);
+  f_contact_h.push_back(0);
+  f_contact_h.push_back(0);
 
 	// update the mass matrix
 	for (int i = 0; i < body->numDOF; i++) {
@@ -115,28 +121,36 @@ int System::add(Body* body) {
 	  //}
 	}
 
+	contactGeometry_h.push_back(body->contactGeometry);
+
 	return bodies.size();
 }
 
 int System::initializeDevice() {
+  indices_d = indices_h;
 	p_d = p_h;
 	v_d = v_h;
 	a_d = a_h;
 	f_d = f_h;
+	f_contact_d = f_contact_h;
 
 	massI_d = massI_h;
 	massJ_d = massJ_h;
 	mass_d = mass_h;
 
+	contactGeometry_d = contactGeometry_h;
+
 	thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
 	thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
 	thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
 	thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
+	thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
 
 	p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
 	v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
 	a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
 	f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
+	f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
 
 	// create mass matrix using cusp library (shouldn't change)
 	thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
@@ -156,6 +170,11 @@ int System::initializeDevice() {
 
 int System::initializeSystem() {
 
+  // update the contact geometry
+  for(int i=0; i<bodies.size(); i++) {
+    contactGeometry_h[i] = bodies[i]->contactGeometry;
+  }
+
 	initializeDevice();
 
 	// create and setup the Spike::GPU solver
@@ -164,6 +183,8 @@ int System::initializeSystem() {
 	mySolver->setup(mass);
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
+
+	collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -174,9 +195,13 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-  //fixBodies();
+  collisionDetector->detectCollisions();
 
-	cusp::multiply(mass, f, a);
+  applyContactForces();
+  cusp::blas::axpy(f, f_contact, 1.0);
+  fixBodies();
+
+	cusp::multiply(mass, f_contact, a);
 	//bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
 	cusp::blas::axpy(v, p, h);
@@ -185,7 +210,7 @@ int System::DoTimeStep() {
   timeIndex++;
   p_h = p_d;
 
-  printf("Time: %f\n",time);
+  printf("Time: %f, Collisions: %d\n",time,collisionDetector->collisionPairs_h.size());
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
@@ -193,6 +218,58 @@ int System::DoTimeStep() {
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
 	return 0;
+}
+
+int System::applyContactForces() {
+  // TODO: Perform in parallel
+  Thrust_Fill(f_contact_h,0);
+  for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
+    int2 pairs = collisionDetector->collisionPairs_h[i];
+    double3 normal = collisionDetector->normals_h[i];
+    double penetration = collisionDetector->penetrations_h[i];
+
+    double sigmaA = (1.0-0.25)/2.0e7;
+    double sigmaB = sigmaA;
+    double rA = 0.4;
+    double rB = 0.4;
+    double3 contactForce = 4.0/(3.0*(sigmaA+sigmaB))*sqrt(rA*rB/(rA+rB))*pow(penetration,1.5)*normal;
+
+    // Add damping
+    v_h = v_d;
+    double3 v = make_double3(v_h[indices_h[pairs.y]]-v_h[indices_h[pairs.x]],v_h[indices_h[pairs.y]+1]-v_h[indices_h[pairs.x]+1],v_h[indices_h[pairs.y]+2]-v_h[indices_h[pairs.x]+2]);
+    double b = 250;
+    double3 damping;
+    damping.x = b * normal.x * normal.x * v.x + b * normal.x * normal.y * v.y + b * normal.x * normal.z * v.z;
+    damping.y = b * normal.x * normal.y * v.x + b * normal.y * normal.y * v.y + b * normal.y * normal.z * v.z;
+    damping.z = b * normal.x * normal.z * v.x + b * normal.y * normal.z * v.y + b * normal.z * normal.z * v.z;
+    contactForce -= damping;
+
+    f_contact_h[indices_h[pairs.x]]   -= contactForce.x;
+    f_contact_h[indices_h[pairs.x]+1] -= contactForce.y;
+    f_contact_h[indices_h[pairs.x]+2] -= contactForce.z;
+
+    f_contact_h[indices_h[pairs.y]]   += contactForce.x;
+    f_contact_h[indices_h[pairs.y]+1] += contactForce.y;
+    f_contact_h[indices_h[pairs.y]+2] += contactForce.z;
+
+  }
+  f_contact_d = f_contact_h;
+
+  return 0;
+}
+
+int System::fixBodies() {
+  f_contact_h = f_contact_d;
+  for(int i=0; i<bodies.size(); i++) {
+    if(bodies[i]->isFixed()) {
+      f_contact_h[indices_h[i]]   = 0;
+      f_contact_h[indices_h[i]+1] = 0;
+      f_contact_h[indices_h[i]+2] = 0;
+    }
+  }
+  f_contact_d = f_contact_h;
+
+  return 0;
 }
 
 

@@ -10,6 +10,7 @@
 
 #include "include.cuh"
 #include "Body.cuh"
+#include "CollisionDetector.cuh"
 
 #include <spike/solver.h>
 #include <spike/spmv.h>
@@ -43,6 +44,7 @@ private:
 	DeviceView&      A;
 };
 
+class CollisionDetector;
 class System {
 public:
   // variables
@@ -70,6 +72,7 @@ public:
 	DeviceValueArrayView v;
 	DeviceValueArrayView a;
 	DeviceValueArrayView f;
+  DeviceValueArrayView f_contact;
 	DeviceView mass;
 
 	// host vectors
@@ -77,6 +80,7 @@ public:
 	thrust::host_vector<double> v_h;
 	thrust::host_vector<double> a_h;
 	thrust::host_vector<double> f_h;
+  thrust::host_vector<double> f_contact_h;
 
 	thrust::host_vector<int> massI_h;
 	thrust::host_vector<int> massJ_h;
@@ -87,6 +91,7 @@ public:
 	thrust::device_vector<double> v_d;
 	thrust::device_vector<double> a_d;
 	thrust::device_vector<double> f_d;
+  thrust::device_vector<double> f_contact_d;
 
 	thrust::device_vector<int> massI_d;
 	thrust::device_vector<int> massJ_d;
@@ -103,6 +108,16 @@ public:
 //
 //	dim3 dimBlockCollision;
 //	dim3 dimGridCollision;
+
+	// library of indices for bodies
+  thrust::host_vector<int> indices_h;
+  thrust::device_vector<int> indices_d;
+
+  // library of contact geometry
+  thrust::host_vector<double3> contactGeometry_h;
+  thrust::device_vector<double3> contactGeometry_d;
+
+  CollisionDetector* collisionDetector;
 
 public:
 	System();
@@ -122,6 +137,8 @@ public:
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();
+	int     applyContactForces();
+	int     fixBodies();
 };
 
 #endif /* SYSTEM_CUH_ */

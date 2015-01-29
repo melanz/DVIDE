@@ -24,7 +24,7 @@ private:
 	double mass;
 
 	bool fixed;
-	double3 geometry;
+	double3 contactGeometry;
 
 public:
 	Body() {
@@ -40,7 +40,7 @@ public:
 		mass = 1.0;
 
 		fixed = false;
-		geometry = make_double3(1.0,0,0);
+		contactGeometry = make_double3(1.0,0,0);
 	}
 
   Body(double3 position) {
@@ -56,7 +56,7 @@ public:
     mass = 1.0;
 
     fixed = false;
-    geometry = make_double3(1.0,0,0);
+    contactGeometry = make_double3(1.0,0,0);
   }
 
   bool isFixed()
@@ -98,11 +98,11 @@ public:
   }
   double3 getGeometry()
   {
-    return geometry;
+    return contactGeometry;
   }
   void setGeometry(double3 geometry)
   {
-    this->geometry = geometry;
+    this->contactGeometry = geometry;
   }
 };
 
