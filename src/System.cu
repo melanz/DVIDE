@@ -18,8 +18,8 @@ System::System()
 	solverOptions.maxNumIterations = 5000;
 	preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
 	preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
-	mySolver = new SpikeSolver(partitions, solverOptions);
-	m_spmv = new MySpmv(mass);
+	//mySolver = new SpikeSolver(partitions, solverOptions);
+	//m_spmv = new MySpmv(mass);
   stepKrylovIterations = 0;
   precUpdated = 0;
 	// end spike stuff
@@ -177,10 +177,13 @@ int System::initializeSystem() {
 
 	initializeDevice();
 
+	collisionDetector->generateAxisAlignedBoundingBoxes();
+	collisionDetector->detectPossibleCollisions_spatialSubdivision();
+
 	// create and setup the Spike::GPU solver
-	m_spmv = new MySpmv(mass);
-	mySolver = new SpikeSolver(partitions, solverOptions);
-	mySolver->setup(mass);
+	//m_spmv = new MySpmv(mass);
+	//mySolver = new SpikeSolver(partitions, solverOptions);
+	//mySolver->setup(mass);
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
@@ -195,20 +198,20 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	cout << "Generate AABBs!" << endl;
+	//cout << "Generate AABBs!" << endl;
 	collisionDetector->generateAxisAlignedBoundingBoxes();
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  collisionDetector->detectCollisions();
+  //collisionDetector->detectCollisions();
 
-  cout << "Apply contact forces!" << endl;
+  //cout << "Apply contact forces!" << endl;
   applyContactForces();
   cusp::blas::axpy(f, f_contact, 1.0);
 
-  cout << "Fix bodies!" << endl;
+  //cout << "Fix bodies!" << endl;
   fixBodies();
 
-  cout << "Integrate!" << endl;
-	cusp::multiply(mass, f, a);
+  //cout << "Integrate!" << endl;
+	cusp::multiply(mass, f_contact, a);
 	//bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
 	cusp::blas::axpy(v, p, h);
@@ -218,6 +221,7 @@ int System::DoTimeStep() {
   p_h = p_d;
 
   printf("Time: %f, Collisions: %d\n",time,collisionDetector->collisionPairs_h.size());
+  //cin.get();
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
@@ -230,7 +234,7 @@ int System::DoTimeStep() {
 int System::applyContactForces() {
   // TODO: Perform in parallel
   Thrust_Fill(f_contact_h,0);
-  /*
+
   for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
     uint2 pairs = collisionDetector->collisionPairs_h[i];
     double3 normal = collisionDetector->normals_h[i];
@@ -262,7 +266,7 @@ int System::applyContactForces() {
 
   }
   f_contact_d = f_contact_h;
-*/
+
   return 0;
 }
 

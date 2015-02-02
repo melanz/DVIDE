@@ -44,13 +44,13 @@ struct AABB_transformation: public thrust::unary_function<double3, AABB> {
   }
 };
 
-struct subtractFunctor
-{
-  __host__ __device__
-  double3 operator()(const double3& a, const double3& b) const {
-    return make_double3(a.x-b.x,a.y-b.y,a.z-b.z);
-  }
-};
+//struct subtractFunctor
+//{
+//  __host__ __device__
+//  double3 operator()(const double3& a, const double3& b) const {
+//    return make_double3(a.x-b.x,a.y-b.y,a.z-b.z);
+//  }
+//};
 
 class System;
 class CollisionDetector {
@@ -82,7 +82,7 @@ private:
   thrust::device_vector<uint> aabbIdentifier_d;
   thrust::device_vector<uint> binStartIndex_d;
   uint lastActiveBin;
-  thrust::device_vector<uint> Num_ContactD;
+  thrust::device_vector<uint> numAabbCollisionsPerBin_d;
   uint numPossibleCollisions;
   thrust::device_vector<long long> potentialCollisions_d;
   // End spatial subdivision data
@@ -93,6 +93,7 @@ public:
 	int detectPossibleCollisions_spatialSubdivision();
 	int detectCollisions();
   int generateAxisAlignedBoundingBoxes();
+  void setBinsPerAxis(uint3 binsPerAxis);
 };
 
 #endif /* COLLISIONDETECTOR_CUH_ */
