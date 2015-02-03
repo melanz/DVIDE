@@ -175,10 +175,6 @@ int System::initializeSystem() {
     contactGeometry_h[i] = bodies[i]->contactGeometry;
   }
 	initializeDevice();
-	//collisionDetector->generateAxisAlignedBoundingBoxes_host();
-
-	//collisionDetector->generateAxisAlignedBoundingBoxes();
-	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
 
 	// create and setup the Spike::GPU solver
 	//m_spmv = new MySpmv(mass);
@@ -186,8 +182,6 @@ int System::initializeSystem() {
 	//mySolver->setup(mass);
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
-
-	//collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -198,19 +192,15 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	//cout << "Generate AABBs!" << endl;
 	collisionDetector->generateAxisAlignedBoundingBoxes();
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
 
-  //cout << "Apply contact forces!" << endl;
   applyContactForces();
   cusp::blas::axpy(f, f_contact, 1.0);
 
-  //cout << "Fix bodies!" << endl;
   fixBodies();
 
-  //cout << "Integrate!" << endl;
 	cusp::multiply(mass, f_contact, a);
 	//bool success = mySolver->solve(*m_spmv, f, a);
 	cusp::blas::axpy(a, v, h);
@@ -221,7 +211,6 @@ int System::DoTimeStep() {
   p_h = p_d;
 
   printf("Time: %f, Collisions: %d\n",time,collisionDetector->collisionPairs_h.size());
-  //cin.get();
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);

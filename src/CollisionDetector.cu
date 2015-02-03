@@ -168,40 +168,6 @@ int CollisionDetector::generateAxisAlignedBoundingBoxes()
   return 0;
 }
 
-int CollisionDetector::generateAxisAlignedBoundingBoxes_host()
-{
-  aabbData_h.clear();
-  system->p_h = system->p_d;
-  system->contactGeometry_h = system->contactGeometry_d;
-  for(int index=0;index<system->bodies.size();index++) {
-    double3 pos = make_double3(system->p_h[system->indices_h[index]],system->p_h[system->indices_h[index]+1],system->p_h[system->indices_h[index]+2]);
-    double3 geometry = system->contactGeometry_h[index];
-    if(geometry.y == 0) {
-      // sphere case
-      geometry = make_double3(geometry.x,geometry.x,geometry.x);
-    }
-    pos-=geometry;
-    //printf("AABB %d: %f, %f, %f\n",index,pos.x,pos.y,pos.z);
-    aabbData_h.push_back(pos);// = pos-geometry;
-    //aabbData_h[index + numAABB] = pos+geometry;
-  }
-
-  for(int index=0;index<system->bodies.size();index++) {
-    double3 pos = make_double3(system->p_h[system->indices_h[index]],system->p_h[system->indices_h[index]+1],system->p_h[system->indices_h[index]+2]);
-    double3 geometry = system->contactGeometry_h[index];
-    if(geometry.y == 0) {
-      // sphere case
-      geometry = make_double3(geometry.x,geometry.x,geometry.x);
-    }
-    pos+=geometry;
-    aabbData_h.push_back(pos);
-    //printf("AABB %d: %f, %f, %f\n",index,pos.x,pos.y,pos.z);
-  }
-  aabbData_d = aabbData_h;
-
-  return 0;
-}
-
 __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possibleCollisionPairs, uint numPossibleCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
@@ -211,20 +177,9 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
 
 int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 {
-  double startTime = omp_get_wtime();
-  bool verbose = false;
-
   // Step 1: Initialize
-
-
   numAABB = aabbData_d.size()*0.5;
   possibleCollisionPairs_d.clear();
-
-//  aabbData_h = aabbData_d;
-//  for(int i=0; i<aabbData_d.size(); i++) {
-//    printf("  aabbData_d[%d] = (%f, %f, %f)\n",i,aabbData_h[i].x,aabbData_h[i].y,aabbData_h[i].z);
-//  }
-
   // End Step 1
 
   // Step 2: Determine the bounds on the total space and subdivide based on the bins per axis
@@ -244,85 +199,36 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
   thrust::transform(aabbData_d.begin(), aabbData_d.end(), thrust::constant_iterator<double3>(globalOrigin), aabbData_d.begin(), thrust::minus<double3>());
   // End Step 2
 
-  if(verbose) cout << "Minimum bounding point (Global Origin): (" << globalOrigin.x << ", " << globalOrigin.y << ", " << globalOrigin.z << ")"<< endl;
-  if(verbose) cout << "Maximum bounding point: (" << maxBoundingPoint.x << ", " << maxBoundingPoint.y << ", " << maxBoundingPoint.z << ")"<< endl;
-  if(verbose) cout << "Bin size vector: (" << 1.0/binSizeInverse.x << ", " << 1.0/binSizeInverse.y << ", " << 1.0/binSizeInverse.z << ")"<< endl;
-
   // Step 3: Count the number of AABB's that lie in each bin, allocate space for each AABB
   numBinsIntersected_d.resize(numAABB);
 
   // need to figure out how many bins each AABB intersects
   countAabbBinIntersections<<<BLOCKS(numAABB),THREADS>>>(CASTD3(aabbData_d), CASTU1(numBinsIntersected_d), binSizeInverse, numAABB);
 
-//  aabbData_h = aabbData_d;
-//  for(int i=0; i<aabbData_d.size(); i++) {
-//    printf("  aabbData_d[%d] = (%f, %f, %f)\n",i,aabbData_h[i].x,aabbData_h[i].y,aabbData_h[i].z);
-//  }
-//
-//  for(int i=0; i<numAABB; i++) {
-//    printf("  numBinsIntersected_d[%d] = %d\n",i,(int)numBinsIntersected_d[i]);
-//  }
-
   // need to use an inclusive scan to figure out where each thread should start entering the bin that each AABB is in (also counts total bin intersections)
   Thrust_Inclusive_Scan_Sum(numBinsIntersected_d, totalBinIntersections);
-
-//  for(int i=0; i<numAABB; i++) {
-//    printf("  numBinsIntersected_d[%d] = %d\n",i,(int)numBinsIntersected_d[i]);
-//  }
 
   binIdentifier_d.resize(totalBinIntersections);
   aabbIdentifier_d.resize(totalBinIntersections);
   binStartIndex_d.resize(totalBinIntersections);
   // End Step 3
 
-  if(verbose) cout << "Number of bin intersections: " << totalBinIntersections << endl;
-
   // Step 4: Indicate what bin each AABB belongs to, then sort based on bin number
   storeAabbBinIntersections<<<BLOCKS(numAABB),THREADS>>>(CASTD3(aabbData_d), CASTU1(numBinsIntersected_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), binSizeInverse, binsPerAxis, numAABB);
-
-//  for(int i=0; i<binIdentifier_d.size(); i++) {
-//    printf("  binIdentifier_d[%d] = %d\n",i,(int)binIdentifier_d[i]);
-//  }
-//
-//  for(int i=0; i<aabbIdentifier_d.size(); i++) {
-//    printf("  aabbIdentifier_d[%d] = %d\n",i,(int)aabbIdentifier_d[i]);
-//  }
 
   // After figuring out which bin each AABB belongs to, sort the AABB's based on bin number
   Thrust_Sort_By_Key(binIdentifier_d, aabbIdentifier_d);
 
-//  for(int i=0; i<binIdentifier_d.size(); i++) {
-//    printf("  bin# %d has AABB # %d\n",(int)binIdentifier_d[i],(int)aabbIdentifier_d[i]);
-//  }
-
   // Next, count the number of AABB's that each bin has (this destroys the information in binIdentifier and puts it into aabbIdentifier)
   Thrust_Reduce_By_KeyA(lastActiveBin, binIdentifier_d, binStartIndex_d);
 
-//  for(int i=0; i<binIdentifier_d.size(); i++) {
-//    printf("  binIdentifier_d[%d] = %d\n",i,(int)binIdentifier_d[i]);
-//  }
-//
-//  for(int i=0; i<aabbIdentifier_d.size(); i++) {
-//    printf("  aabbIdentifier_d[%d] = %d\n",i,(int)aabbIdentifier_d[i]);
-//  }
-
   binStartIndex_d.resize(lastActiveBin);
-
-//  for(int i=0; i<binStartIndex_d.size(); i++) {
-//    printf("  binStartIndex_d[%d] = %d\n",i,(int)binStartIndex_d[i]);
-//  }
 
   // reduce the # of AABB's per bin to create a library so a thread knows where each bin starts and ends
   Thrust_Inclusive_Scan(binStartIndex_d);
 
-//  for(int i=0; i<binStartIndex_d.size(); i++) {
-//    printf("  binStartIndex_d[%d] = %d\n",i,(int)binStartIndex_d[i]);
-//  }
-
   numAabbCollisionsPerBin_d.resize(lastActiveBin);
   // End Step 4
-
-  if(verbose) cout << "Last active bin: " << lastActiveBin << endl;
 
   // Step 5: Count the number of AABB collisions
   // At this point, binIdentifier has the bin number for each thread, binStartIndex tells the thread where to start and stop, and aabbIdentifier has the AABB that is in the bin
@@ -332,146 +238,133 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
   potentialCollisions_d.resize(numPossibleCollisions);
   // End Step 5
 
-  if(verbose) cout << "Number of possible collisions: " << numPossibleCollisions << endl;
-
   // Step 6: Store the possible AABB collision pairs
   storeAabbAabbIntersections<<<BLOCKS(lastActiveBin),THREADS>>>(CASTD3(aabbData_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), CASTU1(binStartIndex_d), CASTU1(numAabbCollisionsPerBin_d), CASTLL(potentialCollisions_d), lastActiveBin, numAABB);
   thrust::sort(potentialCollisions_d.begin(), potentialCollisions_d.end());
   numPossibleCollisions = thrust::unique(potentialCollisions_d.begin(), potentialCollisions_d.end()) - potentialCollisions_d.begin();
   // End Step 6
 
-  if(verbose) cout << "Number of possible collisions: " << numPossibleCollisions << endl;
-
   // Step 7: Convert long long potentialCollisions_d to int2 possibleCollisionPairs_d
   possibleCollisionPairs_d.resize(numPossibleCollisions);
   convertLongsToInts<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTLL(potentialCollisions_d), CASTU2(possibleCollisionPairs_d), numPossibleCollisions);
   // End Step 7
-
-  double endTime = omp_get_wtime();
-  if(verbose) printf("Time to detect: %lf seconds\n", (endTime - startTime));
 
   return 0;
 }
 
 int CollisionDetector::detectCollisions()
 {
-  //if(numPossibleCollisions) {
-    bool verbose = false;
-    //TODO: Perform in parallel
-    //if(verbose) cout << "Number of possible collisions: " << numPossibleCollisions << endl;
-    possibleCollisionPairs_h = possibleCollisionPairs_d; // need to do this in case we use spatial subdivision
-    //if(verbose) cout << "Number of possible collisions: " << numPossibleCollisions << endl;
+  //TODO: Perform in parallel
+  possibleCollisionPairs_h = possibleCollisionPairs_d; // need to do this in case we use spatial subdivision
+  collisionPairs_h.clear();
+  normals_h.clear();
+  penetrations_h.clear();
 
-    collisionPairs_h.clear();
-    normals_h.clear();
-    penetrations_h.clear();
+  for(int i=0; i<numPossibleCollisions; i++) {
+    int bodyA = possibleCollisionPairs_h[i].x;
+    int bodyB = possibleCollisionPairs_h[i].y;
 
-    for(int i=0; i<numPossibleCollisions; i++) {
-      int bodyA = possibleCollisionPairs_h[i].x;
-      int bodyB = possibleCollisionPairs_h[i].y;
+    // Both spheres
+    if(system->contactGeometry_h[bodyA].y == 0 && system->contactGeometry_h[bodyB].y == 0) {
+      double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
+      double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
+      double3 normal = normalize(posB-posA); // from A to B!
+      double penetration = (system->contactGeometry_h[bodyA].x+system->contactGeometry_h[bodyB].x) - length(posB-posA);
+      if(penetration>0) {
+        collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+        normals_h.push_back(normal);
+        penetrations_h.push_back(penetration);
+      }
+    }
 
-      // Both spheres
-      if(system->contactGeometry_h[bodyA].y == 0 && system->contactGeometry_h[bodyB].y == 0) {
-        double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
-        double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
-        double3 normal = normalize(posB-posA); // from A to B!
-        double penetration = (system->contactGeometry_h[bodyA].x+system->contactGeometry_h[bodyB].x) - length(posB-posA);
+    // A = Sphere, B = Box
+    else if(system->contactGeometry_h[bodyA].y == 0 && system->contactGeometry_h[bodyB].y != 0) {
+      double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
+      double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
+
+      // check x-face
+      if((posA.y>=(posB.y-system->contactGeometry_h[bodyB].y) && posA.y<=(posB.y+system->contactGeometry_h[bodyB].y)) && (posA.z>=(posB.z-system->contactGeometry_h[bodyB].z) && posA.z<=(posB.z+system->contactGeometry_h[bodyB].z)))
+      {
+        double3 normal = make_double3(posB.x-posA.x,0,0);
+        double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].x) - fabs(posB.x-posA.x);
         if(penetration>0) {
           collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-          normals_h.push_back(normal);
+          normals_h.push_back(normalize(normal));
           penetrations_h.push_back(penetration);
         }
       }
 
-      // A = Sphere, B = Box
-      else if(system->contactGeometry_h[bodyA].y == 0 && system->contactGeometry_h[bodyB].y != 0) {
-        double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
-        double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
-
-        // check x-face
-        if((posA.y>=(posB.y-system->contactGeometry_h[bodyB].y) && posA.y<=(posB.y+system->contactGeometry_h[bodyB].y)) && (posA.z>=(posB.z-system->contactGeometry_h[bodyB].z) && posA.z<=(posB.z+system->contactGeometry_h[bodyB].z)))
-        {
-          double3 normal = make_double3(posB.x-posA.x,0,0);
-          double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].x) - fabs(posB.x-posA.x);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
+      // check y
+      else if((posA.x>=(posB.x-system->contactGeometry_h[bodyB].x) && posA.x<=(posB.x+system->contactGeometry_h[bodyB].x)) && (posA.z>=(posB.z-system->contactGeometry_h[bodyB].z) && posA.z<=(posB.z+system->contactGeometry_h[bodyB].z)))
+      {
+        double3 normal = make_double3(0,posB.y-posA.y,0);
+        double penetration = (system->contactGeometry_h[bodyB].y + system->contactGeometry_h[bodyA].x) - fabs(posB.y-posA.y);
+        if(penetration>0) {
+          collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+          normals_h.push_back(normalize(normal));
+          penetrations_h.push_back(penetration);
         }
-
-        // check y
-        else if((posA.x>=(posB.x-system->contactGeometry_h[bodyB].x) && posA.x<=(posB.x+system->contactGeometry_h[bodyB].x)) && (posA.z>=(posB.z-system->contactGeometry_h[bodyB].z) && posA.z<=(posB.z+system->contactGeometry_h[bodyB].z)))
-        {
-          double3 normal = make_double3(0,posB.y-posA.y,0);
-          double penetration = (system->contactGeometry_h[bodyB].y + system->contactGeometry_h[bodyA].x) - fabs(posB.y-posA.y);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
-        }
-
-        // check z
-        else if((posA.x>=(posB.x-system->contactGeometry_h[bodyB].x) && posA.x<=(posB.x+system->contactGeometry_h[bodyB].x)) && (posA.y>=(posB.y-system->contactGeometry_h[bodyB].y) && posA.y<=(posB.y+system->contactGeometry_h[bodyB].y)))
-        {
-          double3 normal = make_double3(0,0,posB.z-posA.z);
-          double penetration = (system->contactGeometry_h[bodyB].z + system->contactGeometry_h[bodyA].x) - fabs(posB.z-posA.z);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
-        }
-
       }
 
-      // A = Box, B = Sphere
-      else if(system->contactGeometry_h[bodyA].y != 0 && system->contactGeometry_h[bodyB].y == 0) {
-        double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
-        double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
-
-        // check x-face
-        if((posB.y>=(posA.y-system->contactGeometry_h[bodyA].y) && posB.y<=(posA.y+system->contactGeometry_h[bodyA].y)) && (posB.z>=(posA.z-system->contactGeometry_h[bodyA].z) && posB.z<=(posA.z+system->contactGeometry_h[bodyA].z)))
-        {
-          double3 normal = make_double3(posB.x-posA.x,0,0);
-          double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].x) - fabs(posB.x-posA.x);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
+      // check z
+      else if((posA.x>=(posB.x-system->contactGeometry_h[bodyB].x) && posA.x<=(posB.x+system->contactGeometry_h[bodyB].x)) && (posA.y>=(posB.y-system->contactGeometry_h[bodyB].y) && posA.y<=(posB.y+system->contactGeometry_h[bodyB].y)))
+      {
+        double3 normal = make_double3(0,0,posB.z-posA.z);
+        double penetration = (system->contactGeometry_h[bodyB].z + system->contactGeometry_h[bodyA].x) - fabs(posB.z-posA.z);
+        if(penetration>0) {
+          collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+          normals_h.push_back(normalize(normal));
+          penetrations_h.push_back(penetration);
         }
+      }
 
-        // check y
-        else if((posB.x>=(posA.x-system->contactGeometry_h[bodyA].x) && posB.x<=(posA.x+system->contactGeometry_h[bodyA].x)) && (posB.z>=(posA.z-system->contactGeometry_h[bodyA].z) && posB.z<=(posA.z+system->contactGeometry_h[bodyA].z)))
-        {
-          double3 normal = make_double3(0,posB.y-posA.y,0);
-          double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].y) - fabs(posB.y-posA.y);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
+    }
+
+    // A = Box, B = Sphere
+    else if(system->contactGeometry_h[bodyA].y != 0 && system->contactGeometry_h[bodyB].y == 0) {
+      double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
+      double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
+
+      // check x-face
+      if((posB.y>=(posA.y-system->contactGeometry_h[bodyA].y) && posB.y<=(posA.y+system->contactGeometry_h[bodyA].y)) && (posB.z>=(posA.z-system->contactGeometry_h[bodyA].z) && posB.z<=(posA.z+system->contactGeometry_h[bodyA].z)))
+      {
+        double3 normal = make_double3(posB.x-posA.x,0,0);
+        double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].x) - fabs(posB.x-posA.x);
+        if(penetration>0) {
+          collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+          normals_h.push_back(normalize(normal));
+          penetrations_h.push_back(penetration);
         }
+      }
 
-        // check z
-        else if((posB.x>=(posA.x-system->contactGeometry_h[bodyA].x) && posB.x<=(posA.x+system->contactGeometry_h[bodyA].x)) && (posB.y>=(posA.y-system->contactGeometry_h[bodyA].y) && posB.y<=(posA.y+system->contactGeometry_h[bodyA].y)))
-        {
-          double3 normal = make_double3(0,0,posB.z-posA.z);
-          double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].z) - fabs(posB.z-posA.z);
-          if(penetration>0) {
-            collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
-            normals_h.push_back(normalize(normal));
-            penetrations_h.push_back(penetration);
-          }
+      // check y
+      else if((posB.x>=(posA.x-system->contactGeometry_h[bodyA].x) && posB.x<=(posA.x+system->contactGeometry_h[bodyA].x)) && (posB.z>=(posA.z-system->contactGeometry_h[bodyA].z) && posB.z<=(posA.z+system->contactGeometry_h[bodyA].z)))
+      {
+        double3 normal = make_double3(0,posB.y-posA.y,0);
+        double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].y) - fabs(posB.y-posA.y);
+        if(penetration>0) {
+          collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+          normals_h.push_back(normalize(normal));
+          penetrations_h.push_back(penetration);
+        }
+      }
+
+      // check z
+      else if((posB.x>=(posA.x-system->contactGeometry_h[bodyA].x) && posB.x<=(posA.x+system->contactGeometry_h[bodyA].x)) && (posB.y>=(posA.y-system->contactGeometry_h[bodyA].y) && posB.y<=(posA.y+system->contactGeometry_h[bodyA].y)))
+      {
+        double3 normal = make_double3(0,0,posB.z-posA.z);
+        double penetration = (system->contactGeometry_h[bodyB].x + system->contactGeometry_h[bodyA].z) - fabs(posB.z-posA.z);
+        if(penetration>0) {
+          collisionPairs_h.push_back(make_uint2(bodyA,bodyB));
+          normals_h.push_back(normalize(normal));
+          penetrations_h.push_back(penetration);
         }
       }
     }
-    collisionPairs_d = collisionPairs_h;
-    normals_d = normals_h;
-    penetrations_d = penetrations_h;
-  //}
+  }
+  collisionPairs_d = collisionPairs_h;
+  normals_d = normals_h;
+  penetrations_d = penetrations_h;
 
   return 0;
 }
