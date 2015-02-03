@@ -162,10 +162,14 @@ __global__ void generateAabbData(double3* aabbData, int* indices, double* positi
 
 int CollisionDetector::generateAxisAlignedBoundingBoxes()
 {
-  //aabbData_d.resize(2*system->bodies.size());
-  //generateAabbData<<<BLOCKS(numAABB),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), system->bodies.size());
+  aabbData_d.resize(2*system->bodies.size());
+  generateAabbData<<<BLOCKS(system->bodies.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), system->bodies.size());
 
-  cout << "GENERATE AABB's!" << endl;
+  return 0;
+}
+
+int CollisionDetector::generateAxisAlignedBoundingBoxes_host()
+{
   aabbData_h.clear();
   system->p_h = system->p_d;
   system->contactGeometry_h = system->contactGeometry_d;
@@ -208,7 +212,7 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
 int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 {
   double startTime = omp_get_wtime();
-  bool verbose = true;
+  bool verbose = false;
 
   // Step 1: Initialize
 
@@ -345,7 +349,6 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 
   double endTime = omp_get_wtime();
   if(verbose) printf("Time to detect: %lf seconds\n", (endTime - startTime));
-  if(verbose) cin.get();
 
   return 0;
 }
@@ -353,7 +356,7 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 int CollisionDetector::detectCollisions()
 {
   //if(numPossibleCollisions) {
-    bool verbose = true;
+    bool verbose = false;
     //TODO: Perform in parallel
     //if(verbose) cout << "Number of possible collisions: " << numPossibleCollisions << endl;
     possibleCollisionPairs_h = possibleCollisionPairs_d; // need to do this in case we use spatial subdivision

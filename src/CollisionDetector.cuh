@@ -93,6 +93,7 @@ public:
 	int detectPossibleCollisions_spatialSubdivision();
 	int detectCollisions();
   int generateAxisAlignedBoundingBoxes();
+  int generateAxisAlignedBoundingBoxes_host();
   void setBinsPerAxis(uint3 binsPerAxis);
 };
 

@@ -174,11 +174,11 @@ int System::initializeSystem() {
   for(int i=0; i<bodies.size(); i++) {
     contactGeometry_h[i] = bodies[i]->contactGeometry;
   }
-
 	initializeDevice();
+	//collisionDetector->generateAxisAlignedBoundingBoxes_host();
 
-	collisionDetector->generateAxisAlignedBoundingBoxes();
-	collisionDetector->detectPossibleCollisions_spatialSubdivision();
+	//collisionDetector->generateAxisAlignedBoundingBoxes();
+	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
 
 	// create and setup the Spike::GPU solver
 	//m_spmv = new MySpmv(mass);
@@ -201,7 +201,7 @@ int System::DoTimeStep() {
 	//cout << "Generate AABBs!" << endl;
 	collisionDetector->generateAxisAlignedBoundingBoxes();
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  //collisionDetector->detectCollisions();
+  collisionDetector->detectCollisions();
 
   //cout << "Apply contact forces!" << endl;
   applyContactForces();

@@ -156,7 +156,6 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
 
   sys.setTimeStep(1e-3, 1e-10);
   sys.setMaxKrylovIterations(5000);
@@ -174,7 +173,7 @@ int main(int argc, char** argv)
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
   double radius = 0.4;
-/*
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -207,7 +206,7 @@ int main(int argc, char** argv)
 
   Body* ball1 = new Body(make_double3(0,numElementsPerSide+5,0));
   sys.add(ball1);
-*/
+
 	Body* bodyPtr;
 	int numBodies = 0;
 	// Add elements in x-direction
@@ -218,7 +217,7 @@ int main(int argc, char** argv)
         bodyPtr->setGeometry(make_double3(radius,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
-        numBodies = sys.add(bodyPtr);
+        //numBodies = sys.add(bodyPtr);
 
         if(numBodies%100==0) printf("Bodies %d\n",numBodies);
 	    }
