@@ -127,6 +127,7 @@ CollisionDetector::CollisionDetector(System* sys)
   lastActiveBin = 0;
   possibleCollisionPairs_d.clear();
   collisionPairs_d.clear();
+  numCollisions = 0;
 
   cudaFuncSetCacheConfig(countAabbBinIntersections, cudaFuncCachePreferL1);
   cudaFuncSetCacheConfig(storeAabbBinIntersections, cudaFuncCachePreferL1);
@@ -252,7 +253,205 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
   return 0;
 }
 
+__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, uint numPossibleCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
+
+  int numCollisions = 0;
+
+  int bodyA = possibleCollisionPairs[index].x;
+  int bodyB = possibleCollisionPairs[index].y;
+
+  double3 posA = make_double3(p[indices[bodyA]],p[indices[bodyA]+1],p[indices[bodyA]+2]);
+  double3 posB = make_double3(p[indices[bodyB]],p[indices[bodyB]+1],p[indices[bodyB]+2]);
+
+  double3 geometryA = geometries[bodyA];
+  double3 geometryB = geometries[bodyB];
+
+  if(geometryA.y == 0 && geometryB.y == 0) {
+    // sphere-sphere case
+    double penetration = (geometryA.x+geometryB.x) - length(posB-posA);
+    if(penetration>0) {
+      numCollisions++;
+    }
+  }
+  else if(geometryA.y != 0 && geometryB.y == 0) {
+    // box-sphere case
+    numCollisions++;
+  }
+  else if(geometryA.y == 0 && geometryB.y != 0) {
+    // sphere-box case
+    numCollisions++;
+  }
+  else {
+    // miscellaneous
+  }
+  numCollisionsPerPair[index] = numCollisions;
+}
+
+__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* normalsAndPenetrations, uint* bodyIdentifiers, uint numPossibleCollisions, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
+
+  uint startIndex = (index == 0) ? 0 : numCollisionsPerPair[index - 1];
+  uint endIndex = numCollisionsPerPair[index];
+
+  printf("Thread %d checks possible collisions pairs %d-%d\n",index,startIndex,endIndex);
+
+  int count = 0;
+  for (int i = startIndex; i < endIndex; i++) {
+    int bodyA = possibleCollisionPairs[index+count].x;
+    int bodyB = possibleCollisionPairs[index+count].y;
+
+    double3 posA = make_double3(p[indices[bodyA]],p[indices[bodyA]+1],p[indices[bodyA]+2]);
+    double3 posB = make_double3(p[indices[bodyB]],p[indices[bodyB]+1],p[indices[bodyB]+2]);
+
+    double3 geometryA = geometries[bodyA];
+    double3 geometryB = geometries[bodyB];
+
+    printf("Thread %d: Body %d (%f, %f, %f) and %d (%f, %f, %f)\n  (%f, %f, %f)\n  (%f, %f, %f)\n",index,bodyA,posA.x,posA.y,posA.z,bodyB,posB.x,posB.y,posB.z,geometryA.x,geometryA.y,geometryA.z,geometryB.x,geometryB.y,geometryB.z);
+
+    double3 normal;
+    normal.x = 1;
+    normal.y = 0;
+    normal.z = 0;
+    double penetration = 0;
+
+    if(geometryA.y == 0 && geometryB.y == 0) {
+      // sphere-sphere case
+      penetration = (geometryA.x+geometryB.x) - length(posB-posA);
+      normal = normalize(posB-posA); // from A to B!
+
+      printf("Thread %d: Body %d and %d (%f, %f, %f) %f\n",index,bodyA,bodyB,normal.x,normal.y,normal.z,penetration);
+
+    }
+
+    else if(geometryA.y != 0 && geometryB.y == 0) {
+      // box-sphere case
+      // check x-face
+      if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+      {
+        normal = make_double3(posB.x-posA.x,0,0);
+        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      }
+
+      // check y
+      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+      {
+        normal = make_double3(0,posB.y-posA.y,0);
+        penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
+      }
+
+      // check z
+      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
+      {
+        normal = make_double3(0,0,posB.z-posA.z);
+        penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
+      }
+    }
+
+    else if(geometryA.y == 0 && geometryB.y != 0) {
+      // sphere-box case
+      // check x-face
+      if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+      {
+        normal = make_double3(posB.x-posA.x,0,0);
+        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      }
+
+      // check y
+      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+      {
+        normal = make_double3(0,posB.y-posA.y,0);
+        penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
+      }
+
+      // check z
+      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
+      {
+        normal = make_double3(0,0,posB.z-posA.z);
+        penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
+      }
+    }
+
+    bodyIdentifiers[i] = bodyA;
+    normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,penetration); // from B to A!
+
+    bodyIdentifiers[i+numCollisions] = bodyB;
+    normalsAndPenetrations[i+numCollisions] = make_double4(normal.x,normal.y,normal.z,penetration); // from A to B!
+
+    count++;
+  }
+}
+
 int CollisionDetector::detectCollisions()
+{
+  // Step 1: Detect how many collisions actually occur between each pair
+  numCollisionsPerPair_d.resize(numPossibleCollisions);
+  countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), numPossibleCollisions);
+  // End Step 1
+
+  possibleCollisionPairs_h = possibleCollisionPairs_d;
+  for(int i=0;i<numPossibleCollisions;i++) {
+    printf("Actual Collisions between %d and %d: %d\n",possibleCollisionPairs_h[i].x,possibleCollisionPairs_h[i].y,(int)numCollisionsPerPair_d[i]);
+  }
+  printf("\n");
+
+  // Step 2: Figure out where each thread needs to start and end for each collision
+  Thrust_Inclusive_Scan_Sum(numCollisionsPerPair_d, numCollisions);
+  normalsAndPenetrations_d.resize(2*numCollisions);
+  bodyIdentifier_d.resize(2*numCollisions);
+  // End Step 2
+
+  possibleCollisionPairs_h = possibleCollisionPairs_d;
+  for(int i=0;i<numPossibleCollisions;i++) {
+    printf("Actual Collisions between %d and %d: %d\n",possibleCollisionPairs_h[i].x,possibleCollisionPairs_h[i].y,(int)numCollisionsPerPair_d[i]);
+  }
+  printf("Number of actual collisions: %d\n",numCollisions);
+
+  // Step 3: Store the actual collisions
+  storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifier_d), numPossibleCollisions, numCollisions);
+  // End Step 3
+
+  thrust::host_vector<double4> normalsAndPenetrations_h = normalsAndPenetrations_d;
+  for(int i=0;i<2*numCollisions;i++) {
+    printf("Body %d: Normal: (%f, %f, %f), Penetration: %f\n",(int)bodyIdentifier_d[i],normalsAndPenetrations_h[i].x,normalsAndPenetrations_h[i].y,normalsAndPenetrations_h[i].z,normalsAndPenetrations_h[i].w);
+  }
+  printf("\n");
+
+  // Step 4: Sort the collisions by body identifier
+  Thrust_Sort_By_Key(bodyIdentifier_d, normalsAndPenetrations_d);
+  // End Step 4
+
+  normalsAndPenetrations_h = normalsAndPenetrations_d;
+  for(int i=0;i<2*numCollisions;i++) {
+    printf("Body %d: Normal: (%f, %f, %f), Penetration: %f\n",(int)bodyIdentifier_d[i],normalsAndPenetrations_h[i].x,normalsAndPenetrations_h[i].y,normalsAndPenetrations_h[i].z,normalsAndPenetrations_h[i].w);
+  }
+  printf("\n");
+
+  // Step 5: Count the number of collisions that each body has and place into collisionStartIndex_d
+  collisionStartIndex_d.resize(2*numCollisions);
+  Thrust_Reduce_By_KeyA(lastActiveCollision, bodyIdentifier_d, collisionStartIndex_d);
+  collisionStartIndex_d.resize(lastActiveCollision);
+  bodyIdentifier_d.resize(lastActiveCollision);
+  // End Step 5
+
+  for(int i=0;i<2*numCollisions;i++) {
+    printf("bodyIdentifier_d[%d] -> collisionStartIndex_d[%d]\n",(int)bodyIdentifier_d[i],(int)collisionStartIndex_d[i]);
+  }
+  printf("Last Active Collisions: %d\n\n",lastActiveCollision);
+
+  // Step 6: Figure out where each thread needs to start and end for each collision
+  Thrust_Inclusive_Scan(collisionStartIndex_d);
+  // End Step 6
+
+  for(int i=0;i<lastActiveCollision;i++) {
+    printf("bodyIdentifier_d[%d] -> collisionStartIndex_d[%d]\n",(int)bodyIdentifier_d[i],(int)collisionStartIndex_d[i]);
+  }
+  cin.get();
+
+  return 0;
+}
+/*
+int CollisionDetector::detectCollisions_host()
 {
   //TODO: Perform in parallel
   possibleCollisionPairs_h = possibleCollisionPairs_d; // need to do this in case we use spatial subdivision
@@ -368,3 +567,4 @@ int CollisionDetector::detectCollisions()
 
   return 0;
 }
+*/
