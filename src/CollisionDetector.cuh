@@ -11,18 +11,18 @@
 #include "include.cuh"
 #include "System.cuh"
 
-#define THREADS 512
-#define MAXBLOCK 65535
-#define BLOCKS(x) max((int)ceil(x/(double)THREADS),1)
-
-#define INDEX1D (blockIdx.x * blockDim.x + threadIdx.x)
-#define INIT_CHECK_THREAD_BOUNDED(x,y) uint index = x; if (index >= y) { return;}
-
 typedef thrust::pair<double3, double3> AABB;
 
 // collision detection structures
 struct AABBstruct {
   double3 min, max;
+};
+
+// collision detection structures
+struct collision {
+  double3 normal;
+  double penetration;
+  uint bodyB; // What is the other body that this is contacting?
 };
 
 // reduce a pair of bounding boxes (a,b) to a bounding box containing a and b
@@ -73,7 +73,8 @@ private:
   // Data for parallel collision detection
   thrust::device_vector<uint> numCollisionsPerPair_d;
   uint numCollisions;
-  thrust::device_vector<uint> bodyIdentifier_d;
+  thrust::device_vector<uint> bodyIdentifierA_d;
+  thrust::device_vector<uint> bodyIdentifierB_d;
   thrust::device_vector<double4> normalsAndPenetrations_d;
   thrust::device_vector<uint> collisionStartIndex_d;
   uint lastActiveCollision;

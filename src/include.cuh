@@ -98,30 +98,12 @@ using namespace std;
 #define OGL 1
 #define SCALE 1
 
-// constraint identifiers
-#define CONSTRAINTABSOLUTEX 0
-#define CONSTRAINTABSOLUTEY 1
-#define CONSTRAINTABSOLUTEZ 2
+#define THREADS 512
+#define MAXBLOCK 65535
+#define BLOCKS(x) max((int)ceil(x/(double)THREADS),1)
 
-#define CONSTRAINTABSOLUTEDX1 3
-#define CONSTRAINTABSOLUTEDY1 4
-#define CONSTRAINTABSOLUTEDZ1 5
-
-#define CONSTRAINTABSOLUTEDX2 6
-#define CONSTRAINTABSOLUTEDY2 7
-#define CONSTRAINTABSOLUTEDZ2 8
-
-#define CONSTRAINTRELATIVEX 9
-#define CONSTRAINTRELATIVEY 10
-#define CONSTRAINTRELATIVEZ 11
-
-#define CONSTRAINTRELATIVEDX1 12
-#define CONSTRAINTRELATIVEDY1 13
-#define CONSTRAINTRELATIVEDZ1 14
-
-#define CONSTRAINTRELATIVEDX2 15
-#define CONSTRAINTRELATIVEDY2 16
-#define CONSTRAINTRELATIVEDZ2 17
+#define INDEX1D (blockIdx.x * blockDim.x + threadIdx.x)
+#define INIT_CHECK_THREAD_BOUNDED(x,y) uint index = x; if (index >= y) { return;}
 
 ////////////////////////Quaternion and Vector Code////////////////////////
 typedef double camreal;

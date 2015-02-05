@@ -86,11 +86,11 @@ __global__ void countAabbAabbIntersections(double3* aabbData, uint * binIdentifi
   numAabbCollisionsPerBin[index] = count;
 }
 
-__global__ void storeAabbAabbIntersections(double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* Num_ContactD, long long* potentialCollisions, uint lastActiveBin, uint numAABB) {
+__global__ void storeAabbAabbIntersections(double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* numAabbCollisionsPerBin, long long* potentialCollisions, uint lastActiveBin, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, lastActiveBin);
 
   uint end = binStartIndex[index], count = 0, i = (!index) ? 0 : binStartIndex[index - 1], Bin = binIdentifier[index];
-  uint offset = (!index) ? 0 : Num_ContactD[index - 1];
+  uint offset = (!index) ? 0 : numAabbCollisionsPerBin[index - 1];
   if (end - i == 1) {
     return;
   }
@@ -163,7 +163,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   numCollisionsPerPair[index] = numCollisions;
 }
 
-__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* normalsAndPenetrations, uint* bodyIdentifiers, uint numPossibleCollisions, uint numCollisions) {
+__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* normalsAndPenetrations, uint* bodyIdentifiersA, uint* bodyIdentifiersB, uint numPossibleCollisions, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   uint startIndex = (index == 0) ? 0 : numCollisionsPerPair[index - 1];
@@ -240,10 +240,12 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       }
     }
 
-    bodyIdentifiers[i] = bodyA;
+    bodyIdentifiersA[i] = bodyA;
+    bodyIdentifiersB[i] = bodyB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,penetration); // from B to A!
 
-    bodyIdentifiers[i+numCollisions] = bodyB;
+    bodyIdentifiersA[i+numCollisions] = bodyB;
+    bodyIdentifiersB[i+numCollisions] = bodyA;
     normalsAndPenetrations[i+numCollisions] = make_double4(normal.x,normal.y,normal.z,penetration); // from A to B!
 
     count++;
@@ -359,6 +361,7 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 
 int CollisionDetector::detectCollisions()
 {
+  numCollisions = 0;
   if(numPossibleCollisions) {
     // Step 1: Detect how many collisions actually occur between each pair
     numCollisionsPerPair_d.resize(numPossibleCollisions);
@@ -368,23 +371,25 @@ int CollisionDetector::detectCollisions()
     // Step 2: Figure out where each thread needs to start and end for each collision
     Thrust_Inclusive_Scan_Sum(numCollisionsPerPair_d, numCollisions);
     normalsAndPenetrations_d.resize(2*numCollisions);
-    bodyIdentifier_d.resize(2*numCollisions);
+    bodyIdentifierA_d.resize(2*numCollisions);
+    bodyIdentifierB_d.resize(2*numCollisions);
     // End Step 2
 
     if(numCollisions) {
       // Step 3: Store the actual collisions
-      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifier_d), numPossibleCollisions, numCollisions);
+      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifierA_d), CASTU1(bodyIdentifierB_d), numPossibleCollisions, numCollisions);
       // End Step 3
 
       // Step 4: Sort the collisions by body identifier
-      Thrust_Sort_By_Key(bodyIdentifier_d, normalsAndPenetrations_d);
+      //Thrust_Sort_By_Key(bodyIdentifierA_d, normalsAndPenetrations_d);
+      thrust::sort_by_key(bodyIdentifierA_d.begin(),bodyIdentifierA_d.end(),thrust::make_zip_iterator(thrust::make_tuple(normalsAndPenetrations_d.begin(), bodyIdentifierB_d.begin())));
       // End Step 4
 
       // Step 5: Count the number of collisions that each body has and place into collisionStartIndex_d
       collisionStartIndex_d.resize(2*numCollisions);
-      Thrust_Reduce_By_KeyA(lastActiveCollision, bodyIdentifier_d, collisionStartIndex_d);
+      Thrust_Reduce_By_KeyA(lastActiveCollision, bodyIdentifierA_d, collisionStartIndex_d);
       collisionStartIndex_d.resize(lastActiveCollision);
-      bodyIdentifier_d.resize(lastActiveCollision);
+      bodyIdentifierA_d.resize(lastActiveCollision);
       // End Step 5
 
       // Step 6: Figure out where each thread needs to start and end for each collision

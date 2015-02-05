@@ -220,10 +220,55 @@ int System::DoTimeStep() {
 	return 0;
 }
 
+__global__ void addContactForces(double* f, uint* collisionStartIndex, int* indices, double* v, double4* normalsAndPenetrations, uint* bodyIdentifiersA, uint* bodyIdentifiersB, uint lastActiveCollision) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, lastActiveCollision);
+
+  int bodyA = bodyIdentifiersA[index];
+  int bodyIndexA = indices[bodyA];
+  double3 velA = make_double3(v[bodyIndexA],v[bodyIndexA+1],v[bodyIndexA+2]); //TODO: Need relative velocity!
+  uint startIndex = (index == 0) ? 0 : collisionStartIndex[index - 1];
+  uint endIndex = collisionStartIndex[index];
+
+  double3 force = make_double3(0,0,0);
+  double3 normal = make_double3(0,0,0);
+  double penetration = 0;
+  double4 normalAndPenetration = make_double4(0,0,0,0);
+  for (int i = startIndex; i < endIndex; i++) {
+    // TODO: Replace with actual material/geometry
+    double sigmaA = (1.0-0.25)/2.0e7;
+    double sigmaB = sigmaA;
+    double rA = 0.4;
+    double rB = 0.4;
+    normalAndPenetration = normalsAndPenetrations[i];
+    penetration = normalAndPenetration.w;
+    normal = make_double3(normalAndPenetration.x,normalAndPenetration.y,normalAndPenetration.z);
+
+    force += 4.0/(3.0*(sigmaA+sigmaB))*sqrt(rA*rB/(rA+rB))*pow(penetration,1.5)*normal;
+
+    // Add damping
+    int bodyB = bodyIdentifiersB[i];
+    int bodyIndexB = indices[bodyB];
+    double3 velB = make_double3(v[bodyIndexB],v[bodyIndexB+1],v[bodyIndexB+2]); //TODO: Need relative velocity!
+    double3 vel = velB-velA;
+    double b = 250; //TODO: Add to material library
+    double3 damping;
+    damping.x = b * normal.x * normal.x * vel.x + b * normal.x * normal.y * vel.y + b * normal.x * normal.z * vel.z;
+    damping.y = b * normal.x * normal.y * vel.x + b * normal.y * normal.y * vel.y + b * normal.y * normal.z * vel.z;
+    damping.z = b * normal.x * normal.z * vel.x + b * normal.y * normal.z * vel.y + b * normal.z * normal.z * vel.z;
+    force += damping;
+  }
+
+  f[bodyIndexA]   += force.x;
+  f[bodyIndexA+1] += force.y;
+  f[bodyIndexA+2] += force.z;
+}
+
 int System::applyContactForces() {
   // TODO: Perform in parallel
-  Thrust_Fill(f_contact_h,0);
-
+  Thrust_Fill(f_contact_d,0);
+  if(collisionDetector->numCollisions) {
+    addContactForces<<<BLOCKS(collisionDetector->lastActiveCollision),THREADS>>>(CASTD1(f_contact_d), CASTU1(collisionDetector->collisionStartIndex_d), CASTI1(indices_d), CASTD1(v_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), collisionDetector->lastActiveCollision);
+  }
 /*
   for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
     uint2 pairs = collisionDetector->collisionPairs_h[i];
