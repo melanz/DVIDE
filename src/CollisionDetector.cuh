@@ -11,7 +11,7 @@
 #include "include.cuh"
 #include "System.cuh"
 
-#define THREADS 128
+#define THREADS 512
 #define MAXBLOCK 65535
 #define BLOCKS(x) max((int)ceil(x/(double)THREADS),1)
 
@@ -49,19 +49,9 @@ class CollisionDetector {
   friend class System;
 private:
   System* system;
-  thrust::host_vector<uint2> possibleCollisionPairs_h; //TODO: I don't think I need this
-  thrust::host_vector<uint2> collisionPairs_h; //TODO: I don't need this
-  thrust::host_vector<double3> normals_h; //TODO: I don't need this
-  thrust::host_vector<double> penetrations_h; //TODO: I don't need this
-
-  thrust::device_vector<uint2> possibleCollisionPairs_d;
-  thrust::device_vector<uint2> collisionPairs_d; //TODO: I don't need this
-  thrust::device_vector<double3> normals_d; //TODO: I don't need this
-  thrust::device_vector<double> penetrations_d; //TODO: I don't need this
 
   // Data for spatial subdivision
   uint numAABB;
-  thrust::host_vector<double3> aabbData_h; //TODO: I don't think I need this
   thrust::device_vector<double3> aabbData_d;
   thrust::device_vector<uint> numBinsIntersected_d;
   double3 minBoundingPoint;
@@ -77,6 +67,7 @@ private:
   thrust::device_vector<uint> numAabbCollisionsPerBin_d;
   uint numPossibleCollisions;
   thrust::device_vector<long long> potentialCollisions_d;
+  thrust::device_vector<uint2> possibleCollisionPairs_d;
   // End spatial subdivision data
 
   // Data for parallel collision detection
@@ -90,9 +81,7 @@ private:
 
 public:
 	CollisionDetector(System* sys);
-	int detectPossibleCollisions_nSquared();
 	int detectPossibleCollisions_spatialSubdivision();
-	//int detectCollisions_host();
 	int detectCollisions();
   int generateAxisAlignedBoundingBoxes();
   void setBinsPerAxis(uint3 binsPerAxis);

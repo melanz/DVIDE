@@ -210,7 +210,7 @@ int System::DoTimeStep() {
   timeIndex++;
   p_h = p_d;
 
-  printf("Time: %f, Collisions: %d\n",time,collisionDetector->collisionPairs_h.size());
+  printf("Time: %f, Collisions: %d\n",time,collisionDetector->numCollisions);
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
@@ -224,6 +224,7 @@ int System::applyContactForces() {
   // TODO: Perform in parallel
   Thrust_Fill(f_contact_h,0);
 
+/*
   for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
     uint2 pairs = collisionDetector->collisionPairs_h[i];
     double3 normal = collisionDetector->normals_h[i];
@@ -255,7 +256,7 @@ int System::applyContactForces() {
 
   }
   f_contact_d = f_contact_h;
-
+*/
   return 0;
 }
 
