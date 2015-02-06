@@ -80,12 +80,20 @@ private:
   uint lastActiveCollision;
   // End parallel collision detection data
 
+  // TODO: Get rid of these vectors (needed for serial collision detection)
+  thrust::host_vector<uint> bodyIdentifierA_h;
+  thrust::host_vector<uint> bodyIdentifierB_h;
+  thrust::host_vector<double4> normalsAndPenetrations_h;
+  // TODO: Get rid of these vectors (needed for serial collision detection)
+
 public:
 	CollisionDetector(System* sys);
 	int detectPossibleCollisions_spatialSubdivision();
+	int detectPossibleCollisions_nSquared();
 	int detectCollisions();
   int generateAxisAlignedBoundingBoxes();
   void setBinsPerAxis(uint3 binsPerAxis);
+  int detectCollisions_CPU(); // TODO: Get rid of this function
 };
 
 #endif /* COLLISIONDETECTOR_CUH_ */

@@ -131,6 +131,7 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
 __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, uint numPossibleCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
+  double penetration = 0;
   int numCollisions = 0;
 
   int bodyA = possibleCollisionPairs[index].x;
@@ -144,22 +145,58 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
 
   if(geometryA.y == 0 && geometryB.y == 0) {
     // sphere-sphere case
-    double penetration = (geometryA.x+geometryB.x) - length(posB-posA);
-    if(penetration>0) {
-      numCollisions++;
-    }
+    penetration = (geometryA.x+geometryB.x) - length(posB-posA);
+    if(penetration>0) numCollisions++;
   }
+
   else if(geometryA.y != 0 && geometryB.y == 0) {
     // box-sphere case
-    numCollisions++;
+    // check x-face
+    if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+    {
+      penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      if(penetration>0) numCollisions++;
+    }
+
+    // check y
+    else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+    {
+      penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
+      if(penetration>0) numCollisions++;
+    }
+
+    // check z
+    else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
+    {
+      penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
+      if(penetration>0) numCollisions++;
+    }
   }
+
   else if(geometryA.y == 0 && geometryB.y != 0) {
     // sphere-box case
-    numCollisions++;
+    // check x-face
+    if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+    {
+      penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      if(penetration>0) numCollisions++;
+    }
+
+    // check y
+    else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+    {
+      penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
+      if(penetration>0) numCollisions++;
+    }
+
+    // check z
+    else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
+    {
+      penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
+      if(penetration>0) numCollisions++;
+    }
   }
-  else {
-    // miscellaneous
-  }
+
   numCollisionsPerPair[index] = numCollisions;
 }
 
@@ -240,6 +277,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       }
     }
 
+    if(penetration<0) penetration = 0;
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,penetration); // from B to A!
@@ -273,6 +311,21 @@ CollisionDetector::CollisionDetector(System* sys)
   cudaFuncSetCacheConfig(storeActualCollisions, cudaFuncCachePreferL1);
 }
 
+int CollisionDetector::detectPossibleCollisions_nSquared()
+{
+  thrust::host_vector<uint2> possibleCollisionPairs_h;
+  // Perform n-squared collision detection, only needs to be called once!
+  for(int i=0; i<system->bodies.size(); i++) {
+    for(int j=i+1; j<system->bodies.size(); j++) {
+      possibleCollisionPairs_h.push_back(make_uint2(i,j));
+    }
+  }
+  numPossibleCollisions = possibleCollisionPairs_h.size();
+  possibleCollisionPairs_d = possibleCollisionPairs_h;
+
+  return 0;
+}
+
 int CollisionDetector::generateAxisAlignedBoundingBoxes()
 {
   aabbData_d.resize(2*system->bodies.size());
@@ -294,7 +347,7 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
   AABB_transformation unary_op;
   AABB_reduction binary_op;
   AABB result = thrust::transform_reduce(aabbData_d.begin(), aabbData_d.end(), unary_op, init, binary_op);
-  minBoundingPoint = result.first-make_double3(0.01,0.01,0.01);
+  minBoundingPoint = result.first -make_double3(0.01,0.01,0.01);
   maxBoundingPoint = result.second+make_double3(0.01,0.01,0.01);
   globalOrigin = minBoundingPoint;
 
@@ -380,6 +433,8 @@ int CollisionDetector::detectCollisions()
       storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifierA_d), CASTU1(bodyIdentifierB_d), numPossibleCollisions, numCollisions);
       // End Step 3
 
+      // NOTE: I think that I can stop here for DVI, there is no need to perform steps 4-6 since the contact jacobian is built on a per contact level
+
       // Step 4: Sort the collisions by body identifier
       //Thrust_Sort_By_Key(bodyIdentifierA_d, normalsAndPenetrations_d);
       thrust::sort_by_key(bodyIdentifierA_d.begin(),bodyIdentifierA_d.end(),thrust::make_zip_iterator(thrust::make_tuple(normalsAndPenetrations_d.begin(), bodyIdentifierB_d.begin())));
@@ -400,3 +455,91 @@ int CollisionDetector::detectCollisions()
 
   return 0;
 }
+
+int CollisionDetector::detectCollisions_CPU()
+{
+  thrust::host_vector<uint2> possibleCollisionPairs_h = possibleCollisionPairs_d;
+  bodyIdentifierA_h.clear();
+  bodyIdentifierB_h.clear();
+  normalsAndPenetrations_h.clear();
+  for (int i = 0; i < numPossibleCollisions; i++) {
+    int bodyA = possibleCollisionPairs_h[i].x;
+    int bodyB = possibleCollisionPairs_h[i].y;
+
+    double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
+    double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
+
+    double3 geometryA = system->contactGeometry_h[bodyA];
+    double3 geometryB = system->contactGeometry_h[bodyB];
+
+    double3 normal;
+    normal.x = 1;
+    normal.y = 0;
+    normal.z = 0;
+    double penetration = 0;
+
+    if(geometryA.y == 0 && geometryB.y == 0) {
+      // sphere-sphere case
+      penetration = (geometryA.x+geometryB.x) - length(posB-posA);
+      normal = normalize(posB-posA); // from A to B!
+    }
+
+    else if(geometryA.y != 0 && geometryB.y == 0) {
+      // box-sphere case
+      // check x-face
+      if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+      {
+        normal = make_double3(posB.x-posA.x,0,0);
+        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      }
+
+      // check y
+      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
+      {
+        normal = make_double3(0,posB.y-posA.y,0);
+        penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
+      }
+
+      // check z
+      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
+      {
+        normal = make_double3(0,0,posB.z-posA.z);
+        penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
+      }
+    }
+
+    else if(geometryA.y == 0 && geometryB.y != 0) {
+      // sphere-box case
+      // check x-face
+      if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+      {
+        normal = make_double3(posB.x-posA.x,0,0);
+        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      }
+
+      // check y
+      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
+      {
+        normal = make_double3(0,posB.y-posA.y,0);
+        penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
+      }
+
+      // check z
+      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
+      {
+        normal = make_double3(0,0,posB.z-posA.z);
+        penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
+      }
+    }
+
+    if(penetration>0) {
+      bodyIdentifierA_h.push_back(bodyA);
+      bodyIdentifierB_h.push_back(bodyB);
+      normalsAndPenetrations_h.push_back(make_double4(normal.x,normal.y,normal.z,penetration));
+    }
+  }
+
+  return 0;
+}
+
+

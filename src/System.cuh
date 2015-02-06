@@ -56,8 +56,8 @@ public:
 
 	// spike stuff
 	int partitions;
-	SpikeSolver* mySolver;
-	MySpmv* m_spmv;
+//	SpikeSolver* mySolver;
+//	MySpmv* m_spmv;
 	spike::Options  solverOptions;
 	int preconditionerUpdateModulus;
 	float preconditionerMaxKrylovIterations;
@@ -138,6 +138,7 @@ public:
 	int     initializeDevice();
 	int     initializeSystem();
 	int     applyContactForces();
+	int     applyContactForces_CPU();
 	int     fixBodies();
 };
 

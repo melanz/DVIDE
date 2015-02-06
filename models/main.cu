@@ -9,7 +9,7 @@ bool wireFrame = 1;
 System sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(0,0,-4),camreal3(0,0,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(0,5,-10),camreal3(0,5,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -156,6 +156,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
+	//visualize = false;
 
   sys.setTimeStep(1e-3, 1e-10);
   sys.setMaxKrylovIterations(5000);
@@ -174,7 +175,7 @@ int main(int argc, char** argv)
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
   double radius = 0.4;
-
+/*
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -207,23 +208,24 @@ int main(int argc, char** argv)
 
   Body* ball1 = new Body(make_double3(0,numElementsPerSide+5,0));
   sys.add(ball1);
+*/
 
-	Body* bodyPtr;
-	int numBodies = 0;
-	// Add elements in x-direction
-	for (int i = 0; i < numElementsPerSide; i++) {
-	  for (int j = 0; j < numElementsPerSide; j++) {
-	    for (int k = 0; k < numElementsPerSide; k++) {
+  Body* bodyPtr;
+  int numBodies = 0;
+  // Add elements in x-direction
+  for (int i = 0; i < numElementsPerSide; i++) {
+    for (int j = 0; j < numElementsPerSide; j++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+1.0,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        //if(j==0) bodyPtr->setBodyFixed(true);
+        if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
         //numBodies = sys.add(bodyPtr);
 
         if(numBodies%100==0) printf("Bodies %d\n",numBodies);
-	    }
-	  }
-	}
+      }
+    }
+  }
 
 	sys.initializeSystem();
 	printf("System initialized!\n");

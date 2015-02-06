@@ -183,6 +183,8 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
+	collisionDetector->detectPossibleCollisions_nSquared();
+
 	return 0;
 }
 
@@ -192,11 +194,14 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	collisionDetector->generateAxisAlignedBoundingBoxes();
-	collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  collisionDetector->detectCollisions();
+	//collisionDetector->generateAxisAlignedBoundingBoxes();
+	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  //collisionDetector->detectCollisions();
+  //applyContactForces();
 
-  applyContactForces();
+	collisionDetector->detectCollisions_CPU();
+	applyContactForces_CPU();
+
   cusp::blas::axpy(f, f_contact, 1.0);
 
   fixBodies();
@@ -210,7 +215,7 @@ int System::DoTimeStep() {
   timeIndex++;
   p_h = p_d;
 
-  printf("Time: %f, Collisions: %d\n",time,collisionDetector->numCollisions);
+  printf("Time: %f, Collisions: %d (%d possible)\n",time,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
@@ -225,7 +230,7 @@ __global__ void addContactForces(double* f, uint* collisionStartIndex, int* indi
 
   int bodyA = bodyIdentifiersA[index];
   int bodyIndexA = indices[bodyA];
-  double3 velA = make_double3(v[bodyIndexA],v[bodyIndexA+1],v[bodyIndexA+2]); //TODO: Need relative velocity!
+  double3 velA = make_double3(v[bodyIndexA],v[bodyIndexA+1],v[bodyIndexA+2]);
   uint startIndex = (index == 0) ? 0 : collisionStartIndex[index - 1];
   uint endIndex = collisionStartIndex[index];
 
@@ -248,14 +253,14 @@ __global__ void addContactForces(double* f, uint* collisionStartIndex, int* indi
     // Add damping
     int bodyB = bodyIdentifiersB[i];
     int bodyIndexB = indices[bodyB];
-    double3 velB = make_double3(v[bodyIndexB],v[bodyIndexB+1],v[bodyIndexB+2]); //TODO: Need relative velocity!
+    double3 velB = make_double3(v[bodyIndexB],v[bodyIndexB+1],v[bodyIndexB+2]);
     double3 vel = velB-velA;
     double b = 250; //TODO: Add to material library
     double3 damping;
     damping.x = b * normal.x * normal.x * vel.x + b * normal.x * normal.y * vel.y + b * normal.x * normal.z * vel.z;
     damping.y = b * normal.x * normal.y * vel.x + b * normal.y * normal.y * vel.y + b * normal.y * normal.z * vel.z;
     damping.z = b * normal.x * normal.z * vel.x + b * normal.y * normal.z * vel.y + b * normal.z * normal.z * vel.z;
-    force += damping;
+    if(penetration>0) force += damping;
   }
 
   f[bodyIndexA]   += force.x;
@@ -264,16 +269,23 @@ __global__ void addContactForces(double* f, uint* collisionStartIndex, int* indi
 }
 
 int System::applyContactForces() {
-  // TODO: Perform in parallel
   Thrust_Fill(f_contact_d,0);
   if(collisionDetector->numCollisions) {
     addContactForces<<<BLOCKS(collisionDetector->lastActiveCollision),THREADS>>>(CASTD1(f_contact_d), CASTU1(collisionDetector->collisionStartIndex_d), CASTI1(indices_d), CASTD1(v_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), collisionDetector->lastActiveCollision);
   }
-/*
-  for(int i=0; i<collisionDetector->collisionPairs_h.size(); i++) {
-    uint2 pairs = collisionDetector->collisionPairs_h[i];
-    double3 normal = collisionDetector->normals_h[i];
-    double penetration = collisionDetector->penetrations_h[i];
+
+  return 0;
+}
+
+int System::applyContactForces_CPU() {
+  Thrust_Fill(f_contact_h,0);
+
+  for(int i=0; i<collisionDetector->normalsAndPenetrations_h.size(); i++) {
+    uint bodyA = collisionDetector->bodyIdentifierA_h[i];
+    uint bodyB = collisionDetector->bodyIdentifierB_h[i];
+    double4 nAndP = collisionDetector->normalsAndPenetrations_h[i];
+    double3 normal = make_double3(nAndP.x,nAndP.y,nAndP.z);
+    double penetration = nAndP.w;
 
     double sigmaA = (1.0-0.25)/2.0e7;
     double sigmaB = sigmaA;
@@ -283,7 +295,7 @@ int System::applyContactForces() {
 
     // Add damping
     v_h = v_d;
-    double3 v = make_double3(v_h[indices_h[pairs.y]]-v_h[indices_h[pairs.x]],v_h[indices_h[pairs.y]+1]-v_h[indices_h[pairs.x]+1],v_h[indices_h[pairs.y]+2]-v_h[indices_h[pairs.x]+2]);
+    double3 v = make_double3(v_h[indices_h[bodyB]]-v_h[indices_h[bodyA]],v_h[indices_h[bodyB]+1]-v_h[indices_h[bodyA]+1],v_h[indices_h[bodyB]+2]-v_h[indices_h[bodyA]+2]);
     double b = 250;
     double3 damping;
     damping.x = b * normal.x * normal.x * v.x + b * normal.x * normal.y * v.y + b * normal.x * normal.z * v.z;
@@ -291,17 +303,17 @@ int System::applyContactForces() {
     damping.z = b * normal.x * normal.z * v.x + b * normal.y * normal.z * v.y + b * normal.z * normal.z * v.z;
     contactForce -= damping;
 
-    f_contact_h[indices_h[pairs.x]]   -= contactForce.x;
-    f_contact_h[indices_h[pairs.x]+1] -= contactForce.y;
-    f_contact_h[indices_h[pairs.x]+2] -= contactForce.z;
+    f_contact_h[indices_h[bodyA]]   -= contactForce.x;
+    f_contact_h[indices_h[bodyA]+1] -= contactForce.y;
+    f_contact_h[indices_h[bodyA]+2] -= contactForce.z;
 
-    f_contact_h[indices_h[pairs.y]]   += contactForce.x;
-    f_contact_h[indices_h[pairs.y]+1] += contactForce.y;
-    f_contact_h[indices_h[pairs.y]+2] += contactForce.z;
+    f_contact_h[indices_h[bodyB]]   += contactForce.x;
+    f_contact_h[indices_h[bodyB]+1] += contactForce.y;
+    f_contact_h[indices_h[bodyB]+2] += contactForce.z;
 
   }
   f_contact_d = f_contact_h;
-*/
+
   return 0;
 }
 
