@@ -202,21 +202,6 @@ int System::DoTimeStep() {
   collisionDetector->detectCollisions();
   //applyContactForces();
   applyContactForces_CPU();
-//  thrust::host_vector<double> f_contact_d_check = f_contact_h;
-//
-//	collisionDetector->detectCollisions_CPU();
-//	applyContactForces_CPU();
-//
-//	//thrust::host_vector<double> f_contact_d_check = f_contact_d;
-//	double error = 0;
-//	double maxError = error;
-//	for(int i=0;i<f_contact_h.size();i++) {
-//	  error = f_contact_h[i]-f_contact_d_check[i];
-//	  printf("f_contact[%d] = %f, %f, (Error: %f)\n",i,f_contact_h[i],f_contact_d_check[i],error);
-//	  if(error>maxError) maxError = error;
-//	}
-//	printf("Max. Error: %f\n",maxError);
-//	cin.get();
 
   cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -333,20 +318,6 @@ int System::applyContactForces_CPU() {
   return 0;
 }
 
-int System::fixBodies_CPU() {
-  f_contact_h = f_contact_d;
-  for(int i=0; i<bodies.size(); i++) {
-    if(bodies[i]->isFixed()) {
-      f_contact_h[indices_h[i]]   = 0;
-      f_contact_h[indices_h[i]+1] = 0;
-      f_contact_h[indices_h[i]+2] = 0;
-    }
-  }
-  f_contact_d = f_contact_h;
-
-  return 0;
-}
-
 __global__ void fixFixedBodies(double* f, int* indices, int* fixedBodies, uint numFixedBodies) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numFixedBodies);
 
@@ -362,6 +333,29 @@ int System::fixBodies() {
   if(fixedBodies_d.size()) {
     fixFixedBodies<<<BLOCKS(fixedBodies_d.size()),THREADS>>>(CASTD1(f_contact_d), CASTI1(indices_d), CASTI1(fixedBodies_d), fixedBodies_d.size());
   }
+
+  return 0;
+}
+
+int System::buildContactJacobian() {
+
+
+  DI_d = DI_h;
+  DJ_d = DJ_h;
+  D_d = D_h;
+
+  // create contact jacobian using cusp library
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
+
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
+
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
+
+  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+  // end create contact jacobian
 
   return 0;
 }

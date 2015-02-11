@@ -280,7 +280,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     if(penetration<0) penetration = 0;
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
-    normalsAndPenetrations[i] = make_double4(normal.x,normal.y,normal.z,penetration); // from B to A!
+    normalsAndPenetrations[i] = make_double4(normal.x,normal.y,normal.z,penetration); // from A to B!
 
     //bodyIdentifiersA[i+numCollisions] = bodyB;
     //bodyIdentifiersB[i+numCollisions] = bodyA;
