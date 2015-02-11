@@ -139,6 +139,7 @@ int System::initializeDevice() {
 	mass_d = mass_h;
 
 	contactGeometry_d = contactGeometry_h;
+	fixedBodies_d = fixedBodies_h;
 
 	thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
 	thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
@@ -170,10 +171,12 @@ int System::initializeDevice() {
 
 int System::initializeSystem() {
 
-  // update the contact geometry
+  // update the contact geometry and fixed bodies
   for(int i=0; i<bodies.size(); i++) {
     contactGeometry_h[i] = bodies[i]->contactGeometry;
+    if(bodies[i]->isFixed()) fixedBodies_h.push_back(i);
   }
+
 	initializeDevice();
 
 	// create and setup the Spike::GPU solver
@@ -198,9 +201,22 @@ int System::DoTimeStep() {
 	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
   //collisionDetector->detectCollisions();
   //applyContactForces();
-
+  //applyContactForces_CPU();
+//  thrust::host_vector<double> f_contact_d_check = f_contact_h;
+//
 	collisionDetector->detectCollisions_CPU();
 	applyContactForces_CPU();
+//
+//	//thrust::host_vector<double> f_contact_d_check = f_contact_d;
+//	double error = 0;
+//	double maxError = error;
+//	for(int i=0;i<f_contact_h.size();i++) {
+//	  error = f_contact_h[i]-f_contact_d_check[i];
+//	  printf("f_contact[%d] = %f, %f, (Error: %f)\n",i,f_contact_h[i],f_contact_d_check[i],error);
+//	  if(error>maxError) maxError = error;
+//	}
+//	printf("Max. Error: %f\n",maxError);
+//	cin.get();
 
   cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -317,7 +333,7 @@ int System::applyContactForces_CPU() {
   return 0;
 }
 
-int System::fixBodies() {
+int System::fixBodies_CPU() {
   f_contact_h = f_contact_d;
   for(int i=0; i<bodies.size(); i++) {
     if(bodies[i]->isFixed()) {
@@ -331,4 +347,21 @@ int System::fixBodies() {
   return 0;
 }
 
+__global__ void fixFixedBodies(double* f, int* indices, int* fixedBodies, uint numFixedBodies) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numFixedBodies);
 
+  int body = fixedBodies[index];
+  int bodyIndex = indices[body];
+
+  f[bodyIndex]   = 0;
+  f[bodyIndex+1] = 0;
+  f[bodyIndex+2] = 0;
+}
+
+int System::fixBodies() {
+  if(fixedBodies_d.size()) {
+    fixFixedBodies<<<BLOCKS(fixedBodies_d.size()),THREADS>>>(CASTD1(f_contact_d), CASTI1(indices_d), CASTI1(fixedBodies_d), fixedBodies_d.size());
+  }
+
+  return 0;
+}

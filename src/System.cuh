@@ -113,6 +113,9 @@ public:
   thrust::host_vector<int> indices_h;
   thrust::device_vector<int> indices_d;
 
+  thrust::host_vector<int> fixedBodies_h;
+  thrust::device_vector<int> fixedBodies_d;
+
   // library of contact geometry
   thrust::host_vector<double3> contactGeometry_h;
   thrust::device_vector<double3> contactGeometry_d;
@@ -140,6 +143,7 @@ public:
 	int     applyContactForces();
 	int     applyContactForces_CPU();
 	int     fixBodies();
+	int     fixBodies_CPU();
 };
 
 #endif /* SYSTEM_CUH_ */

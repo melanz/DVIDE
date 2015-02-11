@@ -175,7 +175,7 @@ int main(int argc, char** argv)
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
   double radius = 0.4;
-/*
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -208,7 +208,6 @@ int main(int argc, char** argv)
 
   Body* ball1 = new Body(make_double3(0,numElementsPerSide+5,0));
   sys.add(ball1);
-*/
 
   Body* bodyPtr;
   int numBodies = 0;
@@ -218,7 +217,7 @@ int main(int argc, char** argv)
       for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+1.0,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        if(j==0) bodyPtr->setBodyFixed(true);
+        //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
         //numBodies = sys.add(bodyPtr);
 
