@@ -186,7 +186,7 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
-	collisionDetector->detectPossibleCollisions_nSquared();
+	//collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -197,15 +197,15 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	//collisionDetector->generateAxisAlignedBoundingBoxes();
-	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  //collisionDetector->detectCollisions();
+	collisionDetector->generateAxisAlignedBoundingBoxes();
+	collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  collisionDetector->detectCollisions();
   //applyContactForces();
-  //applyContactForces_CPU();
+  applyContactForces_CPU();
 //  thrust::host_vector<double> f_contact_d_check = f_contact_h;
 //
-	collisionDetector->detectCollisions_CPU();
-	applyContactForces_CPU();
+//	collisionDetector->detectCollisions_CPU();
+//	applyContactForces_CPU();
 //
 //	//thrust::host_vector<double> f_contact_d_check = f_contact_d;
 //	double error = 0;
@@ -317,7 +317,7 @@ int System::applyContactForces_CPU() {
     damping.x = b * normal.x * normal.x * v.x + b * normal.x * normal.y * v.y + b * normal.x * normal.z * v.z;
     damping.y = b * normal.x * normal.y * v.x + b * normal.y * normal.y * v.y + b * normal.y * normal.z * v.z;
     damping.z = b * normal.x * normal.z * v.x + b * normal.y * normal.z * v.y + b * normal.z * normal.z * v.z;
-    contactForce -= damping;
+    if(penetration>=0) contactForce -= damping;
 
     f_contact_h[indices_h[bodyA]]   -= contactForce.x;
     f_contact_h[indices_h[bodyA]+1] -= contactForce.y;

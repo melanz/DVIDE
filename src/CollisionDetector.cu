@@ -234,21 +234,21 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       // check x-face
       if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
       {
-        normal = make_double3(posB.x-posA.x,0,0);
+        normal = normalize(make_double3(posB.x-posA.x,0,0));
         penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
       }
 
       // check y
       else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
       {
-        normal = make_double3(0,posB.y-posA.y,0);
+        normal = normalize(make_double3(0,posB.y-posA.y,0));
         penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
       }
 
       // check z
       else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
       {
-        normal = make_double3(0,0,posB.z-posA.z);
+        normal = normalize(make_double3(0,0,posB.z-posA.z));
         penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
       }
     }
@@ -258,21 +258,21 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       // check x-face
       if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
       {
-        normal = make_double3(posB.x-posA.x,0,0);
+        normal = normalize(make_double3(posB.x-posA.x,0,0));
         penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
       }
 
       // check y
       else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
       {
-        normal = make_double3(0,posB.y-posA.y,0);
+        normal = normalize(make_double3(0,posB.y-posA.y,0));
         penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
       }
 
       // check z
       else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
       {
-        normal = make_double3(0,0,posB.z-posA.z);
+        normal = normalize(make_double3(0,0,posB.z-posA.z));
         penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
       }
     }
@@ -506,21 +506,21 @@ int CollisionDetector::detectCollisions_CPU()
       // check x-face
       if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
       {
-        normal = make_double3(posB.x-posA.x,0,0);
+        normal = normalize(make_double3(posB.x-posA.x,0,0));
         penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
       }
 
       // check y
       else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
       {
-        normal = make_double3(0,posB.y-posA.y,0);
+        normal = normalize(make_double3(0,posB.y-posA.y,0));
         penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
       }
 
       // check z
       else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
       {
-        normal = make_double3(0,0,posB.z-posA.z);
+        normal = normalize(make_double3(0,0,posB.z-posA.z));
         penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
       }
     }
@@ -530,26 +530,26 @@ int CollisionDetector::detectCollisions_CPU()
       // check x-face
       if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
       {
-        normal = make_double3(posB.x-posA.x,0,0);
+        normal = normalize(make_double3(posB.x-posA.x,0,0));
         penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
       }
 
       // check y
       else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
       {
-        normal = make_double3(0,posB.y-posA.y,0);
+        normal = normalize(make_double3(0,posB.y-posA.y,0));
         penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
       }
 
       // check z
       else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
       {
-        normal = make_double3(0,0,posB.z-posA.z);
+        normal = normalize(make_double3(0,0,posB.z-posA.z));
         penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
       }
     }
 
-    if(penetration>0) {
+    if(penetration>=0) {
       bodyIdentifierA_h.push_back(bodyA);
       bodyIdentifierB_h.push_back(bodyB);
       normalsAndPenetrations_h.push_back(make_double4(normal.x,normal.y,normal.z,penetration));
