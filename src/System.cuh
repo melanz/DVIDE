@@ -73,8 +73,12 @@ public:
 	DeviceValueArrayView a;
 	DeviceValueArrayView f;
   DeviceValueArrayView f_contact;
+  DeviceValueArrayView tmp;
+  DeviceValueArrayView r;
+  DeviceValueArrayView k;
 	DeviceView mass;
 	DeviceView D;
+	DeviceView DT;
 
 	// host vectors
 	thrust::host_vector<double> p_h;
@@ -82,6 +86,9 @@ public:
 	thrust::host_vector<double> a_h;
 	thrust::host_vector<double> f_h;
   thrust::host_vector<double> f_contact_h;
+  thrust::host_vector<double> tmp_h;
+  thrust::host_vector<double> r_h;
+  thrust::host_vector<double> k_h;
 
 	thrust::host_vector<int> massI_h;
 	thrust::host_vector<int> massJ_h;
@@ -97,6 +104,9 @@ public:
 	thrust::device_vector<double> a_d;
 	thrust::device_vector<double> f_d;
   thrust::device_vector<double> f_contact_d;
+  thrust::device_vector<double> tmp_d;
+  thrust::device_vector<double> r_d;
+  thrust::device_vector<double> k_d;
 
 	thrust::device_vector<int> massI_d;
 	thrust::device_vector<int> massJ_d;
@@ -105,6 +115,10 @@ public:
   thrust::device_vector<int> DI_d;
   thrust::device_vector<int> DJ_d;
   thrust::device_vector<double> D_d;
+
+  thrust::device_vector<int> DTI_d;
+  thrust::device_vector<int> DTJ_d;
+  thrust::device_vector<double> DT_d;
 
 //	dim3 dimBlockConstraint;
 //	dim3 dimGridConstraint;
@@ -153,6 +167,9 @@ public:
 	int     applyContactForces_CPU();
 	int     fixBodies();
 	int     buildContactJacobian();
+	int     buildContactJacobianTranspose();
+	int     performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst);
+	int     buildRightHandSideVector();
 };
 
 #endif /* SYSTEM_CUH_ */

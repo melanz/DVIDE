@@ -112,6 +112,18 @@ int System::add(Body* body) {
   f_contact_h.push_back(0);
   f_contact_h.push_back(0);
 
+  tmp_h.push_back(0);
+  tmp_h.push_back(0);
+  tmp_h.push_back(0);
+
+  r_h.push_back(0);
+  r_h.push_back(0);
+  r_h.push_back(0);
+
+  k_h.push_back(0);
+  k_h.push_back(0);
+  k_h.push_back(0);
+
 	// update the mass matrix
 	for (int i = 0; i < body->numDOF; i++) {
 	  //if(!body->isFixed()) {
@@ -133,6 +145,9 @@ int System::initializeDevice() {
 	a_d = a_h;
 	f_d = f_h;
 	f_contact_d = f_contact_h;
+	tmp_d = tmp_h;
+	r_d = r_h;
+	k_d = k_h;
 
 	massI_d = massI_h;
 	massJ_d = massJ_h;
@@ -146,12 +161,18 @@ int System::initializeDevice() {
 	thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
 	thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
 	thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
+	thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
+	thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+	thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
 
 	p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
 	v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
 	a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
 	f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
 	f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
+	tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
+	r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+	k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
 
 	// create mass matrix using cusp library (shouldn't change)
 	thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
@@ -201,7 +222,9 @@ int System::DoTimeStep() {
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
   //applyContactForces();
-  applyContactForces_CPU();
+  //applyContactForces_CPU();
+  buildContactJacobian();
+  buildRightHandSideVector();
 
   cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -338,24 +361,172 @@ int System::fixBodies() {
 }
 
 int System::buildContactJacobian() {
+  if(collisionDetector->numCollisions) {
+    // TODO: Perform this in parallel!
+    DI_h.clear();
+    DJ_h.clear();
+    D_h.clear();
+    double4 nAndP;
+    double3 n, u, v;
+    uint bodyA, bodyB;
+    for(int i=0; i<collisionDetector->numCollisions; i++) {
+      bodyA = collisionDetector->bodyIdentifierA_h[i];
+      bodyB = collisionDetector->bodyIdentifierB_h[i];
+      nAndP = collisionDetector->normalsAndPenetrations_h[i];
+      n = make_double3(nAndP.x,nAndP.y,nAndP.z);
 
+      if(n.z != 0) {
+        u = normalize(make_double3(1,0,-n.x/n.z));
+      }
+      else if(n.x != 0) {
+        u = normalize(make_double3(-n.z/n.x,0,1));
+      }
+      else {
+        u = normalize(make_double3(1,-n.x/n.y,0));
+      }
+      v = normalize(cross(n,u));
 
-  DI_d = DI_h;
-  DJ_d = DJ_h;
-  D_d = D_h;
+      DI_h.push_back(3*i+0);
+      DI_h.push_back(3*i+0);
+      DI_h.push_back(3*i+0);
+      DI_h.push_back(3*i+0);
+      DI_h.push_back(3*i+0);
+      DI_h.push_back(3*i+0);
+
+      DJ_h.push_back(indices_h[bodyA]+0);
+      DJ_h.push_back(indices_h[bodyA]+1);
+      DJ_h.push_back(indices_h[bodyA]+2);
+      DJ_h.push_back(indices_h[bodyB]+0);
+      DJ_h.push_back(indices_h[bodyB]+1);
+      DJ_h.push_back(indices_h[bodyB]+2);
+
+      D_h.push_back(-n.x);
+      D_h.push_back(-n.y);
+      D_h.push_back(-n.z);
+      D_h.push_back(n.x);
+      D_h.push_back(n.y);
+      D_h.push_back(n.z);
+
+      DI_h.push_back(3*i+1);
+      DI_h.push_back(3*i+1);
+      DI_h.push_back(3*i+1);
+      DI_h.push_back(3*i+1);
+      DI_h.push_back(3*i+1);
+      DI_h.push_back(3*i+1);
+
+      DJ_h.push_back(indices_h[bodyA]+0);
+      DJ_h.push_back(indices_h[bodyA]+1);
+      DJ_h.push_back(indices_h[bodyA]+2);
+      DJ_h.push_back(indices_h[bodyB]+0);
+      DJ_h.push_back(indices_h[bodyB]+1);
+      DJ_h.push_back(indices_h[bodyB]+2);
+
+      D_h.push_back(-u.x);
+      D_h.push_back(-u.y);
+      D_h.push_back(-u.z);
+      D_h.push_back(u.x);
+      D_h.push_back(u.y);
+      D_h.push_back(u.z);
+
+      DI_h.push_back(3*i+2);
+      DI_h.push_back(3*i+2);
+      DI_h.push_back(3*i+2);
+      DI_h.push_back(3*i+2);
+      DI_h.push_back(3*i+2);
+      DI_h.push_back(3*i+2);
+
+      DJ_h.push_back(indices_h[bodyA]+0);
+      DJ_h.push_back(indices_h[bodyA]+1);
+      DJ_h.push_back(indices_h[bodyA]+2);
+      DJ_h.push_back(indices_h[bodyB]+0);
+      DJ_h.push_back(indices_h[bodyB]+1);
+      DJ_h.push_back(indices_h[bodyB]+2);
+
+      D_h.push_back(-v.x);
+      D_h.push_back(-v.y);
+      D_h.push_back(-v.z);
+      D_h.push_back(v.x);
+      D_h.push_back(v.y);
+      D_h.push_back(v.z);
+    }
+
+    DI_d = DI_h;
+    DJ_d = DJ_h;
+    D_d = D_h;
+
+    DTI_d = DI_d;
+    DTJ_d = DJ_d;
+    DT_d = D_d;
+
+    // create contact jacobian using cusp library
+    thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+    DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
+
+    thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
+    DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
+
+    thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
+    DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
+
+    D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+    // end create contact jacobian
+
+    buildContactJacobianTranspose();
+  }
+
+  return 0;
+}
+
+int System::buildContactJacobianTranspose() {
+  DTI_d = DJ_d;
+  DTJ_d = DI_d;
+  DT_d = D_d;
 
   // create contact jacobian using cusp library
-  thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(DTI_d));
   DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
 
-  thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(DTJ_d));
   DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
 
-  thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size(), 3*collisionDetector->numCollisions, DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
+
+  DT.sort_by_row(); // TODO: Do I need this?
+
+  return 0;
+}
+
+int System::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst) {
+  cusp::multiply(DT,src,tmp);
+  cusp::multiply(mass,tmp,tmp);
+  cusp::multiply(D,tmp,dst);
+
+  return 0;
+}
+
+__global__ void applyStabilization(double* r, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double penetration = normalsAndPenetrations[index].w;
+
+  r[3*index] += penetration/timeStep;
+}
+
+int System::buildRightHandSideVector() {
+  // build k
+  cusp::multiply(mass,v,k);
+  cusp::blas::axpy(f,k,h);
+
+  // build r
+  r_d.resize(3*collisionDetector->numCollisions);
+  r.resize(3*collisionDetector->numCollisions);
+  cusp::multiply(mass,k,tmp);
+  cusp::multiply(DT,tmp,r);
+  applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
 
   return 0;
 }

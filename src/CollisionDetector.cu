@@ -466,6 +466,7 @@ int CollisionDetector::detectCollisions()
 //      // End Step 6
     }
   }
+  // TODO: Remove this!
   normalsAndPenetrations_h = normalsAndPenetrations_d;
   bodyIdentifierA_h = bodyIdentifierA_d;
   bodyIdentifierB_h = bodyIdentifierB_d;
