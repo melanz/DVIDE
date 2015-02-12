@@ -259,8 +259,7 @@ int System::DoTimeStep() {
   buildRightHandSideVector();
 
   // Solve the QOCC
-
-
+  solve_APGD();
 
   cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -568,8 +567,53 @@ int System::buildRightHandSideVector() {
 }
 
 int System::project(thrust::device_vector<double> src) {
+  //TODO: Perform in parallel
+  double mu = 0.5; //TODO: put this in material library
+  thrust::host_vector<double> src_h = src;
+  double3 gamma;
+
+  for(int i=0; i<collisionDetector->numCollisions; i++) {
+    gamma = make_double3(src_h[3*i],src_h[3*i+1],src_h[3*i+2]);
+    double gamma_n = gamma.x;
+    double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
+
+    if(mu==0) {
+      gamma = make_double3(gamma_n,0,0);
+      if (gamma_n < 0) gamma = make_double3(0,0,0);
+    }
+    else if(gamma_t < mu * gamma_n) {
+      gamma = make_double3(gamma.x,gamma.y,gamma.z);
+    }
+    else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
+      gamma = make_double3(0,0,0);
+    }
+    else {
+      double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
+      double gamma_t_proj = gamma_n_proj * mu;
+      double tproj_div_t = gamma_t_proj/gamma_t;
+      double gamma_u_proj = tproj_div_t * gamma.y;
+      double gamma_v_proj = tproj_div_t * gamma.z;
+      gamma = make_double3(gamma_n_proj,gamma_u_proj,gamma_v_proj);
+    }
+
+    src_h[3*i] = gamma.x;
+    src_h[3*i+1] = gamma.y;
+    src_h[3*i+2] = gamma.z;
+  }
+  src = src_h;
 
   return 0;
+}
+
+double System::getResidual(DeviceValueArrayView src) {
+  double gdiff = 1.0 / pow(collisionDetector->numCollisions,2.0);
+  performSchurComplementProduct(gamma, gammaTmp);
+  cusp::blas::axpy(r,gammaTmp,1.0);
+  cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0,-gdiff);
+  project(gammaTmp_d);
+  cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
+
+  return cusp::blas::nrmmax(gammaTmp);
 }
 
 int System::solve_APGD() {
@@ -621,12 +665,101 @@ int System::solve_APGD() {
   for (int k = 0; k < maxIterations; k++) {
     // (8) g = N * y_k - r
     performSchurComplementProduct(y, g);
-    cusp::blas::axpy(r,g,-1.0);
+    cusp::blas::axpy(r,g,1.0);
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
     project(gammaNew_d);
+
+    // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
+    performSchurComplementProduct(gammaNew, gammaTmp);
+    obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
+    performSchurComplementProduct(y, gammaTmp);
+    obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
+    cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
+    obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * cusp::blas::dot(gammaTmp,gammaTmp);
+
+    while (obj1 >= obj2) {
+      // (11) L_k = 2 * L_k
+      L = 2.0 * L;
+
+      // (12) t_k = 1 / L_k
+      t = 1.0 / L;
+
+      // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
+      cusp::blas::axpby(y,g,gammaNew,1.0,-t);
+      project(gammaNew_d);
+
+      // Update the components of the while condition
+      performSchurComplementProduct(gammaNew, gammaTmp);
+      obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
+      performSchurComplementProduct(y, gammaTmp);
+      obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
+      cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
+      obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * cusp::blas::dot(gammaTmp,gammaTmp);
+
+      // (14) endwhile
+    }
+
+    // (15) theta_(k+1) = (-theta_k^2 + theta_k * sqrt(theta_k^2 + 4)) / 2
+    thetaNew = (-pow(theta, 2.0) + theta * sqrt(pow(theta, 2.0) + 4.0)) / 2.0;
+
+    // (16) Beta_(k+1) = theta_k * (1 - theta_k) / (theta_k^2 + theta_(k+1))
+    Beta = theta * (1.0 - theta) / (pow(theta, 2) + thetaNew);
+
+    // (17) y_(k+1) = gamma_(k+1) + Beta_(k+1) * (gamma_(k+1) - gamma_k)
+    cusp::blas::axpby(gammaNew,gamma,yNew,(1.0+Beta),-Beta);
+
+    // (18) r = r(gamma_(k+1))
+    double res = getResidual(gammaNew);
+
+    // (19) if r < epsilon_min
+    if (res < residual) {
+      // (20) r_min = r
+      residual = res;
+
+      // (21) gamma_hat = gamma_(k+1)
+      cusp::blas::copy(gammaNew,gammaHat);
+
+      // (22) endif
+    }
+
+    // (23) if r < Tau
+    if (residual < tolerance) {
+      // (24) break
+      break;
+
+      // (25) endif
+    }
+
+    // (26) if g' * (gamma_(k+1) - gamma_k) > 0
+    cusp::blas::axpby(gammaNew,gamma,gammaTmp,1.0,-1.0);
+    if (cusp::blas::dot(g,gammaTmp) > 0) {
+      // (27) y_(k+1) = gamma_(k+1)
+      cusp::blas::copy(gammaNew,yNew);
+
+      // (28) theta_(k+1) = 1
+      thetaNew = 1.0;
+
+      // (29) endif
+    }
+
+    // (30) L_k = 0.9 * L_k
+    L = 0.9 * L;
+
+    // (31) t_k = 1 / L_k
+    t = 1.0 / L;
+
+    // Update iterates
+    theta = thetaNew;
+    cusp::blas::copy(gammaNew,gamma);
+    cusp::blas::copy(yNew,y);
+
+    // (32) endfor
   }
+
+  // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
+  cusp::blas::copy(gammaHat,gamma);
 
   return 0;
 }
