@@ -124,6 +124,16 @@ int System::add(Body* body) {
   k_h.push_back(0);
   k_h.push_back(0);
 
+  for(int i=0; i<3; i++) {
+    gamma_h.push_back(0);
+    gammaHat_h.push_back(0);
+    gammaNew_h.push_back(0);
+    g_h.push_back(0);
+    y_h.push_back(0);
+    yNew_h.push_back(0);
+    gammaTmp_h.push_back(0);
+  }
+
 	// update the mass matrix
 	for (int i = 0; i < body->numDOF; i++) {
 	  //if(!body->isFixed()) {
@@ -148,6 +158,13 @@ int System::initializeDevice() {
 	tmp_d = tmp_h;
 	r_d = r_h;
 	k_d = k_h;
+  gamma_d = gamma_h;
+  gammaHat_d = gammaHat_h;
+  gammaNew_d = gammaNew_h;
+  g_d = g_h;
+  y_d = y_h;
+  yNew_d = yNew_h;
+  gammaTmp_d = gammaTmp_h;
 
 	massI_d = massI_h;
 	massJ_d = massJ_h;
@@ -164,6 +181,13 @@ int System::initializeDevice() {
 	thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
 	thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
 	thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
+	thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
+	thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
+	thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
+	thrust::device_ptr<double> wrapped_device_g(CASTD1(g_d));
+	thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
+	thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
+	thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
 
 	p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
 	v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
@@ -173,6 +197,13 @@ int System::initializeDevice() {
 	tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
 	r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
 	k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
+	gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
+	gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
+	gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
+	g = DeviceValueArrayView(wrapped_device_g, wrapped_device_g + g_d.size());
+	y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
+	yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
+	gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
 	// create mass matrix using cusp library (shouldn't change)
 	thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
@@ -218,13 +249,18 @@ int System::DoTimeStep() {
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
+	// Perform collision detection
 	collisionDetector->generateAxisAlignedBoundingBoxes();
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
-  //applyContactForces();
-  //applyContactForces_CPU();
+
+  // Set up the QOCC
   buildContactJacobian();
   buildRightHandSideVector();
+
+  // Solve the QOCC
+
+
 
   cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -527,6 +563,70 @@ int System::buildRightHandSideVector() {
   cusp::multiply(mass,k,tmp);
   cusp::multiply(DT,tmp,r);
   applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+
+  return 0;
+}
+
+int System::project(thrust::device_vector<double> src) {
+
+  return 0;
+}
+
+int System::solve_APGD() {
+  int maxIterations = 500;
+  double tolerance = 1e-3;
+
+  gamma_d.resize(3*collisionDetector->numCollisions);
+  gammaHat_d.resize(3*collisionDetector->numCollisions);
+  gammaNew_d.resize(3*collisionDetector->numCollisions);
+  g_d.resize(3*collisionDetector->numCollisions);
+  y_d.resize(3*collisionDetector->numCollisions);
+  yNew_d.resize(3*collisionDetector->numCollisions);
+  gammaTmp_d.resize(3*collisionDetector->numCollisions);
+  gamma.resize(3*collisionDetector->numCollisions);
+  gammaHat.resize(3*collisionDetector->numCollisions);
+  gammaNew.resize(3*collisionDetector->numCollisions);
+  g.resize(3*collisionDetector->numCollisions);
+  y.resize(3*collisionDetector->numCollisions);
+  yNew.resize(3*collisionDetector->numCollisions);
+  gammaTmp.resize(3*collisionDetector->numCollisions);
+
+  // (1) gamma_0 = zeros(nc,1)
+  cusp::blas::fill(gamma,0);
+
+  // (2) gamma_hat_0 = ones(nc,1)
+  cusp::blas::fill(gammaHat,1.0);
+
+  // (3) y_0 = gamma_0
+  cusp::blas::copy(gamma,y);
+
+  // (4) theta_0 = 1
+  double theta = 1.0;
+  double thetaNew = theta;
+  double Beta = 0.0;
+  double obj1 = 0.0;
+  double obj2 = 0.0;
+  double residual = 10e30;
+
+  // (5) L_k = norm(N * (gamma_0 - gamma_hat_0)) / norm(gamma_0 - gamma_hat_0)
+  cusp::blas::axpby(gamma,gammaHat,gammaTmp,1.0,-1.0);
+  double L = cusp::blas::nrm2(gammaTmp);
+  performSchurComplementProduct(gammaTmp, gammaTmp);
+  L = cusp::blas::nrm2(gammaTmp)/L;
+
+  // (6) t_k = 1 / L_k
+  double t = 1.0/L;
+
+  // (7) for k := 0 to N_max
+  for (int k = 0; k < maxIterations; k++) {
+    // (8) g = N * y_k - r
+    performSchurComplementProduct(y, g);
+    cusp::blas::axpy(r,g,-1.0);
+
+    // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
+    cusp::blas::axpby(y,g,gammaNew,1.0,-t);
+    project(gammaNew_d);
+  }
 
   return 0;
 }

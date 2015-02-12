@@ -76,6 +76,13 @@ public:
   DeviceValueArrayView tmp;
   DeviceValueArrayView r;
   DeviceValueArrayView k;
+  DeviceValueArrayView gamma;
+  DeviceValueArrayView gammaHat;
+  DeviceValueArrayView gammaNew;
+  DeviceValueArrayView g;
+  DeviceValueArrayView y;
+  DeviceValueArrayView yNew;
+  DeviceValueArrayView gammaTmp;
 	DeviceView mass;
 	DeviceView D;
 	DeviceView DT;
@@ -89,6 +96,13 @@ public:
   thrust::host_vector<double> tmp_h;
   thrust::host_vector<double> r_h;
   thrust::host_vector<double> k_h;
+  thrust::host_vector<double> gamma_h;
+  thrust::host_vector<double> gammaHat_h;
+  thrust::host_vector<double> gammaNew_h;
+  thrust::host_vector<double> g_h;
+  thrust::host_vector<double> y_h;
+  thrust::host_vector<double> yNew_h;
+  thrust::host_vector<double> gammaTmp_h;
 
 	thrust::host_vector<int> massI_h;
 	thrust::host_vector<int> massJ_h;
@@ -107,6 +121,13 @@ public:
   thrust::device_vector<double> tmp_d;
   thrust::device_vector<double> r_d;
   thrust::device_vector<double> k_d;
+  thrust::device_vector<double> gamma_d;
+  thrust::device_vector<double> gammaHat_d;
+  thrust::device_vector<double> gammaNew_d;
+  thrust::device_vector<double> g_d;
+  thrust::device_vector<double> y_d;
+  thrust::device_vector<double> yNew_d;
+  thrust::device_vector<double> gammaTmp_d;
 
 	thrust::device_vector<int> massI_d;
 	thrust::device_vector<int> massJ_d;
@@ -170,6 +191,8 @@ public:
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst);
 	int     buildRightHandSideVector();
+	int     solve_APGD();
+	int     project(thrust::device_vector<double> src);
 };
 
 #endif /* SYSTEM_CUH_ */
