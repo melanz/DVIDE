@@ -190,6 +190,7 @@ public:
 	int     buildContactJacobian();
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst);
+	int     buildAppliedImpulseVector();
 	int     buildRightHandSideVector();
 	int     solve_APGD();
 	int     project(thrust::device_vector<double> src);

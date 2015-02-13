@@ -139,7 +139,12 @@ int System::add(Body* body) {
 	  //if(!body->isFixed()) {
       massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
       massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
-      mass_h.push_back(1.0/body->mass);
+      if(body->isFixed()) {
+        mass_h.push_back(0);
+      }
+      else {
+        mass_h.push_back(1.0/body->mass);
+      }
 	  //}
 	}
 
@@ -254,20 +259,40 @@ int System::DoTimeStep() {
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
 
-  // Set up the QOCC
-  buildContactJacobian();
-  buildRightHandSideVector();
+  buildAppliedImpulseVector();
 
-  // Solve the QOCC
-  solve_APGD();
+  if(collisionDetector->numCollisions) {
+    // Set up the QOCC
+    buildContactJacobian();
+    buildRightHandSideVector();
 
-  cusp::blas::axpy(f, f_contact, 1.0);
+    // Solve the QOCC
+    solve_APGD();
+//    cusp::print(gamma);
+//    cin.get();
+//    gamma_h = gamma_d;
+//    for(int i=0; i<collisionDetector->numCollisions;i++) {
+//      gamma_h[3*i] = 1;
+//      gamma_h[3*i+1] = 0;
+//      gamma_h[3*i+2] = 0;
+//    }
+//    gamma_d = gamma_h;
 
-  fixBodies();
+    // Perform time integration (contacts)
+    cusp::multiply(DT,gamma,v);
+    cusp::blas::axpby(k,v,tmp,1.0,1.0);
+    cusp::multiply(mass,tmp,v);
+  }
+  else {
+    // Perform time integration (no contacts)
+    cusp::multiply(mass,k,v);
+  }
+  //cusp::blas::axpy(f, f_contact, 1.0);
 
-	cusp::multiply(mass, f_contact, a);
+	//cusp::multiply(mass, f_contact, a);
 	//bool success = mySolver->solve(*m_spmv, f, a);
-	cusp::blas::axpy(a, v, h);
+	//cusp::blas::axpy(a, v, h);
+  //fixBodies();
 	cusp::blas::axpy(v, p, h);
 
   time += h;
@@ -376,138 +401,136 @@ int System::applyContactForces_CPU() {
   return 0;
 }
 
-__global__ void fixFixedBodies(double* f, int* indices, int* fixedBodies, uint numFixedBodies) {
+__global__ void fixFixedBodies(double* v, int* indices, int* fixedBodies, uint numFixedBodies) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numFixedBodies);
 
   int body = fixedBodies[index];
   int bodyIndex = indices[body];
 
-  f[bodyIndex]   = 0;
-  f[bodyIndex+1] = 0;
-  f[bodyIndex+2] = 0;
+  v[bodyIndex]   = 0;
+  v[bodyIndex+1] = 0;
+  v[bodyIndex+2] = 0;
 }
 
 int System::fixBodies() {
   if(fixedBodies_d.size()) {
-    fixFixedBodies<<<BLOCKS(fixedBodies_d.size()),THREADS>>>(CASTD1(f_contact_d), CASTI1(indices_d), CASTI1(fixedBodies_d), fixedBodies_d.size());
+    fixFixedBodies<<<BLOCKS(fixedBodies_d.size()),THREADS>>>(CASTD1(v_d), CASTI1(indices_d), CASTI1(fixedBodies_d), fixedBodies_d.size());
   }
 
   return 0;
 }
 
 int System::buildContactJacobian() {
-  if(collisionDetector->numCollisions) {
-    // TODO: Perform this in parallel!
-    DI_h.clear();
-    DJ_h.clear();
-    D_h.clear();
-    double4 nAndP;
-    double3 n, u, v;
-    uint bodyA, bodyB;
-    for(int i=0; i<collisionDetector->numCollisions; i++) {
-      bodyA = collisionDetector->bodyIdentifierA_h[i];
-      bodyB = collisionDetector->bodyIdentifierB_h[i];
-      nAndP = collisionDetector->normalsAndPenetrations_h[i];
-      n = make_double3(nAndP.x,nAndP.y,nAndP.z);
+  // TODO: Perform this in parallel!
+  DI_h.clear();
+  DJ_h.clear();
+  D_h.clear();
+  double4 nAndP;
+  double3 n, u, v;
+  uint bodyA, bodyB;
+  for(int i=0; i<collisionDetector->numCollisions; i++) {
+    bodyA = collisionDetector->bodyIdentifierA_h[i];
+    bodyB = collisionDetector->bodyIdentifierB_h[i];
+    nAndP = collisionDetector->normalsAndPenetrations_h[i];
+    n = make_double3(nAndP.x,nAndP.y,nAndP.z);
 
-      if(n.z != 0) {
-        u = normalize(make_double3(1,0,-n.x/n.z));
-      }
-      else if(n.x != 0) {
-        u = normalize(make_double3(-n.z/n.x,0,1));
-      }
-      else {
-        u = normalize(make_double3(1,-n.x/n.y,0));
-      }
-      v = normalize(cross(n,u));
-
-      DI_h.push_back(3*i+0);
-      DI_h.push_back(3*i+0);
-      DI_h.push_back(3*i+0);
-      DI_h.push_back(3*i+0);
-      DI_h.push_back(3*i+0);
-      DI_h.push_back(3*i+0);
-
-      DJ_h.push_back(indices_h[bodyA]+0);
-      DJ_h.push_back(indices_h[bodyA]+1);
-      DJ_h.push_back(indices_h[bodyA]+2);
-      DJ_h.push_back(indices_h[bodyB]+0);
-      DJ_h.push_back(indices_h[bodyB]+1);
-      DJ_h.push_back(indices_h[bodyB]+2);
-
-      D_h.push_back(-n.x);
-      D_h.push_back(-n.y);
-      D_h.push_back(-n.z);
-      D_h.push_back(n.x);
-      D_h.push_back(n.y);
-      D_h.push_back(n.z);
-
-      DI_h.push_back(3*i+1);
-      DI_h.push_back(3*i+1);
-      DI_h.push_back(3*i+1);
-      DI_h.push_back(3*i+1);
-      DI_h.push_back(3*i+1);
-      DI_h.push_back(3*i+1);
-
-      DJ_h.push_back(indices_h[bodyA]+0);
-      DJ_h.push_back(indices_h[bodyA]+1);
-      DJ_h.push_back(indices_h[bodyA]+2);
-      DJ_h.push_back(indices_h[bodyB]+0);
-      DJ_h.push_back(indices_h[bodyB]+1);
-      DJ_h.push_back(indices_h[bodyB]+2);
-
-      D_h.push_back(-u.x);
-      D_h.push_back(-u.y);
-      D_h.push_back(-u.z);
-      D_h.push_back(u.x);
-      D_h.push_back(u.y);
-      D_h.push_back(u.z);
-
-      DI_h.push_back(3*i+2);
-      DI_h.push_back(3*i+2);
-      DI_h.push_back(3*i+2);
-      DI_h.push_back(3*i+2);
-      DI_h.push_back(3*i+2);
-      DI_h.push_back(3*i+2);
-
-      DJ_h.push_back(indices_h[bodyA]+0);
-      DJ_h.push_back(indices_h[bodyA]+1);
-      DJ_h.push_back(indices_h[bodyA]+2);
-      DJ_h.push_back(indices_h[bodyB]+0);
-      DJ_h.push_back(indices_h[bodyB]+1);
-      DJ_h.push_back(indices_h[bodyB]+2);
-
-      D_h.push_back(-v.x);
-      D_h.push_back(-v.y);
-      D_h.push_back(-v.z);
-      D_h.push_back(v.x);
-      D_h.push_back(v.y);
-      D_h.push_back(v.z);
+    if(n.z != 0) {
+      u = normalize(make_double3(1,0,-n.x/n.z));
     }
+    else if(n.x != 0) {
+      u = normalize(make_double3(-n.z/n.x,0,1));
+    }
+    else {
+      u = normalize(make_double3(1,-n.x/n.y,0));
+    }
+    v = normalize(cross(n,u));
 
-    DI_d = DI_h;
-    DJ_d = DJ_h;
-    D_d = D_h;
+    DI_h.push_back(3*i+0);
+    DI_h.push_back(3*i+0);
+    DI_h.push_back(3*i+0);
+    DI_h.push_back(3*i+0);
+    DI_h.push_back(3*i+0);
+    DI_h.push_back(3*i+0);
 
-    DTI_d = DI_d;
-    DTJ_d = DJ_d;
-    DT_d = D_d;
+    DJ_h.push_back(indices_h[bodyA]+0);
+    DJ_h.push_back(indices_h[bodyA]+1);
+    DJ_h.push_back(indices_h[bodyA]+2);
+    DJ_h.push_back(indices_h[bodyB]+0);
+    DJ_h.push_back(indices_h[bodyB]+1);
+    DJ_h.push_back(indices_h[bodyB]+2);
 
-    // create contact jacobian using cusp library
-    thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
-    DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
+    D_h.push_back(n.x);
+    D_h.push_back(n.y);
+    D_h.push_back(n.z);
+    D_h.push_back(-n.x);
+    D_h.push_back(-n.y);
+    D_h.push_back(-n.z);
 
-    thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
-    DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
+    DI_h.push_back(3*i+1);
+    DI_h.push_back(3*i+1);
+    DI_h.push_back(3*i+1);
+    DI_h.push_back(3*i+1);
+    DI_h.push_back(3*i+1);
+    DI_h.push_back(3*i+1);
 
-    thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
-    DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
+    DJ_h.push_back(indices_h[bodyA]+0);
+    DJ_h.push_back(indices_h[bodyA]+1);
+    DJ_h.push_back(indices_h[bodyA]+2);
+    DJ_h.push_back(indices_h[bodyB]+0);
+    DJ_h.push_back(indices_h[bodyB]+1);
+    DJ_h.push_back(indices_h[bodyB]+2);
 
-    D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
-    // end create contact jacobian
+    D_h.push_back(u.x);
+    D_h.push_back(u.y);
+    D_h.push_back(u.z);
+    D_h.push_back(-u.x);
+    D_h.push_back(-u.y);
+    D_h.push_back(-u.z);
 
-    buildContactJacobianTranspose();
+    DI_h.push_back(3*i+2);
+    DI_h.push_back(3*i+2);
+    DI_h.push_back(3*i+2);
+    DI_h.push_back(3*i+2);
+    DI_h.push_back(3*i+2);
+    DI_h.push_back(3*i+2);
+
+    DJ_h.push_back(indices_h[bodyA]+0);
+    DJ_h.push_back(indices_h[bodyA]+1);
+    DJ_h.push_back(indices_h[bodyA]+2);
+    DJ_h.push_back(indices_h[bodyB]+0);
+    DJ_h.push_back(indices_h[bodyB]+1);
+    DJ_h.push_back(indices_h[bodyB]+2);
+
+    D_h.push_back(v.x);
+    D_h.push_back(v.y);
+    D_h.push_back(v.z);
+    D_h.push_back(-v.x);
+    D_h.push_back(-v.y);
+    D_h.push_back(-v.z);
   }
+
+  DI_d = DI_h;
+  DJ_d = DJ_h;
+  D_d = D_h;
+
+  DTI_d = DI_d;
+  DTJ_d = DJ_d;
+  DT_d = D_d;
+
+  // create contact jacobian using cusp library
+      thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
+
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
+
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
+
+  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+  // end create contact jacobian
+
+  buildContactJacobianTranspose();
 
   return 0;
 }
@@ -536,8 +559,8 @@ int System::buildContactJacobianTranspose() {
 }
 
 int System::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst) {
-  cusp::multiply(DT,src,tmp);
-  cusp::multiply(mass,tmp,tmp);
+  cusp::multiply(DT,src,f_contact);
+  cusp::multiply(mass,f_contact,tmp);
   cusp::multiply(D,tmp,dst);
 
   return 0;
@@ -551,11 +574,15 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
   r[3*index] += penetration/timeStep;
 }
 
-int System::buildRightHandSideVector() {
+int System::buildAppliedImpulseVector() {
   // build k
   cusp::multiply(mass,v,k);
   cusp::blas::axpy(f,k,h);
 
+  return 0;
+}
+
+int System::buildRightHandSideVector() {
   // build r
   r_d.resize(3*collisionDetector->numCollisions);
   r.resize(3*collisionDetector->numCollisions);
