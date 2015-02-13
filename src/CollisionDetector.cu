@@ -30,8 +30,8 @@ __global__ void generateAabbData(double3* aabbData, int* indices, double* positi
     // sphere case
     geometry = make_double3(geometry.x,geometry.x,geometry.x);
   }
-  aabbData[index] = pos-geometry;
-  aabbData[index + numAABB] = pos+geometry;
+  aabbData[index] = pos-1.01*geometry;
+  aabbData[index + numAABB] = pos+1.01*geometry;
 }
 
 __global__ void countAabbBinIntersections(double3* aabbData, uint* numBinsIntersected, double3 binSizeInverse, uint numAABB) {
@@ -146,7 +146,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   if(geometryA.y == 0 && geometryB.y == 0) {
     // sphere-sphere case
     penetration = (geometryA.x+geometryB.x) - length(posB-posA);
-    if(penetration>0) numCollisions++;
+    if(penetration>=0) numCollisions++;
   }
 
   else if(geometryA.y != 0 && geometryB.y == 0) {
@@ -155,21 +155,21 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
     {
       penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
 
     // check y
     else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
     {
       penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
 
     // check z
     else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
     {
       penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
   }
 
@@ -179,21 +179,21 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
     {
       penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
 
     // check y
     else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
     {
       penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
 
     // check z
     else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
     {
       penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
-      if(penetration>0) numCollisions++;
+      if(penetration>=0) numCollisions++;
     }
   }
 
@@ -277,10 +277,10 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       }
     }
 
-    if(penetration<0) penetration = 0;
+    //if(penetration<0) penetration = 0;
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
-    normalsAndPenetrations[i] = make_double4(normal.x,normal.y,normal.z,penetration); // from A to B!
+    normalsAndPenetrations[i] = make_double4(normal.x,normal.y,normal.z,-penetration); // from A to B!
 
     //bodyIdentifiersA[i+numCollisions] = bodyB;
     //bodyIdentifiersB[i+numCollisions] = bodyA;
@@ -438,32 +438,6 @@ int CollisionDetector::detectCollisions()
       // Step 3: Store the actual collisions
       storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifierA_d), CASTU1(bodyIdentifierB_d), numPossibleCollisions, numCollisions);
       // End Step 3
-
-//      // NOTE: I think that I can stop here for DVI, there is no need to perform steps 4-6 since the contact jacobian is built on a per contact level
-//
-//      // Step 4: Sort the collisions by body identifier
-//      //Thrust_Sort_By_Key(bodyIdentifierA_d, normalsAndPenetrations_d);
-//      thrust::sort_by_key(bodyIdentifierA_d.begin(),bodyIdentifierA_d.end(),thrust::make_zip_iterator(thrust::make_tuple(normalsAndPenetrations_d.begin(), bodyIdentifierB_d.begin())));
-//
-////      bodyIdentifierA_h = bodyIdentifierA_d;
-////      normalsAndPenetrations_h = normalsAndPenetrations_d;
-////      bodyIdentifierB_h = bodyIdentifierB_d;
-////      thrust::sort_by_key(bodyIdentifierA_h.begin(),bodyIdentifierA_h.end(),thrust::make_zip_iterator(thrust::make_tuple(normalsAndPenetrations_h.begin(), bodyIdentifierB_h.begin())));
-////      bodyIdentifierA_d = bodyIdentifierA_h;
-////      normalsAndPenetrations_d = normalsAndPenetrations_h;
-////      bodyIdentifierB_d = bodyIdentifierB_h;
-//      // End Step 4
-//
-//      // Step 5: Count the number of collisions that each body has and place into collisionStartIndex_d
-//      collisionStartIndex_d.resize(2*numCollisions);
-//      Thrust_Reduce_By_KeyA(lastActiveCollision, bodyIdentifierA_d, collisionStartIndex_d);
-//      collisionStartIndex_d.resize(lastActiveCollision);
-//      bodyIdentifierA_d.resize(lastActiveCollision);
-//      // End Step 5
-//
-//      // Step 6: Figure out where each thread needs to start and end for each collision
-//      Thrust_Inclusive_Scan(collisionStartIndex_d);
-//      // End Step 6
     }
   }
   // TODO: Remove this!

@@ -268,15 +268,6 @@ int System::DoTimeStep() {
 
     // Solve the QOCC
     solve_APGD();
-//    cusp::print(gamma);
-//    cin.get();
-//    gamma_h = gamma_d;
-//    for(int i=0; i<collisionDetector->numCollisions;i++) {
-//      gamma_h[3*i] = 1;
-//      gamma_h[3*i+1] = 0;
-//      gamma_h[3*i+2] = 0;
-//    }
-//    gamma_d = gamma_h;
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
@@ -459,12 +450,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(n.x);
-    D_h.push_back(n.y);
-    D_h.push_back(n.z);
     D_h.push_back(-n.x);
     D_h.push_back(-n.y);
     D_h.push_back(-n.z);
+    D_h.push_back(n.x);
+    D_h.push_back(n.y);
+    D_h.push_back(n.z);
 
     DI_h.push_back(3*i+1);
     DI_h.push_back(3*i+1);
@@ -480,12 +471,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(u.x);
-    D_h.push_back(u.y);
-    D_h.push_back(u.z);
     D_h.push_back(-u.x);
     D_h.push_back(-u.y);
     D_h.push_back(-u.z);
+    D_h.push_back(u.x);
+    D_h.push_back(u.y);
+    D_h.push_back(u.z);
 
     DI_h.push_back(3*i+2);
     DI_h.push_back(3*i+2);
@@ -501,12 +492,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(v.x);
-    D_h.push_back(v.y);
-    D_h.push_back(v.z);
     D_h.push_back(-v.x);
     D_h.push_back(-v.y);
     D_h.push_back(-v.z);
+    D_h.push_back(v.x);
+    D_h.push_back(v.y);
+    D_h.push_back(v.z);
   }
 
   DI_d = DI_h;
@@ -518,7 +509,7 @@ int System::buildContactJacobian() {
   DT_d = D_d;
 
   // create contact jacobian using cusp library
-      thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
   DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
 
   thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
@@ -604,24 +595,34 @@ int System::project(thrust::device_vector<double> src) {
     double gamma_n = gamma.x;
     double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
 
-    if(mu==0) {
-      gamma = make_double3(gamma_n,0,0);
-      if (gamma_n < 0) gamma = make_double3(0,0,0);
-    }
-    else if(gamma_t < mu * gamma_n) {
-      gamma = make_double3(gamma.x,gamma.y,gamma.z);
-    }
-    else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
+    if(gamma_n <= -mu*gamma_t) {
       gamma = make_double3(0,0,0);
     }
-    else {
-      double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
-      double gamma_t_proj = gamma_n_proj * mu;
-      double tproj_div_t = gamma_t_proj/gamma_t;
-      double gamma_u_proj = tproj_div_t * gamma.y;
-      double gamma_v_proj = tproj_div_t * gamma.z;
-      gamma = make_double3(gamma_n_proj,gamma_u_proj,gamma_v_proj);
+    else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
+      gamma = make_double3(
+          (gamma_n+mu*gamma_t)/(mu*mu+1.0),
+          gamma.y*mu*gamma_n/gamma_t,
+          gamma.z*mu*gamma_n/gamma_t);
     }
+
+//    if(mu==0) {
+//      gamma = make_double3(gamma_n,0,0);
+//      if (gamma_n < 0) gamma = make_double3(0,0,0);
+//    }
+//    else if(gamma_t < mu * gamma_n) {
+//      gamma = make_double3(gamma.x,gamma.y,gamma.z);
+//    }
+//    else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
+//      gamma = make_double3(0,0,0);
+//    }
+//    else {
+//      double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
+//      double gamma_t_proj = gamma_n_proj * mu;
+//      double tproj_div_t = gamma_t_proj/gamma_t;
+//      double gamma_u_proj = tproj_div_t * gamma.y;
+//      double gamma_v_proj = tproj_div_t * gamma.z;
+//      gamma = make_double3(gamma_n_proj,gamma_u_proj,gamma_v_proj);
+//    }
 
     src_h[3*i] = gamma.x;
     src_h[3*i+1] = gamma.y;
@@ -645,7 +646,7 @@ double System::getResidual(DeviceValueArrayView src) {
 
 int System::solve_APGD() {
   int maxIterations = 500;
-  double tolerance = 1e-3;
+  double tolerance = 1e-5;
 
   gamma_d.resize(3*collisionDetector->numCollisions);
   gammaHat_d.resize(3*collisionDetector->numCollisions);
@@ -663,7 +664,7 @@ int System::solve_APGD() {
   gammaTmp.resize(3*collisionDetector->numCollisions);
 
   // (1) gamma_0 = zeros(nc,1)
-  cusp::blas::fill(gamma,0);
+  //cusp::blas::fill(gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -689,7 +690,8 @@ int System::solve_APGD() {
   double t = 1.0/L;
 
   // (7) for k := 0 to N_max
-  for (int k = 0; k < maxIterations; k++) {
+  int k;
+  for (k=0; k < maxIterations; k++) {
     // (8) g = N * y_k - r
     performSchurComplementProduct(y, g);
     cusp::blas::axpy(r,g,1.0);
@@ -784,6 +786,7 @@ int System::solve_APGD() {
 
     // (32) endfor
   }
+  cout << "  Iterations: " << k << endl;
 
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   cusp::blas::copy(gammaHat,gamma);

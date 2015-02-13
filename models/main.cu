@@ -68,7 +68,7 @@ void drawAll()
 			  }
 			  else {
 			    glColor3f(0.0f,0.0f,1.0f);
-			    glutWireSphere(geometry.x,10,10);
+			    glutWireSphere(geometry.x,30,30);
 			  }
 			  glPopMatrix();
 			}
@@ -84,7 +84,7 @@ void drawAll()
         }
         else {
           glColor3f(0.0f,0.0f,1.0f);
-          glutSolidSphere(geometry.x,10,10);
+          glutSolidSphere(geometry.x,30,30);
         }
         glPopMatrix();
       }
@@ -174,14 +174,14 @@ int main(int argc, char** argv)
     sys.preconditionerUpdateModulus = precUpdateInterval;
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
-  double radius = 0.5;
-
+  double radius = 0.4;
+/*
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
   sys.add(groundPtr);
-/*
+
   // Left
   Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-2*radius,0.5*numElementsPerSide+radius,0));
   leftPtr->setBodyFixed(true);
@@ -220,7 +220,7 @@ int main(int argc, char** argv)
       //for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+radius,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        //if(j==0) bodyPtr->setBodyFixed(true);
+        if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
         //numBodies = sys.add(bodyPtr);
 
