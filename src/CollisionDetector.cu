@@ -527,10 +527,14 @@ int CollisionDetector::detectCollisions_CPU()
     if(penetration>=0) {
       bodyIdentifierA_h.push_back(bodyA);
       bodyIdentifierB_h.push_back(bodyB);
-      normalsAndPenetrations_h.push_back(make_double4(normal.x,normal.y,normal.z,penetration));
+      normalsAndPenetrations_h.push_back(make_double4(normal.x,normal.y,normal.z,-penetration));
     }
   }
   numCollisions = bodyIdentifierA_h.size();
+
+  normalsAndPenetrations_d = normalsAndPenetrations_h;
+  bodyIdentifierA_d = bodyIdentifierA_h;
+  bodyIdentifierB_d = bodyIdentifierB_h;
 
   return 0;
 }

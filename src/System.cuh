@@ -176,7 +176,7 @@ public:
 	int     getTimeIndex() const      {return timeIndex;}
 	void    setTimeStep(double step_size, double precision = 1e-10);
 	void    setNumPartitions(int num_partitions) {partitions = num_partitions;}
-	void    setMaxKrylovIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
+	void    setMaxSpikeIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
 	void    setSolverType(int solverType);
 	void    setPrecondType(int useSpike);
 	void    printSolverParams();
@@ -186,10 +186,10 @@ public:
 	int     initializeSystem();
 	int     applyContactForces();
 	int     applyContactForces_CPU();
-	int     fixBodies();
 	int     buildContactJacobian();
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst);
+	int     multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst);
 	int     buildAppliedImpulseVector();
 	int     buildRightHandSideVector();
 	int     solve_APGD();

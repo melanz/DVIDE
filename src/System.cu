@@ -243,7 +243,7 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
-	//collisionDetector->detectPossibleCollisions_nSquared();
+	collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -255,24 +255,39 @@ int System::DoTimeStep() {
 	cudaEventRecord(start, 0);
 
 	// Perform collision detection
-	collisionDetector->generateAxisAlignedBoundingBoxes();
-	collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  collisionDetector->detectCollisions();
+	//collisionDetector->generateAxisAlignedBoundingBoxes();
+	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  //collisionDetector->detectCollisions();
+
+	collisionDetector->detectCollisions_CPU();
 
   buildAppliedImpulseVector();
 
   if(collisionDetector->numCollisions) {
+//    cusp::print(k);
+//    cin.get();
+
     // Set up the QOCC
     buildContactJacobian();
+//    cusp::print(D);
+//    cin.get();
     buildRightHandSideVector();
+//    cusp::print(r);
+//    cin.get();
 
     // Solve the QOCC
     solve_APGD();
+
+//    cusp::print(gamma);
+//    cin.get();
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
     cusp::blas::axpby(k,v,tmp,1.0,1.0);
     cusp::multiply(mass,tmp,v);
+
+//    cusp::print(v);
+//    cin.get();
   }
   else {
     // Perform time integration (no contacts)
@@ -388,25 +403,6 @@ int System::applyContactForces_CPU() {
 
   }
   f_contact_d = f_contact_h;
-
-  return 0;
-}
-
-__global__ void fixFixedBodies(double* v, int* indices, int* fixedBodies, uint numFixedBodies) {
-  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numFixedBodies);
-
-  int body = fixedBodies[index];
-  int bodyIndex = indices[body];
-
-  v[bodyIndex]   = 0;
-  v[bodyIndex+1] = 0;
-  v[bodyIndex+2] = 0;
-}
-
-int System::fixBodies() {
-  if(fixedBodies_d.size()) {
-    fixFixedBodies<<<BLOCKS(fixedBodies_d.size()),THREADS>>>(CASTD1(v_d), CASTI1(indices_d), CASTI1(fixedBodies_d), fixedBodies_d.size());
-  }
 
   return 0;
 }
@@ -565,9 +561,28 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
   r[3*index] += penetration/timeStep;
 }
 
+int System::multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
+  // TODO: perform in parallel
+  thrust::host_vector<double> src_h = src;
+  thrust::host_vector<double> dst_h = dst;
+
+  for(int i=0;i<bodies.size();i++) {
+    int index = indices_h[i];
+    double mass = 0;
+    if(!bodies[i]->fixed) mass = bodies[i]->mass;
+    dst_h[index] = mass*src_h[index];
+    dst_h[index+1] = bodies[i]->mass*src_h[index+1];
+    dst_h[index+2] = bodies[i]->mass*src_h[index+2];
+  }
+
+  dst = dst_h;
+
+  return 0;
+}
+
 int System::buildAppliedImpulseVector() {
   // build k
-  cusp::multiply(mass,v,k);
+  multiplyByMass(v_d,k_d);
   cusp::blas::axpy(f,k,h);
 
   return 0;
@@ -664,7 +679,7 @@ int System::solve_APGD() {
   gammaTmp.resize(3*collisionDetector->numCollisions);
 
   // (1) gamma_0 = zeros(nc,1)
-  //cusp::blas::fill(gamma,0);
+  cusp::blas::fill(gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);

@@ -9,7 +9,7 @@ bool wireFrame = 1;
 System sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(0,5,-10),camreal3(0,5,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(4,5,-40),camreal3(4,5,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -158,8 +158,8 @@ int main(int argc, char** argv)
 #endif
 	//visualize = false;
 
-  sys.setTimeStep(1e-3, 1e-10);
-  sys.setMaxKrylovIterations(5000);
+  sys.setTimeStep(1e-2, 1e-10);
+  sys.setMaxSpikeIterations(5000);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
@@ -205,19 +205,16 @@ int main(int argc, char** argv)
   frontPtr->setBodyFixed(true);
   frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
   sys.add(frontPtr);
-*/
-  //Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
-  //Body* ball1 = new Body(make_double3(0,1,0));
-  //sys.add(ball1);
+
+  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
+  sys.add(ball1);
 
   Body* bodyPtr;
   int numBodies = 0;
-  int i = 0;
-  int k = 0;
   // Add elements in x-direction
-  //for (int i = 0; i < numElementsPerSide; i++) {
+  for (int i = 0; i < numElementsPerSide; i++) {
     for (int j = 0; j < numElementsPerSide; j++) {
-      //for (int k = 0; k < numElementsPerSide; k++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+radius,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
         if(j==0) bodyPtr->setBodyFixed(true);
@@ -225,9 +222,27 @@ int main(int argc, char** argv)
         //numBodies = sys.add(bodyPtr);
 
         if(numBodies%100==0) printf("Bodies %d\n",numBodies);
-      //}
+      }
     }
-  //}
+  }
+*/
+  Body* bodyPtr;
+  bodyPtr = new Body(make_double3(4,0,0));
+  bodyPtr->setGeometry(make_double3(2,0,0));
+  bodyPtr->setBodyFixed(true);
+  sys.add(bodyPtr);
+
+  bodyPtr = new Body(make_double3(4,10.5,0));
+  bodyPtr->setGeometry(make_double3(2,0,0));
+  sys.add(bodyPtr);
+
+//  bodyPtr = new Body(make_double3(4,20.5,0));
+//  bodyPtr->setGeometry(make_double3(2,0,0));
+//  sys.add(bodyPtr);
+//
+//  bodyPtr = new Body(make_double3(4,30.5,0));
+//  bodyPtr->setGeometry(make_double3(2,0,0));
+//  sys.add(bodyPtr);
 
 	sys.initializeSystem();
 	printf("System initialized!\n");
