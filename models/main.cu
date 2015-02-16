@@ -236,13 +236,13 @@ int main(int argc, char** argv)
   bodyPtr->setGeometry(make_double3(2,0,0));
   sys.add(bodyPtr);
 
-//  bodyPtr = new Body(make_double3(4,20.5,0));
-//  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys.add(bodyPtr);
-//
-//  bodyPtr = new Body(make_double3(4,30.5,0));
-//  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys.add(bodyPtr);
+  bodyPtr = new Body(make_double3(4,20.5,0));
+  bodyPtr->setGeometry(make_double3(2,0,0));
+  sys.add(bodyPtr);
+
+  bodyPtr = new Body(make_double3(4,30.5,0));
+  bodyPtr->setGeometry(make_double3(2,0,0));
+  sys.add(bodyPtr);
 
 	sys.initializeSystem();
 	printf("System initialized!\n");

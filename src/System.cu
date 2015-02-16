@@ -446,12 +446,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(-n.x);
-    D_h.push_back(-n.y);
-    D_h.push_back(-n.z);
     D_h.push_back(n.x);
     D_h.push_back(n.y);
     D_h.push_back(n.z);
+    D_h.push_back(-n.x);
+    D_h.push_back(-n.y);
+    D_h.push_back(-n.z);
 
     DI_h.push_back(3*i+1);
     DI_h.push_back(3*i+1);
@@ -467,12 +467,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(-u.x);
-    D_h.push_back(-u.y);
-    D_h.push_back(-u.z);
     D_h.push_back(u.x);
     D_h.push_back(u.y);
     D_h.push_back(u.z);
+    D_h.push_back(-u.x);
+    D_h.push_back(-u.y);
+    D_h.push_back(-u.z);
 
     DI_h.push_back(3*i+2);
     DI_h.push_back(3*i+2);
@@ -488,12 +488,12 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
 
-    D_h.push_back(-v.x);
-    D_h.push_back(-v.y);
-    D_h.push_back(-v.z);
     D_h.push_back(v.x);
     D_h.push_back(v.y);
     D_h.push_back(v.z);
+    D_h.push_back(-v.x);
+    D_h.push_back(-v.y);
+    D_h.push_back(-v.z);
   }
 
   DI_d = DI_h;
@@ -557,6 +557,7 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
+  //printf("b[%d] = %f\n",index,penetration/timeStep);
 
   r[3*index] += penetration/timeStep;
 }
@@ -593,7 +594,8 @@ int System::buildRightHandSideVector() {
   r_d.resize(3*collisionDetector->numCollisions);
   r.resize(3*collisionDetector->numCollisions);
   cusp::multiply(mass,k,tmp);
-  cusp::multiply(DT,tmp,r);
+  cusp::multiply(D,tmp,r);
+//  cusp::print(r);
   applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
 
   return 0;
@@ -660,7 +662,7 @@ double System::getResidual(DeviceValueArrayView src) {
 }
 
 int System::solve_APGD() {
-  int maxIterations = 500;
+  int maxIterations = 1;
   double tolerance = 1e-5;
 
   gamma_d.resize(3*collisionDetector->numCollisions);

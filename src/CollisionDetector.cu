@@ -280,7 +280,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     //if(penetration<0) penetration = 0;
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
-    normalsAndPenetrations[i] = make_double4(normal.x,normal.y,normal.z,-penetration); // from A to B!
+    normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,-penetration); // from B to A!
 
     //bodyIdentifiersA[i+numCollisions] = bodyB;
     //bodyIdentifiersB[i+numCollisions] = bodyA;
@@ -527,7 +527,7 @@ int CollisionDetector::detectCollisions_CPU()
     if(penetration>=0) {
       bodyIdentifierA_h.push_back(bodyA);
       bodyIdentifierB_h.push_back(bodyB);
-      normalsAndPenetrations_h.push_back(make_double4(normal.x,normal.y,normal.z,-penetration));
+      normalsAndPenetrations_h.push_back(make_double4(-normal.x,-normal.y,-normal.z,-penetration)); // from B to A!
     }
   }
   numCollisions = bodyIdentifierA_h.size();
