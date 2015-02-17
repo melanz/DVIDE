@@ -278,8 +278,8 @@ int System::DoTimeStep() {
     // Solve the QOCC
     solve_APGD();
 
-//    cusp::print(gamma);
-//    cin.get();
+    cusp::print(gamma);
+    cin.get();
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
@@ -466,7 +466,13 @@ int System::buildContactJacobian() {
     DJ_h.push_back(indices_h[bodyB]+0);
     DJ_h.push_back(indices_h[bodyB]+1);
     DJ_h.push_back(indices_h[bodyB]+2);
-
+    //  bodyPtr = new Body(make_double3(4,20.5,0));
+    //  bodyPtr->setGeometry(make_double3(2,0,0));
+    //  sys.add(bodyPtr);
+    //
+    //  bodyPtr = new Body(make_double3(4,30.5,0));
+    //  bodyPtr->setGeometry(make_double3(2,0,0));
+    //  sys.add(bodyPtr);
     D_h.push_back(u.x);
     D_h.push_back(u.y);
     D_h.push_back(u.z);
@@ -545,10 +551,10 @@ int System::buildContactJacobianTranspose() {
   return 0;
 }
 
-int System::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst) {
+int System::performSchurComplementProduct(DeviceValueArrayView src) {
   cusp::multiply(DT,src,f_contact);
   cusp::multiply(mass,f_contact,tmp);
-  cusp::multiply(D,tmp,dst);
+  cusp::multiply(D,tmp,gammaTmp);
 
   return 0;
 }
@@ -652,7 +658,7 @@ int System::project(thrust::device_vector<double> src) {
 
 double System::getResidual(DeviceValueArrayView src) {
   double gdiff = 1.0 / pow(collisionDetector->numCollisions,2.0);
-  performSchurComplementProduct(gamma, gammaTmp);
+  performSchurComplementProduct(gamma);
   cusp::blas::axpy(r,gammaTmp,1.0);
   cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0,-gdiff);
   project(gammaTmp_d);
@@ -672,6 +678,7 @@ int System::solve_APGD() {
   y_d.resize(3*collisionDetector->numCollisions);
   yNew_d.resize(3*collisionDetector->numCollisions);
   gammaTmp_d.resize(3*collisionDetector->numCollisions);
+
   gamma.resize(3*collisionDetector->numCollisions);
   gammaHat.resize(3*collisionDetector->numCollisions);
   gammaNew.resize(3*collisionDetector->numCollisions);
@@ -700,7 +707,7 @@ int System::solve_APGD() {
   // (5) L_k = norm(N * (gamma_0 - gamma_hat_0)) / norm(gamma_0 - gamma_hat_0)
   cusp::blas::axpby(gamma,gammaHat,gammaTmp,1.0,-1.0);
   double L = cusp::blas::nrm2(gammaTmp);
-  performSchurComplementProduct(gammaTmp, gammaTmp);
+  performSchurComplementProduct(gammaTmp);
   L = cusp::blas::nrm2(gammaTmp)/L;
 
   // (6) t_k = 1 / L_k
@@ -710,21 +717,27 @@ int System::solve_APGD() {
   int k;
   for (k=0; k < maxIterations; k++) {
     // (8) g = N * y_k - r
-    performSchurComplementProduct(y, g);
+    performSchurComplementProduct(y);
+    cusp::blas::copy(gammaTmp,g);
     cusp::blas::axpy(r,g,1.0);
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
     project(gammaNew_d);
 
+    printf("L = %f, t = %f\n",L,t);
+    cusp::print(gammaNew);
+    cusp::print(y);
+    cusp::print(g);
+
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
-    performSchurComplementProduct(gammaNew, gammaTmp);
+    performSchurComplementProduct(gammaNew);
     obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
-    performSchurComplementProduct(y, gammaTmp);
+    performSchurComplementProduct(y);
     obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
     cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
-    obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * cusp::blas::dot(gammaTmp,gammaTmp);
-
+    obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
+    printf("obj1 = %f, obj2 = %f\n",obj1,obj2);
     while (obj1 >= obj2) {
       // (11) L_k = 2 * L_k
       L = 2.0 * L;
@@ -737,24 +750,29 @@ int System::solve_APGD() {
       project(gammaNew_d);
 
       // Update the components of the while condition
-      performSchurComplementProduct(gammaNew, gammaTmp);
+      performSchurComplementProduct(gammaNew);
       obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
-      performSchurComplementProduct(y, gammaTmp);
+      performSchurComplementProduct(y);
       obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
       cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
-      obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * cusp::blas::dot(gammaTmp,gammaTmp);
+      obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
 
       // (14) endwhile
     }
+    printf("L = %f, t = %f\n",L,t);
 
     // (15) theta_(k+1) = (-theta_k^2 + theta_k * sqrt(theta_k^2 + 4)) / 2
     thetaNew = (-pow(theta, 2.0) + theta * sqrt(pow(theta, 2.0) + 4.0)) / 2.0;
 
     // (16) Beta_(k+1) = theta_k * (1 - theta_k) / (theta_k^2 + theta_(k+1))
-    Beta = theta * (1.0 - theta) / (pow(theta, 2) + thetaNew);
+    Beta = theta * (1.0 - theta) / (pow(theta, 2.0) + thetaNew);
+
+    printf("thetaNew = %f, Beta = %f\n",thetaNew,Beta);
 
     // (17) y_(k+1) = gamma_(k+1) + Beta_(k+1) * (gamma_(k+1) - gamma_k)
     cusp::blas::axpby(gammaNew,gamma,yNew,(1.0+Beta),-Beta);
+
+    cusp::print(yNew);
 
     // (18) r = r(gamma_(k+1))
     double res = getResidual(gammaNew);

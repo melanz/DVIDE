@@ -188,7 +188,7 @@ public:
 	int     applyContactForces_CPU();
 	int     buildContactJacobian();
 	int     buildContactJacobianTranspose();
-	int     performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView dst);
+	int     performSchurComplementProduct(DeviceValueArrayView src);
 	int     multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst);
 	int     buildAppliedImpulseVector();
 	int     buildRightHandSideVector();
