@@ -479,16 +479,7 @@ int System::performSchurComplementProduct(DeviceValueArrayView src) {
   return 0;
 }
 
-__global__ void applyStabilization(double* r, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
-  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
-
-  double penetration = normalsAndPenetrations[index].w;
-  if(penetration>0) penetration = 0;
-
-  r[3*index] += penetration/timeStep;
-}
-
-int System::multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
+int System::multiplyByMass_CPU(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
   // TODO: perform in parallel
   thrust::host_vector<double> src_h = src;
   thrust::host_vector<double> dst_h = dst;
@@ -507,12 +498,35 @@ int System::multiplyByMass(thrust::device_vector<double> src, thrust::device_vec
   return 0;
 }
 
+__global__ void massMultiply(double* massInv, double* src, double* dst, uint numDOF) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numDOF);
+
+  double mass = massInv[index];
+  if(mass) mass = 1.0/mass;
+  dst[index] = mass*dst[index];
+}
+
+int System::multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
+  massMultiply<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(src), CASTD1(dst), v_d.size());
+
+  return 0;
+}
+
 int System::buildAppliedImpulseVector() {
   // build k
   multiplyByMass(v_d,k_d);
   cusp::blas::axpy(f,k,h);
 
   return 0;
+}
+
+__global__ void applyStabilization(double* r, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double penetration = normalsAndPenetrations[index].w;
+  if(penetration>0) penetration = 0;
+
+  r[3*index] += penetration/timeStep;
 }
 
 int System::buildRightHandSideVector() {
