@@ -175,7 +175,7 @@ int main(int argc, char** argv)
     sys.preconditionerMaxKrylovIterations = precMaxKrylov;
   }
   double radius = 0.4;
-/*
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -217,7 +217,7 @@ int main(int argc, char** argv)
       for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+radius,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        if(j==0) bodyPtr->setBodyFixed(true);
+        //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
         //numBodies = sys.add(bodyPtr);
 
@@ -225,18 +225,18 @@ int main(int argc, char** argv)
       }
     }
   }
-*/
 
-  Body* bodyPtr;
-  bodyPtr = new Body(make_double3(4,0,0));
-  bodyPtr->setGeometry(make_double3(2,0,0));
-  bodyPtr->setBodyFixed(true);
-  sys.add(bodyPtr);
 
-  bodyPtr = new Body(make_double3(4,10.5,0));
-  bodyPtr->setGeometry(make_double3(2,0,0));
-  sys.add(bodyPtr);
-
+//  Body* bodyPtr;
+//  bodyPtr = new Body(make_double3(4,0,0));
+//  bodyPtr->setGeometry(make_double3(2,0,0));
+//  bodyPtr->setBodyFixed(true);
+//  sys.add(bodyPtr);
+//
+//  bodyPtr = new Body(make_double3(4,10.5,0));
+//  bodyPtr->setGeometry(make_double3(2,0,0));
+//  sys.add(bodyPtr);
+//
 //  bodyPtr = new Body(make_double3(4,20.5,0));
 //  bodyPtr->setGeometry(make_double3(2,0,0));
 //  sys.add(bodyPtr);

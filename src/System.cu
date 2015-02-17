@@ -243,7 +243,7 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
-	collisionDetector->detectPossibleCollisions_nSquared();
+	//collisionDetector->detectPossibleCollisions_nSquared();
 
 	return 0;
 }
@@ -255,11 +255,11 @@ int System::DoTimeStep() {
 	cudaEventRecord(start, 0);
 
 	// Perform collision detection
-	//collisionDetector->generateAxisAlignedBoundingBoxes();
-	//collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  //collisionDetector->detectCollisions();
+	collisionDetector->generateAxisAlignedBoundingBoxes();
+	collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  collisionDetector->detectCollisions();
 
-	collisionDetector->detectCollisions_CPU();
+	//collisionDetector->detectCollisions_CPU();
 
   buildAppliedImpulseVector();
 
@@ -278,8 +278,8 @@ int System::DoTimeStep() {
     // Solve the QOCC
     solve_APGD();
 
-    cusp::print(gamma);
-    cin.get();
+//    cusp::print(gamma);
+//    cin.get();
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
@@ -288,10 +288,16 @@ int System::DoTimeStep() {
 
 //    cusp::print(v);
 //    cin.get();
+
+    cusp::blas::axpy(v, p, h);
+
+//    cusp::print(p);
+//    cin.get();
   }
   else {
     // Perform time integration (no contacts)
     cusp::multiply(mass,k,v);
+    cusp::blas::axpy(v, p, h);
   }
   //cusp::blas::axpy(f, f_contact, 1.0);
 
@@ -299,18 +305,17 @@ int System::DoTimeStep() {
 	//bool success = mySolver->solve(*m_spmv, f, a);
 	//cusp::blas::axpy(a, v, h);
   //fixBodies();
-	cusp::blas::axpy(v, p, h);
+
 
   time += h;
   timeIndex++;
   p_h = p_d;
 
-  printf("Time: %f, Collisions: %d (%d possible)\n",time,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
-
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
+	printf("Time: %f (Exec. Time: %f), Collisions: %d (%d possible)\n",time,elapsedTime,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
 
 	return 0;
 }
@@ -409,6 +414,10 @@ int System::applyContactForces_CPU() {
 
 int System::buildContactJacobian() {
   // TODO: Perform this in parallel!
+  collisionDetector->normalsAndPenetrations_h = collisionDetector->normalsAndPenetrations_d;
+  collisionDetector->bodyIdentifierA_h = collisionDetector->bodyIdentifierA_d;
+  collisionDetector->bodyIdentifierB_h = collisionDetector->bodyIdentifierB_d;
+
   DI_h.clear();
   DJ_h.clear();
   D_h.clear();
@@ -563,6 +572,7 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
+  if(penetration>0) penetration = 0;
   //printf("b[%d] = %f\n",index,penetration/timeStep);
 
   r[3*index] += penetration/timeStep;
@@ -609,7 +619,7 @@ int System::buildRightHandSideVector() {
 
 int System::project(thrust::device_vector<double> src) {
   //TODO: Perform in parallel
-  double mu = 0.5; //TODO: put this in material library
+  double mu = 0; //TODO: put this in material library
   thrust::host_vector<double> src_h = src;
   double3 gamma;
 
@@ -668,8 +678,8 @@ double System::getResidual(DeviceValueArrayView src) {
 }
 
 int System::solve_APGD() {
-  int maxIterations = 1;
-  double tolerance = 1e-5;
+  int maxIterations = 1000;
+  double tolerance = 1e-4;
 
   gamma_d.resize(3*collisionDetector->numCollisions);
   gammaHat_d.resize(3*collisionDetector->numCollisions);
@@ -725,10 +735,10 @@ int System::solve_APGD() {
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
     project(gammaNew_d);
 
-    printf("L = %f, t = %f\n",L,t);
-    cusp::print(gammaNew);
-    cusp::print(y);
-    cusp::print(g);
+//    printf("L = %f, t = %f\n",L,t);
+//    cusp::print(gammaNew);
+//    cusp::print(y);
+//    cusp::print(g);
 
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
     performSchurComplementProduct(gammaNew);
@@ -737,7 +747,7 @@ int System::solve_APGD() {
     obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
     cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
     obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
-    printf("obj1 = %f, obj2 = %f\n",obj1,obj2);
+//    printf("obj1 = %f, obj2 = %f\n",obj1,obj2);
     while (obj1 >= obj2) {
       // (11) L_k = 2 * L_k
       L = 2.0 * L;
@@ -759,7 +769,7 @@ int System::solve_APGD() {
 
       // (14) endwhile
     }
-    printf("L = %f, t = %f\n",L,t);
+//    printf("L = %f, t = %f\n",L,t);
 
     // (15) theta_(k+1) = (-theta_k^2 + theta_k * sqrt(theta_k^2 + 4)) / 2
     thetaNew = (-pow(theta, 2.0) + theta * sqrt(pow(theta, 2.0) + 4.0)) / 2.0;
@@ -767,12 +777,12 @@ int System::solve_APGD() {
     // (16) Beta_(k+1) = theta_k * (1 - theta_k) / (theta_k^2 + theta_(k+1))
     Beta = theta * (1.0 - theta) / (pow(theta, 2.0) + thetaNew);
 
-    printf("thetaNew = %f, Beta = %f\n",thetaNew,Beta);
+//    printf("thetaNew = %f, Beta = %f\n",thetaNew,Beta);
 
     // (17) y_(k+1) = gamma_(k+1) + Beta_(k+1) * (gamma_(k+1) - gamma_k)
     cusp::blas::axpby(gammaNew,gamma,yNew,(1.0+Beta),-Beta);
 
-    cusp::print(yNew);
+//    cusp::print(yNew);
 
     // (18) r = r(gamma_(k+1))
     double res = getResidual(gammaNew);
