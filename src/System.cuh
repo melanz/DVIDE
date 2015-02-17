@@ -194,6 +194,7 @@ public:
 	int     buildRightHandSideVector();
 	int     solve_APGD();
 	int     project(thrust::device_vector<double> src);
+  int     project_CPU(thrust::device_vector<double> src);
 	double  getResidual(DeviceValueArrayView src);
 };
 

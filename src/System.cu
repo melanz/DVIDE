@@ -617,7 +617,7 @@ int System::buildRightHandSideVector() {
   return 0;
 }
 
-int System::project(thrust::device_vector<double> src) {
+int System::project_CPU(thrust::device_vector<double> src) {
   //TODO: Perform in parallel
   double mu = 0; //TODO: put this in material library
   thrust::host_vector<double> src_h = src;
@@ -662,6 +662,35 @@ int System::project(thrust::device_vector<double> src) {
     src_h[3*i+2] = gamma.z;
   }
   src = src_h;
+
+  return 0;
+}
+
+__global__ void performProjection(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = 0;
+  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
+  double gamma_n = gamma.x;
+  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
+
+  if(gamma_n <= -mu*gamma_t) {
+    gamma = make_double3(0,0,0);
+  }
+  else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
+    gamma = make_double3(
+        (gamma_n+mu*gamma_t)/(mu*mu+1.0),
+        gamma.y*mu*gamma_n/gamma_t,
+        gamma.z*mu*gamma_n/gamma_t);
+  }
+
+  src[3*index] = gamma.x;
+  src[3*index+1] = gamma.y;
+  src[3*index+2] = gamma.z;
+}
+
+int System::project(thrust::device_vector<double> src) {
+  performProjection<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(src), collisionDetector->numCollisions);
 
   return 0;
 }
