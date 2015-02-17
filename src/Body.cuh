@@ -78,6 +78,10 @@ public:
   {
     return mass;
   }
+  void setMass(double mass)
+  {
+    this->mass = mass;
+  }
 
   uint getIndex()
   {

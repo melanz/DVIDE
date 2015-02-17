@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 #endif
 	//visualize = false;
 
-  sys.setTimeStep(1e-2, 1e-10);
+  sys.setTimeStep(1e-3, 1e-10);
   sys.setMaxSpikeIterations(5000);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
@@ -207,6 +207,7 @@ int main(int argc, char** argv)
   sys.add(frontPtr);
 
   Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
+  ball1->setMass(20);
   sys.add(ball1);
 
   Body* bodyPtr;

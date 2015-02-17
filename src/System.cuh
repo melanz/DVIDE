@@ -188,12 +188,9 @@ public:
 	int     buildContactJacobian();
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src);
-	int     multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst);
-	int     multiplyByMass_CPU(thrust::device_vector<double> src, thrust::device_vector<double> dst);
 	int     buildAppliedImpulseVector();
 	int     buildRightHandSideVector();
 	int     solve_APGD();
-	int     project(thrust::device_vector<double> src);
 	double  getResidual(DeviceValueArrayView src);
 };
 

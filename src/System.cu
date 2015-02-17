@@ -274,6 +274,15 @@ int System::DoTimeStep() {
     cusp::multiply(mass,k,v);
   }
 
+//  // Apply sinusoidal motion
+//  v_h = v_d;
+//  for(int i=0;i<5;i++) {
+//    v_h[3*i] = v_h[3*i]+2.0*sin(time);
+//    v_h[3*i+1] = 0;
+//    v_h[3*i+2] = 0;
+//  }
+//  v_d = v_h;
+
   cusp::blas::axpy(v, p, h);
 
   time += h;
@@ -479,42 +488,17 @@ int System::performSchurComplementProduct(DeviceValueArrayView src) {
   return 0;
 }
 
-int System::multiplyByMass_CPU(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
-  // TODO: perform in parallel
-  thrust::host_vector<double> src_h = src;
-  thrust::host_vector<double> dst_h = dst;
-
-  for(int i=0;i<bodies.size();i++) {
-    int index = indices_h[i];
-    double mass = 0;
-    if(!bodies[i]->fixed) mass = bodies[i]->mass;
-    dst_h[index] = mass*src_h[index];
-    dst_h[index+1] = bodies[i]->mass*src_h[index+1];
-    dst_h[index+2] = bodies[i]->mass*src_h[index+2];
-  }
-
-  dst = dst_h;
-
-  return 0;
-}
-
-__global__ void massMultiply(double* massInv, double* src, double* dst, uint numDOF) {
+__global__ void multiplyByMass(double* massInv, double* src, double* dst, uint numDOF) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numDOF);
 
   double mass = massInv[index];
   if(mass) mass = 1.0/mass;
-  dst[index] = mass*dst[index];
-}
-
-int System::multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst) {
-  massMultiply<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(src), CASTD1(dst), v_d.size());
-
-  return 0;
+  dst[index] = mass*src[index];
 }
 
 int System::buildAppliedImpulseVector() {
   // build k
-  multiplyByMass(v_d,k_d);
+  multiplyByMass<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), v_d.size());
   cusp::blas::axpy(f,k,h);
 
   return 0;
@@ -532,7 +516,10 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
 int System::buildRightHandSideVector() {
   // build r
   r_d.resize(3*collisionDetector->numCollisions);
-  r.resize(3*collisionDetector->numCollisions);
+  // TODO: There's got to be a better way to do this...
+  //r.resize(3*collisionDetector->numCollisions);
+  thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+  r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
 
@@ -541,7 +528,7 @@ int System::buildRightHandSideVector() {
   return 0;
 }
 
-__global__ void performProjection(double* src, uint numCollisions) {
+__global__ void project(double* src, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = 0;
@@ -549,25 +536,38 @@ __global__ void performProjection(double* src, uint numCollisions) {
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
 
-  if(gamma_n <= -mu*gamma_t) {
+  if(mu == 0) {
+    gamma = make_double3(gamma_n,0,0);
+    if (gamma_n < 0) gamma = make_double3(0,0,0);
+  }
+  else if(gamma_t < mu * gamma_n) {
+    // Don't touch gamma!
+  }
+  else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
     gamma = make_double3(0,0,0);
   }
-  else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
-    gamma = make_double3(
-        (gamma_n+mu*gamma_t)/(mu*mu+1.0),
-        gamma.y*mu*gamma_n/gamma_t,
-        gamma.z*mu*gamma_n/gamma_t);
+  else {
+    double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
+    double gamma_t_proj = gamma_n_proj * mu;
+    double tproj_div_t = gamma_t_proj/gamma_t;
+    double gamma_u_proj = tproj_div_t * gamma.y;
+    double gamma_v_proj = tproj_div_t * gamma.z;
+    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
   }
+
+//  if(gamma_n <= -mu*gamma_t) {
+//    gamma = make_double3(0,0,0);
+//  }
+//  else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
+//    gamma = make_double3(
+//        (gamma_n+mu*gamma_t)/(mu*mu+1.0),
+//        gamma.y*mu*gamma_n/gamma_t,
+//        gamma.z*mu*gamma_n/gamma_t);
+//  }
 
   src[3*index] = gamma.x;
   src[3*index+1] = gamma.y;
   src[3*index+2] = gamma.z;
-}
-
-int System::project(thrust::device_vector<double> src) {
-  performProjection<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(src), collisionDetector->numCollisions);
-
-  return 0;
 }
 
 double System::getResidual(DeviceValueArrayView src) {
@@ -575,7 +575,7 @@ double System::getResidual(DeviceValueArrayView src) {
   performSchurComplementProduct(gamma);
   cusp::blas::axpy(r,gammaTmp,1.0);
   cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0,-gdiff);
-  project(gammaTmp_d);
+  project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), collisionDetector->numCollisions);
   cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
 
   return cusp::blas::nrmmax(gammaTmp);
@@ -593,16 +593,32 @@ int System::solve_APGD() {
   yNew_d.resize(3*collisionDetector->numCollisions);
   gammaTmp_d.resize(3*collisionDetector->numCollisions);
 
-  gamma.resize(3*collisionDetector->numCollisions);
-  gammaHat.resize(3*collisionDetector->numCollisions);
-  gammaNew.resize(3*collisionDetector->numCollisions);
-  g.resize(3*collisionDetector->numCollisions);
-  y.resize(3*collisionDetector->numCollisions);
-  yNew.resize(3*collisionDetector->numCollisions);
-  gammaTmp.resize(3*collisionDetector->numCollisions);
+//  gamma.resize(3*collisionDetector->numCollisions);
+//  gammaHat.resize(3*collisionDetector->numCollisions);
+//  gammaNew.resize(3*collisionDetector->numCollisions);
+//  g.resize(3*collisionDetector->numCollisions);
+//  y.resize(3*collisionDetector->numCollisions);
+//  yNew.resize(3*collisionDetector->numCollisions);
+//  gammaTmp.resize(3*collisionDetector->numCollisions);
+
+  // TODO: There's got to be a better way to do this...
+  thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
+  thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
+  thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
+  thrust::device_ptr<double> wrapped_device_g(CASTD1(g_d));
+  thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
+  thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
+  thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
+  gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
+  gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
+  gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
+  g = DeviceValueArrayView(wrapped_device_g, wrapped_device_g + g_d.size());
+  y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
+  yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
+  gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
   // (1) gamma_0 = zeros(nc,1)
-  cusp::blas::fill(gamma,0);
+  //cusp::blas::fill(gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -637,7 +653,8 @@ int System::solve_APGD() {
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-    project(gammaNew_d);
+    //project(gammaNew_d);
+    project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), collisionDetector->numCollisions);
 
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
     performSchurComplementProduct(gammaNew);
@@ -656,7 +673,8 @@ int System::solve_APGD() {
 
       // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
       cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-      project(gammaNew_d);
+      //project(gammaNew_d);
+      project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), collisionDetector->numCollisions);
 
       // Update the components of the while condition
       performSchurComplementProduct(gammaNew);
@@ -725,7 +743,7 @@ int System::solve_APGD() {
 
     // (32) endfor
   }
-  cout << "  Iterations: " << k << endl;
+  cout << "  Iterations: " << k << " Residual: " << residual << endl;
 
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   cusp::blas::copy(gammaHat,gamma);
