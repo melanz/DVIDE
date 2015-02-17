@@ -618,7 +618,7 @@ int System::solve_APGD() {
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
   // (1) gamma_0 = zeros(nc,1)
-  //cusp::blas::fill(gamma,0);
+  cusp::blas::fill(gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
