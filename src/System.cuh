@@ -184,10 +184,8 @@ public:
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();
-	int     applyContactForces();
 	int     applyContactForces_CPU();
 	int     buildContactJacobian();
-  int     buildContactJacobian_CPU();
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src);
 	int     multiplyByMass(thrust::device_vector<double> src, thrust::device_vector<double> dst);
@@ -195,7 +193,6 @@ public:
 	int     buildRightHandSideVector();
 	int     solve_APGD();
 	int     project(thrust::device_vector<double> src);
-  int     project_CPU(thrust::device_vector<double> src);
 	double  getResidual(DeviceValueArrayView src);
 };
 

@@ -136,7 +136,6 @@ int System::add(Body* body) {
 
 	// update the mass matrix
 	for (int i = 0; i < body->numDOF; i++) {
-	  //if(!body->isFixed()) {
       massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
       massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
       if(body->isFixed()) {
@@ -145,7 +144,6 @@ int System::add(Body* body) {
       else {
         mass_h.push_back(1.0/body->mass);
       }
-	  //}
 	}
 
 	contactGeometry_h.push_back(body->contactGeometry);
@@ -243,8 +241,6 @@ int System::initializeSystem() {
 
 	//bool success = mySolver->solve(*m_spmv, f, a);
 
-	//collisionDetector->detectPossibleCollisions_nSquared();
-
 	return 0;
 }
 
@@ -259,53 +255,26 @@ int System::DoTimeStep() {
 	collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
 
-	//collisionDetector->detectCollisions_CPU();
-
   buildAppliedImpulseVector();
-
   if(collisionDetector->numCollisions) {
-//    cusp::print(k);
-//    cin.get();
-
     // Set up the QOCC
     buildContactJacobian();
-//    cusp::print(D);
-//    cin.get();
     buildRightHandSideVector();
-//    cusp::print(r);
-//    cin.get();
 
     // Solve the QOCC
     solve_APGD();
-
-//    cusp::print(gamma);
-//    cin.get();
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
     cusp::blas::axpby(k,v,tmp,1.0,1.0);
     cusp::multiply(mass,tmp,v);
-
-//    cusp::print(v);
-//    cin.get();
-
-    cusp::blas::axpy(v, p, h);
-
-//    cusp::print(p);
-//    cin.get();
   }
   else {
     // Perform time integration (no contacts)
     cusp::multiply(mass,k,v);
-    cusp::blas::axpy(v, p, h);
   }
-  //cusp::blas::axpy(f, f_contact, 1.0);
 
-	//cusp::multiply(mass, f_contact, a);
-	//bool success = mySolver->solve(*m_spmv, f, a);
-	//cusp::blas::axpy(a, v, h);
-  //fixBodies();
-
+  cusp::blas::axpy(v, p, h);
 
   time += h;
   timeIndex++;
@@ -318,58 +287,6 @@ int System::DoTimeStep() {
 	printf("Time: %f (Exec. Time: %f), Collisions: %d (%d possible)\n",time,elapsedTime,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
 
 	return 0;
-}
-
-__global__ void addContactForces(double* f, uint* collisionStartIndex, int* indices, double* v, double4* normalsAndPenetrations, uint* bodyIdentifiersA, uint* bodyIdentifiersB, uint lastActiveCollision) {
-  INIT_CHECK_THREAD_BOUNDED(INDEX1D, lastActiveCollision);
-
-  int bodyA = bodyIdentifiersA[index];
-  int bodyIndexA = indices[bodyA];
-  double3 velA = make_double3(v[bodyIndexA],v[bodyIndexA+1],v[bodyIndexA+2]);
-  uint startIndex = (index == 0) ? 0 : collisionStartIndex[index - 1];
-  uint endIndex = collisionStartIndex[index];
-
-  double3 force = make_double3(0,0,0);
-  double3 normal = make_double3(0,0,0);
-  double penetration = 0;
-  double4 normalAndPenetration = make_double4(0,0,0,0);
-  for (int i = startIndex; i < endIndex; i++) {
-    // TODO: Replace with actual material/geometry
-    double sigmaA = (1.0-0.25)/2.0e7;
-    double sigmaB = sigmaA;
-    double rA = 0.4;
-    double rB = 0.4;
-    normalAndPenetration = normalsAndPenetrations[i];
-    penetration = normalAndPenetration.w;
-    normal = make_double3(normalAndPenetration.x,normalAndPenetration.y,normalAndPenetration.z);
-
-    force += 4.0/(3.0*(sigmaA+sigmaB))*sqrt(rA*rB/(rA+rB))*pow(penetration,1.5)*normal;
-
-    // Add damping
-    int bodyB = bodyIdentifiersB[i];
-    int bodyIndexB = indices[bodyB];
-    double3 velB = make_double3(v[bodyIndexB],v[bodyIndexB+1],v[bodyIndexB+2]);
-    double3 vel = velB-velA;
-    double b = 250; //TODO: Add to material library
-    double3 damping;
-    damping.x = b * normal.x * normal.x * vel.x + b * normal.x * normal.y * vel.y + b * normal.x * normal.z * vel.z;
-    damping.y = b * normal.x * normal.y * vel.x + b * normal.y * normal.y * vel.y + b * normal.y * normal.z * vel.z;
-    damping.z = b * normal.x * normal.z * vel.x + b * normal.y * normal.z * vel.y + b * normal.z * normal.z * vel.z;
-    if(penetration>0) force += damping;
-  }
-
-  f[bodyIndexA]   += force.x;
-  f[bodyIndexA+1] += force.y;
-  f[bodyIndexA+2] += force.z;
-}
-
-int System::applyContactForces() {
-  Thrust_Fill(f_contact_d,0);
-  if(collisionDetector->numCollisions) {
-    addContactForces<<<BLOCKS(collisionDetector->lastActiveCollision),THREADS>>>(CASTD1(f_contact_d), CASTU1(collisionDetector->collisionStartIndex_d), CASTI1(indices_d), CASTD1(v_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), collisionDetector->lastActiveCollision);
-  }
-
-  return 0;
 }
 
 int System::applyContactForces_CPU() {
@@ -408,131 +325,6 @@ int System::applyContactForces_CPU() {
 
   }
   f_contact_d = f_contact_h;
-
-  return 0;
-}
-
-int System::buildContactJacobian_CPU() {
-  // TODO: Perform this in parallel!
-  collisionDetector->normalsAndPenetrations_h = collisionDetector->normalsAndPenetrations_d;
-  collisionDetector->bodyIdentifierA_h = collisionDetector->bodyIdentifierA_d;
-  collisionDetector->bodyIdentifierB_h = collisionDetector->bodyIdentifierB_d;
-
-  DI_h.clear();
-  DJ_h.clear();
-  D_h.clear();
-  double4 nAndP;
-  double3 n, u, v;
-  uint bodyA, bodyB;
-  for(int i=0; i<collisionDetector->numCollisions; i++) {
-    bodyA = collisionDetector->bodyIdentifierA_h[i];
-    bodyB = collisionDetector->bodyIdentifierB_h[i];
-    nAndP = collisionDetector->normalsAndPenetrations_h[i];
-    n = make_double3(nAndP.x,nAndP.y,nAndP.z);
-
-    if(n.z != 0) {
-      u = normalize(make_double3(1,0,-n.x/n.z));
-    }
-    else if(n.x != 0) {
-      u = normalize(make_double3(-n.z/n.x,0,1));
-    }
-    else {
-      u = normalize(make_double3(1,-n.x/n.y,0));
-    }
-    v = normalize(cross(n,u));
-
-    DI_h.push_back(3*i+0);
-    DI_h.push_back(3*i+0);
-    DI_h.push_back(3*i+0);
-    DI_h.push_back(3*i+0);
-    DI_h.push_back(3*i+0);
-    DI_h.push_back(3*i+0);
-
-    DJ_h.push_back(indices_h[bodyA]+0);
-    DJ_h.push_back(indices_h[bodyA]+1);
-    DJ_h.push_back(indices_h[bodyA]+2);
-    DJ_h.push_back(indices_h[bodyB]+0);
-    DJ_h.push_back(indices_h[bodyB]+1);
-    DJ_h.push_back(indices_h[bodyB]+2);
-
-    D_h.push_back(n.x);
-    D_h.push_back(n.y);
-    D_h.push_back(n.z);
-    D_h.push_back(-n.x);
-    D_h.push_back(-n.y);
-    D_h.push_back(-n.z);
-
-    DI_h.push_back(3*i+1);
-    DI_h.push_back(3*i+1);
-    DI_h.push_back(3*i+1);
-    DI_h.push_back(3*i+1);
-    DI_h.push_back(3*i+1);
-    DI_h.push_back(3*i+1);
-
-    DJ_h.push_back(indices_h[bodyA]+0);
-    DJ_h.push_back(indices_h[bodyA]+1);
-    DJ_h.push_back(indices_h[bodyA]+2);
-    DJ_h.push_back(indices_h[bodyB]+0);
-    DJ_h.push_back(indices_h[bodyB]+1);
-    DJ_h.push_back(indices_h[bodyB]+2);
-    //  bodyPtr = new Body(make_double3(4,20.5,0));
-    //  bodyPtr->setGeometry(make_double3(2,0,0));
-    //  sys.add(bodyPtr);
-    //
-    //  bodyPtr = new Body(make_double3(4,30.5,0));
-    //  bodyPtr->setGeometry(make_double3(2,0,0));
-    //  sys.add(bodyPtr);
-    D_h.push_back(u.x);
-    D_h.push_back(u.y);
-    D_h.push_back(u.z);
-    D_h.push_back(-u.x);
-    D_h.push_back(-u.y);
-    D_h.push_back(-u.z);
-
-    DI_h.push_back(3*i+2);
-    DI_h.push_back(3*i+2);
-    DI_h.push_back(3*i+2);
-    DI_h.push_back(3*i+2);
-    DI_h.push_back(3*i+2);
-    DI_h.push_back(3*i+2);
-
-    DJ_h.push_back(indices_h[bodyA]+0);
-    DJ_h.push_back(indices_h[bodyA]+1);
-    DJ_h.push_back(indices_h[bodyA]+2);
-    DJ_h.push_back(indices_h[bodyB]+0);
-    DJ_h.push_back(indices_h[bodyB]+1);
-    DJ_h.push_back(indices_h[bodyB]+2);
-
-    D_h.push_back(v.x);
-    D_h.push_back(v.y);
-    D_h.push_back(v.z);
-    D_h.push_back(-v.x);
-    D_h.push_back(-v.y);
-    D_h.push_back(-v.z);
-  }
-
-  DI_d = DI_h;
-  DJ_d = DJ_h;
-  D_d = D_h;
-
-  DTI_d = DI_d;
-  DTJ_d = DJ_d;
-  DT_d = D_d;
-
-  // create contact jacobian using cusp library
-  thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
-  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
-
-  thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
-  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
-
-  thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
-  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
-
-  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
-  // end create contact jacobian
-
-  buildContactJacobianTranspose();
 
   return 0;
 }
@@ -692,7 +484,6 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
 
   double penetration = normalsAndPenetrations[index].w;
   if(penetration>0) penetration = 0;
-  //printf("b[%d] = %f\n",index,penetration/timeStep);
 
   r[3*index] += penetration/timeStep;
 }
@@ -730,57 +521,8 @@ int System::buildRightHandSideVector() {
   r.resize(3*collisionDetector->numCollisions);
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
-//  cusp::print(r);
+
   applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
-
-  return 0;
-}
-
-int System::project_CPU(thrust::device_vector<double> src) {
-  //TODO: Perform in parallel
-  double mu = 0; //TODO: put this in material library
-  thrust::host_vector<double> src_h = src;
-  double3 gamma;
-
-  for(int i=0; i<collisionDetector->numCollisions; i++) {
-    gamma = make_double3(src_h[3*i],src_h[3*i+1],src_h[3*i+2]);
-    double gamma_n = gamma.x;
-    double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
-
-    if(gamma_n <= -mu*gamma_t) {
-      gamma = make_double3(0,0,0);
-    }
-    else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
-      gamma = make_double3(
-          (gamma_n+mu*gamma_t)/(mu*mu+1.0),
-          gamma.y*mu*gamma_n/gamma_t,
-          gamma.z*mu*gamma_n/gamma_t);
-    }
-
-//    if(mu==0) {
-//      gamma = make_double3(gamma_n,0,0);
-//      if (gamma_n < 0) gamma = make_double3(0,0,0);
-//    }
-//    else if(gamma_t < mu * gamma_n) {
-//      gamma = make_double3(gamma.x,gamma.y,gamma.z);
-//    }
-//    else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
-//      gamma = make_double3(0,0,0);
-//    }
-//    else {
-//      double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
-//      double gamma_t_proj = gamma_n_proj * mu;
-//      double tproj_div_t = gamma_t_proj/gamma_t;
-//      double gamma_u_proj = tproj_div_t * gamma.y;
-//      double gamma_v_proj = tproj_div_t * gamma.z;
-//      gamma = make_double3(gamma_n_proj,gamma_u_proj,gamma_v_proj);
-//    }
-
-    src_h[3*i] = gamma.x;
-    src_h[3*i+1] = gamma.y;
-    src_h[3*i+2] = gamma.z;
-  }
-  src = src_h;
 
   return 0;
 }
@@ -883,11 +625,6 @@ int System::solve_APGD() {
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
     project(gammaNew_d);
 
-//    printf("L = %f, t = %f\n",L,t);
-//    cusp::print(gammaNew);
-//    cusp::print(y);
-//    cusp::print(g);
-
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
     performSchurComplementProduct(gammaNew);
     obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
@@ -895,7 +632,7 @@ int System::solve_APGD() {
     obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
     cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
     obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
-//    printf("obj1 = %f, obj2 = %f\n",obj1,obj2);
+
     while (obj1 >= obj2) {
       // (11) L_k = 2 * L_k
       L = 2.0 * L;
@@ -917,7 +654,6 @@ int System::solve_APGD() {
 
       // (14) endwhile
     }
-//    printf("L = %f, t = %f\n",L,t);
 
     // (15) theta_(k+1) = (-theta_k^2 + theta_k * sqrt(theta_k^2 + 4)) / 2
     thetaNew = (-pow(theta, 2.0) + theta * sqrt(pow(theta, 2.0) + 4.0)) / 2.0;
@@ -925,12 +661,8 @@ int System::solve_APGD() {
     // (16) Beta_(k+1) = theta_k * (1 - theta_k) / (theta_k^2 + theta_(k+1))
     Beta = theta * (1.0 - theta) / (pow(theta, 2.0) + thetaNew);
 
-//    printf("thetaNew = %f, Beta = %f\n",thetaNew,Beta);
-
     // (17) y_(k+1) = gamma_(k+1) + Beta_(k+1) * (gamma_(k+1) - gamma_k)
     cusp::blas::axpby(gammaNew,gamma,yNew,(1.0+Beta),-Beta);
-
-//    cusp::print(yNew);
 
     // (18) r = r(gamma_(k+1))
     double res = getResidual(gammaNew);
