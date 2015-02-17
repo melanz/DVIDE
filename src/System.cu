@@ -412,7 +412,7 @@ int System::applyContactForces_CPU() {
   return 0;
 }
 
-int System::buildContactJacobian() {
+int System::buildContactJacobian_CPU() {
   // TODO: Perform this in parallel!
   collisionDetector->normalsAndPenetrations_h = collisionDetector->normalsAndPenetrations_d;
   collisionDetector->bodyIdentifierA_h = collisionDetector->bodyIdentifierA_d;
@@ -518,6 +518,125 @@ int System::buildContactJacobian() {
   DTI_d = DI_d;
   DTJ_d = DJ_d;
   DT_d = D_d;
+
+  // create contact jacobian using cusp library
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + DI_d.size());
+
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(DJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + DJ_d.size());
+
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
+
+  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+  // end create contact jacobian
+
+  buildContactJacobianTranspose();
+
+  return 0;
+}
+
+__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double4 nAndP;
+  double3 n, u, v;
+  uint bodyA, bodyB;
+  bodyA = bodyIdentifierA[index];
+  bodyB = bodyIdentifierB[index];
+  nAndP = normalsAndPenetrations[index];
+  n = make_double3(nAndP.x,nAndP.y,nAndP.z);
+
+  if(n.z != 0) {
+    u = normalize(make_double3(1,0,-n.x/n.z));
+  }
+  else if(n.x != 0) {
+    u = normalize(make_double3(-n.z/n.x,0,1));
+  }
+  else {
+    u = normalize(make_double3(1,-n.x/n.y,0));
+  }
+  v = normalize(cross(n,u));
+
+  // Add n, i indices
+  DI[18*index+0 ] = 3*index+0;
+  DI[18*index+1 ] = 3*index+0;
+  DI[18*index+2 ] = 3*index+0;
+  DI[18*index+3 ] = 3*index+0;
+  DI[18*index+4 ] = 3*index+0;
+  DI[18*index+5 ] = 3*index+0;
+
+  // Add u, i indices
+  DI[18*index+6 ] = 3*index+1;
+  DI[18*index+7 ] = 3*index+1;
+  DI[18*index+8 ] = 3*index+1;
+  DI[18*index+9 ] = 3*index+1;
+  DI[18*index+10] = 3*index+1;
+  DI[18*index+11] = 3*index+1;
+
+  // Add v, i indices
+  DI[18*index+12] = 3*index+2;
+  DI[18*index+13] = 3*index+2;
+  DI[18*index+14] = 3*index+2;
+  DI[18*index+15] = 3*index+2;
+  DI[18*index+16] = 3*index+2;
+  DI[18*index+17] = 3*index+2;
+
+  // Add n, j indices
+  DJ[18*index+0 ] = indices[bodyA]+0;
+  DJ[18*index+1 ] = indices[bodyA]+1;
+  DJ[18*index+2 ] = indices[bodyA]+2;
+  DJ[18*index+3 ] = indices[bodyB]+0;
+  DJ[18*index+4 ] = indices[bodyB]+1;
+  DJ[18*index+5 ] = indices[bodyB]+2;
+
+  // Add u, j indices
+  DJ[18*index+6 ] = indices[bodyA]+0;
+  DJ[18*index+7 ] = indices[bodyA]+1;
+  DJ[18*index+8 ] = indices[bodyA]+2;
+  DJ[18*index+9 ] = indices[bodyB]+0;
+  DJ[18*index+10] = indices[bodyB]+1;
+  DJ[18*index+11] = indices[bodyB]+2;
+
+  // Add v, j indices
+  DJ[18*index+12] = indices[bodyA]+0;
+  DJ[18*index+13] = indices[bodyA]+1;
+  DJ[18*index+14] = indices[bodyA]+2;
+  DJ[18*index+15] = indices[bodyB]+0;
+  DJ[18*index+16] = indices[bodyB]+1;
+  DJ[18*index+17] = indices[bodyB]+2;
+
+  // Add n, values
+  D[18*index+0 ] = n.x;
+  D[18*index+1 ] = n.y;
+  D[18*index+2 ] = n.z;
+  D[18*index+3 ] = -n.x;
+  D[18*index+4 ] = -n.y;
+  D[18*index+5 ] = -n.z;
+
+  // Add u, values
+  D[18*index+6 ] = u.x;
+  D[18*index+7 ] = u.y;
+  D[18*index+8 ] = u.z;
+  D[18*index+9 ] = -u.x;
+  D[18*index+10] = -u.y;
+  D[18*index+11] = -u.z;
+
+  // Add v, values
+  D[18*index+12] = v.x;
+  D[18*index+13] = v.y;
+  D[18*index+14] = v.z;
+  D[18*index+15] = -v.x;
+  D[18*index+16] = -v.y;
+  D[18*index+17] = -v.z;
+}
+
+int System::buildContactJacobian() {
+  DI_d.resize(18*collisionDetector->numCollisions);
+  DJ_d.resize(18*collisionDetector->numCollisions);
+  D_d.resize(18*collisionDetector->numCollisions);
+  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
