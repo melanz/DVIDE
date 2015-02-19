@@ -11,6 +11,7 @@
 #include "include.cuh"
 #include "Body.cuh"
 #include "CollisionDetector.cuh"
+#include "Solver.cuh"
 
 #include <spike/solver.h>
 #include <spike/spmv.h>
@@ -45,6 +46,7 @@ private:
 };
 
 class CollisionDetector;
+class Solver;
 class System {
 public:
   // variables
@@ -77,12 +79,6 @@ public:
   DeviceValueArrayView r;
   DeviceValueArrayView k;
   DeviceValueArrayView gamma;
-  DeviceValueArrayView gammaHat;
-  DeviceValueArrayView gammaNew;
-  DeviceValueArrayView g;
-  DeviceValueArrayView y;
-  DeviceValueArrayView yNew;
-  DeviceValueArrayView gammaTmp;
 	DeviceView mass;
 	DeviceView D;
 	DeviceView DT;
@@ -97,12 +93,6 @@ public:
   thrust::host_vector<double> r_h;
   thrust::host_vector<double> k_h;
   thrust::host_vector<double> gamma_h;
-  thrust::host_vector<double> gammaHat_h;
-  thrust::host_vector<double> gammaNew_h;
-  thrust::host_vector<double> g_h;
-  thrust::host_vector<double> y_h;
-  thrust::host_vector<double> yNew_h;
-  thrust::host_vector<double> gammaTmp_h;
 
 	thrust::host_vector<int> massI_h;
 	thrust::host_vector<int> massJ_h;
@@ -122,12 +112,6 @@ public:
   thrust::device_vector<double> r_d;
   thrust::device_vector<double> k_d;
   thrust::device_vector<double> gamma_d;
-  thrust::device_vector<double> gammaHat_d;
-  thrust::device_vector<double> gammaNew_d;
-  thrust::device_vector<double> g_d;
-  thrust::device_vector<double> y_d;
-  thrust::device_vector<double> yNew_d;
-  thrust::device_vector<double> gammaTmp_d;
 
 	thrust::device_vector<int> massI_d;
 	thrust::device_vector<int> massJ_d;
@@ -141,18 +125,6 @@ public:
   thrust::device_vector<int> DTJ_d;
   thrust::device_vector<double> DT_d;
 
-//	dim3 dimBlockConstraint;
-//	dim3 dimGridConstraint;
-//
-//	dim3 dimBlockElement;
-//	dim3 dimGridElement;
-//
-//	dim3 dimBlockParticles;
-//	dim3 dimGridParticles;
-//
-//	dim3 dimBlockCollision;
-//	dim3 dimGridCollision;
-
 	// library of indices for bodies
   thrust::host_vector<int> indices_h;
   thrust::device_vector<int> indices_d;
@@ -165,6 +137,7 @@ public:
   thrust::device_vector<double3> contactGeometry_d;
 
   CollisionDetector* collisionDetector;
+  Solver* solver;
 
 public:
 	System();
@@ -190,8 +163,6 @@ public:
 	int     performSchurComplementProduct(DeviceValueArrayView src);
 	int     buildAppliedImpulseVector();
 	int     buildRightHandSideVector();
-	int     solve_APGD();
-	double  getResidual(DeviceValueArrayView src);
 };
 
 #endif /* SYSTEM_CUH_ */

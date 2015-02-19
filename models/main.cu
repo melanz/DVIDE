@@ -166,8 +166,8 @@ int main(int argc, char** argv)
 
 	sys.setNumPartitions((int)atoi(argv[1]));
   int numElementsPerSide = atoi(argv[2]);
-  sys.collisionDetector->setBinsPerAxis(make_uint3(min(numElementsPerSide,40),min(numElementsPerSide,40),min(numElementsPerSide,40)));
-  //sys.collisionDetector->setBinsPerAxis(make_uint3(numElementsPerSide,numElementsPerSide,numElementsPerSide));
+  //sys.collisionDetector->setBinsPerAxis(make_uint3(min(numElementsPerSide,40),min(numElementsPerSide,40),min(numElementsPerSide,40)));
+  sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys.setSolverType((int)atoi(argv[3]));
   sys.setPrecondType(atoi(argv[4]));
   if(atoi(argv[4])) {
@@ -206,9 +206,9 @@ int main(int argc, char** argv)
   frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
   sys.add(frontPtr);
 
-//  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
-//  ball1->setMass(20);
-//  sys.add(ball1);
+  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
+  //ball1->setMass(20);
+  sys.add(ball1);
 
   Body* bodyPtr;
   int numBodies = 0;

@@ -72,7 +72,6 @@ private:
 
   // Data for parallel collision detection
   thrust::device_vector<uint> numCollisionsPerPair_d;
-  uint numCollisions;
   thrust::device_vector<uint> bodyIdentifierA_d;
   thrust::device_vector<uint> bodyIdentifierB_d;
   thrust::device_vector<double4> normalsAndPenetrations_d;
@@ -87,6 +86,8 @@ private:
   // TODO: Get rid of these vectors (needed for serial collision detection)
 
 public:
+  uint numCollisions;
+
 	CollisionDetector(System* sys);
 	int detectPossibleCollisions_spatialSubdivision();
 	int detectPossibleCollisions_nSquared();

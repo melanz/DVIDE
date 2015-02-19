@@ -25,6 +25,7 @@ System::System()
 	// end spike stuff
 
   collisionDetector = new CollisionDetector(this);
+  solver = new Solver(this);
 }
 
 void System::setSolverType(int solverType)
@@ -124,15 +125,15 @@ int System::add(Body* body) {
   k_h.push_back(0);
   k_h.push_back(0);
 
-  for(int i=0; i<3; i++) {
-    gamma_h.push_back(0);
-    gammaHat_h.push_back(0);
-    gammaNew_h.push_back(0);
-    g_h.push_back(0);
-    y_h.push_back(0);
-    yNew_h.push_back(0);
-    gammaTmp_h.push_back(0);
-  }
+//  for(int i=0; i<3; i++) {
+//    gamma_h.push_back(0);
+//    gammaHat_h.push_back(0);
+//    gammaNew_h.push_back(0);
+//    g_h.push_back(0);
+//    y_h.push_back(0);
+//    yNew_h.push_back(0);
+//    gammaTmp_h.push_back(0);
+//  }
 
 	// update the mass matrix
 	for (int i = 0; i < body->numDOF; i++) {
@@ -161,13 +162,7 @@ int System::initializeDevice() {
 	tmp_d = tmp_h;
 	r_d = r_h;
 	k_d = k_h;
-  gamma_d = gamma_h;
-  gammaHat_d = gammaHat_h;
-  gammaNew_d = gammaNew_h;
-  g_d = g_h;
-  y_d = y_h;
-  yNew_d = yNew_h;
-  gammaTmp_d = gammaTmp_h;
+  gamma_d = a_h;
 
 	massI_d = massI_h;
 	massJ_d = massJ_h;
@@ -185,12 +180,6 @@ int System::initializeDevice() {
 	thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
 	thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
 	thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
-	thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
-	thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
-	thrust::device_ptr<double> wrapped_device_g(CASTD1(g_d));
-	thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
-	thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
-	thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
 
 	p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
 	v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
@@ -201,12 +190,6 @@ int System::initializeDevice() {
 	r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
 	k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
 	gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
-	gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
-	gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
-	g = DeviceValueArrayView(wrapped_device_g, wrapped_device_g + g_d.size());
-	y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
-	yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
-	gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
 	// create mass matrix using cusp library (shouldn't change)
 	thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
@@ -231,8 +214,8 @@ int System::initializeSystem() {
     contactGeometry_h[i] = bodies[i]->contactGeometry;
     if(bodies[i]->isFixed()) fixedBodies_h.push_back(i);
   }
-
 	initializeDevice();
+	solver->setup();
 
 	// create and setup the Spike::GPU solver
 	//m_spmv = new MySpmv(mass);
@@ -262,7 +245,7 @@ int System::DoTimeStep() {
     buildRightHandSideVector();
 
     // Solve the QOCC
-    solve_APGD();
+    solver->solve();
 
     // Perform time integration (contacts)
     cusp::multiply(DT,gamma,v);
@@ -274,14 +257,14 @@ int System::DoTimeStep() {
     cusp::multiply(mass,k,v);
   }
 
-//  // Apply sinusoidal motion
-//  v_h = v_d;
-//  for(int i=0;i<5;i++) {
-//    v_h[3*i] = v_h[3*i]+2.0*sin(time);
-//    v_h[3*i+1] = 0;
-//    v_h[3*i+2] = 0;
-//  }
-//  v_d = v_h;
+  // Apply sinusoidal motion
+  v_h = v_d;
+  for(int i=0;i<5;i++) {
+    v_h[3*i] = v_h[3*i]+2.0*sin(time/3.0);
+    v_h[3*i+1] = 0;
+    v_h[3*i+2] = 0;
+  }
+  v_d = v_h;
 
   cusp::blas::axpy(v, p, h);
 
@@ -480,14 +463,6 @@ int System::buildContactJacobianTranspose() {
   return 0;
 }
 
-int System::performSchurComplementProduct(DeviceValueArrayView src) {
-  cusp::multiply(DT,src,f_contact);
-  cusp::multiply(mass,f_contact,tmp);
-  cusp::multiply(D,tmp,gammaTmp);
-
-  return 0;
-}
-
 __global__ void multiplyByMass(double* massInv, double* src, double* dst, uint numDOF) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numDOF);
 
@@ -524,229 +499,6 @@ int System::buildRightHandSideVector() {
   cusp::multiply(D,tmp,r);
 
   applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
-
-  return 0;
-}
-
-__global__ void project(double* src, uint numCollisions) {
-  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
-
-  double mu = 0;
-  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
-  double gamma_n = gamma.x;
-  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
-
-  if(mu == 0) {
-    gamma = make_double3(gamma_n,0,0);
-    if (gamma_n < 0) gamma = make_double3(0,0,0);
-  }
-  else if(gamma_t < mu * gamma_n) {
-    // Don't touch gamma!
-  }
-  else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
-    gamma = make_double3(0,0,0);
-  }
-  else {
-    double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
-    double gamma_t_proj = gamma_n_proj * mu;
-    double tproj_div_t = gamma_t_proj/gamma_t;
-    double gamma_u_proj = tproj_div_t * gamma.y;
-    double gamma_v_proj = tproj_div_t * gamma.z;
-    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
-  }
-
-//  if(gamma_n <= -mu*gamma_t) {
-//    gamma = make_double3(0,0,0);
-//  }
-//  else if(pow(gamma.y,2.0)+pow(gamma.z,2.0) > pow(mu*gamma_n,2.0)) {
-//    gamma = make_double3(
-//        (gamma_n+mu*gamma_t)/(mu*mu+1.0),
-//        gamma.y*mu*gamma_n/gamma_t,
-//        gamma.z*mu*gamma_n/gamma_t);
-//  }
-
-  src[3*index] = gamma.x;
-  src[3*index+1] = gamma.y;
-  src[3*index+2] = gamma.z;
-}
-
-double System::getResidual(DeviceValueArrayView src) {
-  double gdiff = 1.0 / pow(collisionDetector->numCollisions,2.0);
-  performSchurComplementProduct(gamma);
-  cusp::blas::axpy(r,gammaTmp,1.0);
-  cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0,-gdiff);
-  project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), collisionDetector->numCollisions);
-  cusp::blas::axpby(gamma,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
-
-  return cusp::blas::nrmmax(gammaTmp);
-}
-
-int System::solve_APGD() {
-  int maxIterations = 1000;
-  double tolerance = 1e-4;
-
-  gamma_d.resize(3*collisionDetector->numCollisions);
-  gammaHat_d.resize(3*collisionDetector->numCollisions);
-  gammaNew_d.resize(3*collisionDetector->numCollisions);
-  g_d.resize(3*collisionDetector->numCollisions);
-  y_d.resize(3*collisionDetector->numCollisions);
-  yNew_d.resize(3*collisionDetector->numCollisions);
-  gammaTmp_d.resize(3*collisionDetector->numCollisions);
-
-//  gamma.resize(3*collisionDetector->numCollisions);
-//  gammaHat.resize(3*collisionDetector->numCollisions);
-//  gammaNew.resize(3*collisionDetector->numCollisions);
-//  g.resize(3*collisionDetector->numCollisions);
-//  y.resize(3*collisionDetector->numCollisions);
-//  yNew.resize(3*collisionDetector->numCollisions);
-//  gammaTmp.resize(3*collisionDetector->numCollisions);
-
-  // TODO: There's got to be a better way to do this...
-  thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
-  thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
-  thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
-  thrust::device_ptr<double> wrapped_device_g(CASTD1(g_d));
-  thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
-  thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
-  thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
-  gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
-  gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
-  gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
-  g = DeviceValueArrayView(wrapped_device_g, wrapped_device_g + g_d.size());
-  y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
-  yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
-  gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
-
-  // (1) gamma_0 = zeros(nc,1)
-  cusp::blas::fill(gamma,0);
-
-  // (2) gamma_hat_0 = ones(nc,1)
-  cusp::blas::fill(gammaHat,1.0);
-
-  // (3) y_0 = gamma_0
-  cusp::blas::copy(gamma,y);
-
-  // (4) theta_0 = 1
-  double theta = 1.0;
-  double thetaNew = theta;
-  double Beta = 0.0;
-  double obj1 = 0.0;
-  double obj2 = 0.0;
-  double residual = 10e30;
-
-  // (5) L_k = norm(N * (gamma_0 - gamma_hat_0)) / norm(gamma_0 - gamma_hat_0)
-  cusp::blas::axpby(gamma,gammaHat,gammaTmp,1.0,-1.0);
-  double L = cusp::blas::nrm2(gammaTmp);
-  performSchurComplementProduct(gammaTmp);
-  L = cusp::blas::nrm2(gammaTmp)/L;
-
-  // (6) t_k = 1 / L_k
-  double t = 1.0/L;
-
-  // (7) for k := 0 to N_max
-  int k;
-  for (k=0; k < maxIterations; k++) {
-    // (8) g = N * y_k - r
-    performSchurComplementProduct(y);
-    cusp::blas::copy(gammaTmp,g);
-    cusp::blas::axpy(r,g,1.0);
-
-    // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
-    cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-    //project(gammaNew_d);
-    project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), collisionDetector->numCollisions);
-
-    // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
-    performSchurComplementProduct(gammaNew);
-    obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
-    performSchurComplementProduct(y);
-    obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
-    cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
-    obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
-
-    while (obj1 >= obj2) {
-      // (11) L_k = 2 * L_k
-      L = 2.0 * L;
-
-      // (12) t_k = 1 / L_k
-      t = 1.0 / L;
-
-      // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
-      cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-      //project(gammaNew_d);
-      project<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), collisionDetector->numCollisions);
-
-      // Update the components of the while condition
-      performSchurComplementProduct(gammaNew);
-      obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,r);
-      performSchurComplementProduct(y);
-      obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,r);
-      cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
-      obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
-
-      // (14) endwhile
-    }
-
-    // (15) theta_(k+1) = (-theta_k^2 + theta_k * sqrt(theta_k^2 + 4)) / 2
-    thetaNew = (-pow(theta, 2.0) + theta * sqrt(pow(theta, 2.0) + 4.0)) / 2.0;
-
-    // (16) Beta_(k+1) = theta_k * (1 - theta_k) / (theta_k^2 + theta_(k+1))
-    Beta = theta * (1.0 - theta) / (pow(theta, 2.0) + thetaNew);
-
-    // (17) y_(k+1) = gamma_(k+1) + Beta_(k+1) * (gamma_(k+1) - gamma_k)
-    cusp::blas::axpby(gammaNew,gamma,yNew,(1.0+Beta),-Beta);
-
-    // (18) r = r(gamma_(k+1))
-    double res = getResidual(gammaNew);
-
-    // (19) if r < epsilon_min
-    if (res < residual) {
-      // (20) r_min = r
-      residual = res;
-
-      // (21) gamma_hat = gamma_(k+1)
-      cusp::blas::copy(gammaNew,gammaHat);
-
-      // (22) endif
-    }
-
-    // (23) if r < Tau
-    if (residual < tolerance) {
-      // (24) break
-      break;
-
-      // (25) endif
-    }
-
-    // (26) if g' * (gamma_(k+1) - gamma_k) > 0
-    cusp::blas::axpby(gammaNew,gamma,gammaTmp,1.0,-1.0);
-    if (cusp::blas::dot(g,gammaTmp) > 0) {
-      // (27) y_(k+1) = gamma_(k+1)
-      cusp::blas::copy(gammaNew,yNew);
-
-      // (28) theta_(k+1) = 1
-      thetaNew = 1.0;
-
-      // (29) endif
-    }
-
-    // (30) L_k = 0.9 * L_k
-    L = 0.9 * L;
-
-    // (31) t_k = 1 / L_k
-    t = 1.0 / L;
-
-    // Update iterates
-    theta = thetaNew;
-    cusp::blas::copy(gammaNew,gamma);
-    cusp::blas::copy(yNew,y);
-
-    // (32) endfor
-  }
-  cout << "  Iterations: " << k << " Residual: " << residual << endl;
-
-  // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
-  cusp::blas::copy(gammaHat,gamma);
 
   return 0;
 }
