@@ -260,7 +260,7 @@ int System::DoTimeStep() {
   // Apply sinusoidal motion
   v_h = v_d;
   for(int i=0;i<5;i++) {
-    v_h[3*i] = v_h[3*i]+2.0*sin(time/3.0);
+    v_h[3*i] = v_h[3*i]+4.0*sin(time*3.0);
     v_h[3*i+1] = 0;
     v_h[3*i+2] = 0;
   }
