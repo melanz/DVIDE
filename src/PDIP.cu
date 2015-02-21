@@ -64,6 +64,16 @@ __global__ void initializeLambda(double* src, double* dst, uint numConstraints) 
 
   dst[index] = -1.0/src[index];
 }
+
+__global__ void getSupremum(double* lambdaTmp, double* lambda, double* delta_lambda, uint numConstraints) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraints);
+
+  double dLambda = delta_lambda[index];
+  double tmp = -lambda[index]/dLambda;
+  if(dLambda >= 0) tmp = 1.0;
+
+  lambdaTmp[index] = tmp;
+}
 //
 //int PDIP::performSchurComplementProduct(DeviceValueArrayView src) {
 //  cusp::multiply(system->DT,src,system->f_contact);
@@ -73,17 +83,6 @@ __global__ void initializeLambda(double* src, double* dst, uint numConstraints) 
 //  return 0;
 //}
 //
-
-double PDIP::getSupremum(DeviceValueArrayView src) {
-//  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
-//  performSchurComplementProduct(src);
-//  cusp::blas::axpy(system->r,gammaTmp,1.0);
-//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-//  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
-//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
-
-  return 0;//cusp::blas::nrmmax(gammaTmp);
-}
 
 int PDIP::solve() {
   int maxIterations = 1000;
@@ -164,20 +163,22 @@ int PDIP::solve() {
     // (9) Solve the linear system A * y = -r_t TODO
 
     // (10) s_max = sup{s in [0,1]|lambda+s*delta_lambda>=0} = min{1,min{-lambda_i/delta_lambda_i|delta_lambda_i < 0 }}
-    s_max = getSupremum(lambda); // TODO
+    getSupremum<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(lambdaTmp_d), CASTD1(lambda_d), CASTD1(delta_lambda_d), 2*system->collisionDetector->numCollisions);
+    s_max = Thrust_Min(lambdaTmp_d);
+    s_max = fmin(1.0,s_max);
 
     // (11) s = 0.99 * s_max
     s = 0.99 * s_max;
 
     // (12) while max(f(gamma_k + s * delta_gamma) > 0)
     cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
-    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(lambdaTmp), system->collisionDetector->numCollisions);
+    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
     while(cusp::blas::nrmmax(lambdaTmp) > 0) {
       // (13) s = beta * s
       s = beta * s;
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
-      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(lambdaTmp), system->collisionDetector->numCollisions);
+      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
 
       // (14) endwhile
     }
@@ -185,14 +186,14 @@ int PDIP::solve() {
     // (15) while norm(r_t(gamma_k + s * delta_gamma, lambda_k + s * delta_lambda),2) > (1-alpha*s)*norm(r_t,2)
     norm_rt = sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g));
     cusp::blas::axpby(lambda,delta_lambda,lambdaTmp,1.0,s);
-    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(f), system->collisionDetector->numCollisions);
+    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
     // TODO: UPDATE NEWTON STEP VECTOR
     while (sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g)) > (1.0 - alpha * s) * norm_rt) {
       // (16) s = beta * s
       s = beta * s;
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
       cusp::blas::axpby(lambda,delta_lambda,lambdaTmp,1.0,s);
-      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(f), system->collisionDetector->numCollisions);
+      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
       // TODO: UPDATE NEWTON STEP VECTOR
 
       // (17) endwhile
