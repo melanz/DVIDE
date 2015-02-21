@@ -49,6 +49,8 @@ private:
   thrust::device_vector<double> delta_lambda_d;
   thrust::device_vector<double> gammaTmp_d;
 
+  double getSupremum(DeviceValueArrayView src);
+
 public:
 	PDIP(System* sys);
 	int setup();

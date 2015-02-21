@@ -64,25 +64,25 @@ __global__ void initializeLambda(double* src, double* dst, uint numConstraints) 
 
   dst[index] = -1.0/src[index];
 }
+//
+//int PDIP::performSchurComplementProduct(DeviceValueArrayView src) {
+//  cusp::multiply(system->DT,src,system->f_contact);
+//  cusp::multiply(system->mass,system->f_contact,system->tmp);
+//  cusp::multiply(system->D,system->tmp,gammaTmp);
+//
+//  return 0;
+//}
+//
 
-int PDIP::performSchurComplementProduct(DeviceValueArrayView src) {
-  cusp::multiply(system->DT,src,system->f_contact);
-  cusp::multiply(system->mass,system->f_contact,system->tmp);
-  cusp::multiply(system->D,system->tmp,gammaTmp);
+double PDIP::getSupremum(DeviceValueArrayView src) {
+//  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
+//  performSchurComplementProduct(src);
+//  cusp::blas::axpy(system->r,gammaTmp,1.0);
+//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
+//  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
 
-  return 0;
-}
-
-
-double PDIP::getResidual(DeviceValueArrayView src) {
-  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
-  performSchurComplementProduct(src);
-  cusp::blas::axpy(system->r,gammaTmp,1.0);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
-
-  return cusp::blas::nrmmax(gammaTmp);
+  return 0;//cusp::blas::nrmmax(gammaTmp);
 }
 
 int PDIP::solve() {
@@ -100,6 +100,7 @@ int PDIP::solve() {
   double s = 1;
   double s_max = 1;
   double norm_rt = 0;
+  double residual = 10e30;
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
