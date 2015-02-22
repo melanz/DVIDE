@@ -11,14 +11,9 @@
 #include "include.cuh"
 #include "Body.cuh"
 #include "CollisionDetector.cuh"
-#include "Solver.cuh"
-
-#include <spike/solver.h>
-#include <spike/spmv.h>
+#include "PDIP.cuh"
 
 #include <stdio.h>
-
-typedef double PREC_REAL;
 
 // use array1d_view to wrap the individual arrays
 typedef typename cusp::array1d_view<thrust::device_ptr<int> > DeviceIndexArrayView;
@@ -27,26 +22,8 @@ typedef typename cusp::array1d_view<thrust::device_ptr<double> > DeviceValueArra
 //combine the three array1d_views into a coo_matrix_view
 typedef typename cusp::coo_matrix_view<DeviceIndexArrayView, DeviceIndexArrayView, DeviceValueArrayView> DeviceView;
 
-typedef typename spike::Solver<DeviceValueArrayView, PREC_REAL> SpikeSolver;
-typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
-
-class MySpmv : public cusp::linear_operator<double, cusp::device_memory>{
-public:
-	typedef cusp::linear_operator<double, cusp::device_memory> super;
-
-
-	MySpmv(DeviceView& mass) : A(mass) {}
-
-	void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
-		cusp::multiply(A, v, Av);
-	}
-
-private:
-	DeviceView&      A;
-};
-
 class CollisionDetector;
-class Solver;
+class PDIP;
 class System {
 public:
   // variables
@@ -55,19 +32,6 @@ public:
   double h; //time step
   double tol;
   double3 gravity;
-
-	// spike stuff
-	int partitions;
-//	SpikeSolver* mySolver;
-//	MySpmv* m_spmv;
-	spike::Options  solverOptions;
-	int preconditionerUpdateModulus;
-	float preconditionerMaxKrylovIterations;
-	vector<float> spikeSolveTime;
-	vector<float> spikeNumIter;
-	bool  precUpdated;
-  float stepKrylovIterations;
-	// end spike stuff
 
 	// cusp
 	DeviceValueArrayView p;
@@ -137,7 +101,7 @@ public:
   thrust::device_vector<double3> contactGeometry_d;
 
   CollisionDetector* collisionDetector;
-  Solver* solver;
+  PDIP* solver;
 
 public:
 	System();
@@ -148,11 +112,6 @@ public:
 	double  getTolerance() const      {return tol;}
 	int     getTimeIndex() const      {return timeIndex;}
 	void    setTimeStep(double step_size, double precision = 1e-10);
-	void    setNumPartitions(int num_partitions) {partitions = num_partitions;}
-	void    setMaxSpikeIterations(int max_it)   {solverOptions.maxNumIterations = max_it;}
-	void    setSolverType(int solverType);
-	void    setPrecondType(int useSpike);
-	void    printSolverParams();
 	int     add(Body* body);
 	int     DoTimeStep();
 	int     initializeDevice();

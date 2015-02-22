@@ -6,6 +6,19 @@
 PDIP::PDIP(System* sys)
 {
   system = sys;
+
+  // spike stuff
+  partitions = 1;
+  solverOptions.safeFactorization = true;
+  solverOptions.trackReordering = true;
+  solverOptions.maxNumIterations = 5000;
+  preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
+  preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
+  mySolver = new SpikeSolver(partitions, solverOptions);
+  m_spmv = new MySpmv(system->mass);
+  stepKrylovIterations = 0;
+  precUpdated = 0;
+  // end spike stuff
 }
 
 int PDIP::setup()
@@ -47,6 +60,38 @@ int PDIP::setup()
   M_hat = DeviceValueArrayView(wrapped_device_Mhat, wrapped_device_Mhat + Mhat_d.size());
 
   return 0;
+}
+
+void PDIP::setSolverType(int solverType)
+{
+  switch(solverType) {
+  case 0:
+    solverOptions.solverType = spike::BiCGStab;
+    break;
+  case 1:
+    solverOptions.solverType = spike::BiCGStab1;
+    break;
+  case 2:
+    solverOptions.solverType = spike::BiCGStab2;
+    break;
+  case 3:
+    solverOptions.solverType = spike::MINRES;
+    break;
+  }
+}
+
+void PDIP::setPrecondType(int useSpike)
+{
+  solverOptions.precondType = useSpike ? spike::Spike : spike::None;
+}
+
+void PDIP::printSolverParams()
+{
+//  printf("Step size: %e\n", h);
+//  printf("Newton tolerance: %e\n", tol);
+  printf("Krylov relTol: %e  abdTol: %e\n", solverOptions.relTol, solverOptions.absTol);
+  printf("Max. Krylov iterations: %d\n", solverOptions.maxNumIterations);
+  printf("----------------------------\n");
 }
 
 __global__ void initializeImpulseVector(double* src, uint numCollisions) {

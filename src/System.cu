@@ -11,67 +11,22 @@ System::System()
   timeIndex = 0;
   time = 0;
 
-	// spike stuff
-	partitions = 1;
-	solverOptions.safeFactorization = true;
-	solverOptions.trackReordering = true;
-	solverOptions.maxNumIterations = 5000;
-	preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
-	preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
-	//mySolver = new SpikeSolver(partitions, solverOptions);
-	//m_spmv = new MySpmv(mass);
-  stepKrylovIterations = 0;
-  precUpdated = 0;
-	// end spike stuff
-
   collisionDetector = new CollisionDetector(this);
-  solver = new Solver(this);
-}
-
-void System::setSolverType(int solverType)
-{
-	switch(solverType) {
-	case 0:
-		solverOptions.solverType = spike::BiCGStab;
-		break;
-	case 1:
-		solverOptions.solverType = spike::BiCGStab1;
-		break;
-	case 2:
-		solverOptions.solverType = spike::BiCGStab2;
-		break;
-	case 3:
-		solverOptions.solverType = spike::MINRES;
-		break;
-	}
-}
-
-void System::setPrecondType(int useSpike)
-{
-	solverOptions.precondType = useSpike ? spike::Spike : spike::None;
+  solver = new PDIP(this);
 }
 
 void System::setTimeStep(double step_size, double precision)
 {
 	h = step_size;
 
-	// Set tolerance for Newton iteration based on the precision in positions
-	// and integration step-size.
-	double safety = 1;////0.5;
-	tol = safety * precision / (h * h);
-
-	// Set the tolerances for Krylov
-	solverOptions.relTol = std::min(0.01 * tol, 1e-6);
-	solverOptions.absTol = 1e-10;
-}
-
-void System::printSolverParams()
-{
-	printf("Step size: %e\n", h);
-	printf("Newton tolerance: %e\n", tol);
-	printf("Krylov relTol: %e  abdTol: %e\n", solverOptions.relTol, solverOptions.absTol);
-	printf("Max. Krylov iterations: %d\n", solverOptions.maxNumIterations);
-	printf("----------------------------\n");
+//	// Set tolerance for Newton iteration based on the precision in positions
+//	// and integration step-size.
+//	double safety = 1;////0.5;
+//	tol = safety * precision / (h * h);
+//
+//	// Set the tolerances for Krylov
+//	solverOptions.relTol = std::min(0.01 * tol, 1e-6);
+//	solverOptions.absTol = 1e-10;
 }
 
 int System::add(Body* body) {

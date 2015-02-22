@@ -159,21 +159,21 @@ int main(int argc, char** argv)
 	//visualize = false;
 
   sys.setTimeStep(1e-2, 1e-10);
-  sys.setMaxSpikeIterations(5000);
+  //sys.setMaxSpikeIterations(5000);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
 
-	sys.setNumPartitions((int)atoi(argv[1]));
+	//sys.setNumPartitions((int)atoi(argv[1]));
   int numElementsPerSide = atoi(argv[2]);
   //sys.collisionDetector->setBinsPerAxis(make_uint3(min(numElementsPerSide,40),min(numElementsPerSide,40),min(numElementsPerSide,40)));
   sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
-  sys.setSolverType((int)atoi(argv[3]));
-  sys.setPrecondType(atoi(argv[4]));
-  if(atoi(argv[4])) {
-    sys.preconditionerUpdateModulus = precUpdateInterval;
-    sys.preconditionerMaxKrylovIterations = precMaxKrylov;
-  }
+  //sys.setSolverType((int)atoi(argv[3]));
+  //sys.setPrecondType(atoi(argv[4]));
+//  if(atoi(argv[4])) {
+//    sys.preconditionerUpdateModulus = precUpdateInterval;
+//    sys.preconditionerMaxKrylovIterations = precMaxKrylov;
+//  }
   double radius = 0.4;
 
   // Bottom
@@ -249,7 +249,7 @@ int main(int argc, char** argv)
 
 	sys.initializeSystem();
 	printf("System initialized!\n");
-	sys.printSolverParams();
+	//sys.printSolverParams();
 	
 #ifdef WITH_GLUT
 	if(visualize)
