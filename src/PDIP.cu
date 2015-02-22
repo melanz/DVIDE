@@ -15,7 +15,7 @@ PDIP::PDIP(System* sys)
   preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
   preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
   mySolver = new SpikeSolver(partitions, solverOptions);
-  m_spmv = new MySpmv(system->mass);
+  m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
   stepKrylovIterations = 0;
   precUpdated = 0;
   // end spike stuff
@@ -34,6 +34,7 @@ int PDIP::setup()
   gammaTmp_d = system->a_h;
   Dinv_d = system->a_h;
   Mhat_d = system->a_h;
+  rhs_d = system->a_h;
 
   thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
   thrust::device_ptr<double> wrapped_device_lambda(CASTD1(lambda_d));
@@ -46,6 +47,7 @@ int PDIP::setup()
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
   thrust::device_ptr<double> wrapped_device_Dinv(CASTD1(Dinv_d));
   thrust::device_ptr<double> wrapped_device_Mhat(CASTD1(Mhat_d));
+  thrust::device_ptr<double> wrapped_device_rhs(CASTD1(rhs_d));
 
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
@@ -58,6 +60,7 @@ int PDIP::setup()
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   Dinv = DeviceValueArrayView(wrapped_device_Dinv, wrapped_device_Dinv + Dinv_d.size());
   M_hat = DeviceValueArrayView(wrapped_device_Mhat, wrapped_device_Mhat + Mhat_d.size());
+  rhs = DeviceValueArrayView(wrapped_device_rhs, wrapped_device_rhs + rhs_d.size());
 
   return 0;
 }
@@ -235,10 +238,17 @@ int PDIP::performSchurComplementProduct(DeviceValueArrayView src) {
 
 int PDIP::updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t) {
   performSchurComplementProduct(gamma); // gammaTmp = N*gamma
+  cout << "gammaTmp = N*gamma" << endl;
   cusp::multiply(grad_f_T,lambda,r_d);
+  cout << "r_d = grad_f_T*lambda" << endl;
   cusp::blas::axpbypcz(gammaTmp, system->r, r_d, r_d, 1.0, 1.0, 1.0);
+  cout << "r_d = gammaTmp+r+r_d" << endl;
   cusp::blas::xmy(lambda,f,r_g);
+  cout << "r_g = diag(lambda)*f" << endl;
+  cout << "r_g = (-1/t)*ones-r_g (r_g: " << r_g.size() << " x 1, ones: " << ones.size() << "x 1)" << endl;
   cusp::blas::axpby(ones,r_g,r_g,-1.0/t,-1.0);
+  cout << "r_g = (-1/t)*ones-r_g (r_g: " << r_g.size() << " x 1, ones: " << ones.size() << "x 1)" << endl;
+
 
   return 0;
 }
@@ -274,13 +284,14 @@ int PDIP::solve() {
   f_d.resize(2*system->collisionDetector->numCollisions);
   lambda_d.resize(2*system->collisionDetector->numCollisions);
   lambdaTmp_d.resize(2*system->collisionDetector->numCollisions);
-  ones.resize(2*system->collisionDetector->numCollisions);
+  ones_d.resize(2*system->collisionDetector->numCollisions);
   r_d_d.resize(3*system->collisionDetector->numCollisions);
   r_g_d.resize(2*system->collisionDetector->numCollisions);
   delta_gamma_d.resize(3*system->collisionDetector->numCollisions);
-  delta_lambda_d.resize(3*system->collisionDetector->numCollisions);
+  delta_lambda_d.resize(2*system->collisionDetector->numCollisions);
   Dinv_d.resize(2*system->collisionDetector->numCollisions);
   Mhat_d.resize(3*system->collisionDetector->numCollisions);
+  rhs_d.resize(3*system->collisionDetector->numCollisions);
 
   grad_fI_d.resize(4*system->collisionDetector->numCollisions);
   grad_fJ_d.resize(4*system->collisionDetector->numCollisions);
@@ -303,6 +314,7 @@ int PDIP::solve() {
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
   thrust::device_ptr<double> wrapped_device_Dinv(CASTD1(Dinv_d));
   thrust::device_ptr<double> wrapped_device_Mhat(CASTD1(Mhat_d));
+  thrust::device_ptr<double> wrapped_device_rhs(CASTD1(rhs_d));
   system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
@@ -315,56 +327,81 @@ int PDIP::solve() {
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   Dinv = DeviceValueArrayView(wrapped_device_Dinv, wrapped_device_Dinv + Dinv_d.size());
   M_hat = DeviceValueArrayView(wrapped_device_Mhat, wrapped_device_Mhat + Mhat_d.size());
+  rhs = DeviceValueArrayView(wrapped_device_rhs, wrapped_device_rhs + rhs_d.size());
 
   // Provide an initial guess for gamma
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  cout << "Initialize impulse" << endl;
 
   // Initialize the constraint gradient and constraint gradient transpose
   initializeConstraintGradient();
+  cout << "Initialize gradient" << endl;
 
   // (1) f = f(gamma_0)
   updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+  cout << "Step 1" << endl;
 
   // (2) lambda_0 = -1/f
   initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(lambda_d), 2*system->collisionDetector->numCollisions);
   cusp::blas::fill(ones,1.0);
+  cout << "Step 2" << endl;
 
   // (3) for k := 0 to N_max
   int k;
   for (k=0; k < maxIterations; k++) {
     // (4) f = f(gamma_k)
     updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+    cout << "Step 4" << endl;
 
     // (5) eta_hat = -f^T * lambda_k
     eta_hat = -cusp::blas::dot(f,lambda);
+    cout << "Step 5" << endl;
 
     // (6) t = mu*m/eta_hat
     t = mu_pdip * f.size() / eta_hat;
+    cout << "Step 6" << endl;
 
     // (7) A = A(gamma_k, lambda_k, f)
     initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(Dinv_d), 2*system->collisionDetector->numCollisions);
     updateM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Mhat_d), CASTD1(lambda_d), system->collisionDetector->numCollisions);
+    cout << "Step 7" << endl;
 
     // (8) r_t = r_t(gamma_k, lambda_k, t)
     updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+    cout << "Update constraint gradient" << endl;
     updateNewtonStepVector(system->gamma, lambda, f, t);
+    cout << "Step 8" << endl;
 
     // (9) Solve the linear system A * y = -r_t TODO
+    cusp::blas::xmy(Dinv,r_g,lambdaTmp);
+    cusp::multiply(grad_f_T,lambdaTmp,rhs);
+    cusp::blas::axpy(r_d,rhs,-1.0);
+    m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
+    mySolver = new SpikeSolver(partitions, solverOptions);
+    mySolver->setup(system->mass);
+
+    bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
 
     // (10) s_max = sup{s in [0,1]|lambda+s*delta_lambda>=0} = min{1,min{-lambda_i/delta_lambda_i|delta_lambda_i < 0 }}
     getSupremum<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(lambdaTmp_d), CASTD1(lambda_d), CASTD1(delta_lambda_d), 2*system->collisionDetector->numCollisions);
     s_max = Thrust_Min(lambdaTmp_d);
     s_max = fmin(1.0,s_max);
+    cout << "Step 10" << endl;
 
     // (11) s = 0.99 * s_max
     s = 0.99 * s_max;
+    cout << "Step 11" << endl;
 
     // (12) while max(f(gamma_k + s * delta_gamma) > 0)
     cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
     updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
+    cout << "Step 12" << endl;
+    cusp::print(lambdaTmp);
+    cin.get();
     while(cusp::blas::nrmmax(lambdaTmp) > 0) {
       // (13) s = beta * s
       s = beta * s;
+      cout << "Step 13, ||lambdaTmp|| = " << cusp::blas::nrmmax(lambdaTmp) << ", s = " << s << endl;
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
       updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
@@ -378,6 +415,7 @@ int PDIP::solve() {
     updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
     updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
     updateNewtonStepVector(gammaTmp, lambdaTmp, f, t);
+    cout << "Step 15" << endl;
     while (sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g)) > (1.0 - alpha * s) * norm_rt) {
       // (16) s = beta * s
       s = beta * s;
@@ -386,18 +424,22 @@ int PDIP::solve() {
       updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
       updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
       updateNewtonStepVector(gammaTmp, lambdaTmp, f, t);
+      cout << "Step 16" << endl;
 
       // (17) endwhile
     }
 
     // (18) gamma_(k+1) = gamma_k + s * delta_gamma
     cusp::blas::axpy(delta_gamma,system->gamma,s);
+    cout << "Step 18" << endl;
 
     // (19) lambda_(k+1) = lamda_k + s * delta_lambda
     cusp::blas::axpy(delta_lambda,lambda,s);
+    cout << "Step 19" << endl;
 
     // (20) r = r(gamma_(k+1))
     residual = cusp::blas::nrm2(r_g);
+    cout << "Step 20" << endl;
 
     // (21) if r < tau
 
@@ -409,6 +451,7 @@ int PDIP::solve() {
     }
 
     // (24) endfor
+    cout << "  Iterations: " << k << " Residual: " << residual << endl;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)

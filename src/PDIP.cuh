@@ -26,19 +26,57 @@ typedef typename cusp::coo_matrix_view<DeviceIndexArrayView, DeviceIndexArrayVie
 typedef typename spike::Solver<DeviceValueArrayView, PREC_REAL> SpikeSolver;
 typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
 
+
 class MySpmv : public cusp::linear_operator<double, cusp::device_memory>{
 public:
   typedef cusp::linear_operator<double, cusp::device_memory> super;
 
-
-  MySpmv(DeviceView& mass) : A(mass) {}
-
+  MySpmv(DeviceView& grad_f,
+      DeviceView& grad_f_T,
+      DeviceView& D,
+      DeviceView& D_T,
+      DeviceView& Minv,
+      DeviceValueArrayView& diagLambda,
+      DeviceValueArrayView& lambdaTmp,
+      DeviceValueArrayView& Dinv,
+      DeviceValueArrayView& Mhat,
+      DeviceValueArrayView& gammaTmp,
+      DeviceValueArrayView& f_contact,
+      DeviceValueArrayView& tmp
+      ) : mgrad_f(grad_f), mgrad_f_T(grad_f_T), mD(D), mD_T(D_T), mMinv(Minv),
+          mdiagLambda(diagLambda), mlambdaTmp(lambdaTmp), mDinv(Dinv),
+          mMhat(Mhat), mgammaTmp(gammaTmp), mf_contact(f_contact), mtmp(tmp), super(gammaTmp.size(), gammaTmp.size()) {}
   void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
-    cusp::multiply(A, v, Av);
+    // Step 1
+    cusp::multiply(mgrad_f, v, mlambdaTmp);
+    cusp::blas::xmy(mdiagLambda,mlambdaTmp,mlambdaTmp);
+    cusp::blas::xmy(mDinv,mlambdaTmp,mlambdaTmp);
+    cusp::multiply(mgrad_f_T, mlambdaTmp, mgammaTmp);
+
+    // Step 2
+    cusp::blas::xmy(mMhat,v,Av);
+    cusp::blas::axpy(mgammaTmp,Av,-1.0);
+
+    // Step 3
+    cusp::multiply(mD_T, v, mf_contact);
+    cusp::multiply(mMinv, mf_contact, mtmp);
+    cusp::multiply(mD, mtmp, mgammaTmp);
+    cusp::blas::axpy(mgammaTmp,Av,1.0);
   }
 
 private:
-  DeviceView&      A;
+  DeviceView& mgrad_f;
+  DeviceView& mgrad_f_T;
+  DeviceView& mD;
+  DeviceView& mD_T;
+  DeviceView& mMinv;
+  DeviceValueArrayView& mdiagLambda;
+  DeviceValueArrayView& mlambdaTmp;
+  DeviceValueArrayView& mDinv;
+  DeviceValueArrayView& mMhat;
+  DeviceValueArrayView& mgammaTmp;
+  DeviceValueArrayView& mf_contact;
+  DeviceValueArrayView& mtmp;
 };
 
 class System;
@@ -71,6 +109,7 @@ private:
   DeviceValueArrayView gammaTmp;
   DeviceValueArrayView Dinv;
   DeviceValueArrayView M_hat;
+  DeviceValueArrayView rhs;
   DeviceView grad_f;
   DeviceView grad_f_T;
 
@@ -105,6 +144,7 @@ private:
   thrust::device_vector<double> gammaTmp_d;
   thrust::device_vector<double> Dinv_d;
   thrust::device_vector<double> Mhat_d;
+  thrust::device_vector<double> rhs_d;
 
   thrust::device_vector<int> grad_fI_d;
   thrust::device_vector<int> grad_fJ_d;

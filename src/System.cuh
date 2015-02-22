@@ -101,12 +101,12 @@ public:
   thrust::device_vector<double3> contactGeometry_d;
 
   CollisionDetector* collisionDetector;
-  PDIP* solver;
+
 
 public:
 	System();
 	vector<Body*> bodies;
-
+	PDIP* solver;
 	double  getCurrentTime() const    {return time;}
 	double  getTimeStep() const       {return h;}
 	double  getTolerance() const      {return tol;}

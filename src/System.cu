@@ -172,13 +172,6 @@ int System::initializeSystem() {
 	initializeDevice();
 	solver->setup();
 
-	// create and setup the Spike::GPU solver
-	//m_spmv = new MySpmv(mass);
-	//mySolver = new SpikeSolver(partitions, solverOptions);
-	//mySolver->setup(mass);
-
-	//bool success = mySolver->solve(*m_spmv, f, a);
-
 	return 0;
 }
 
