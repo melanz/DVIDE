@@ -382,6 +382,11 @@ int PDIP::solve() {
 
     bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
 
+    cusp::multiply(grad_f,delta_gamma,delta_lambda);
+    cusp::blas::xmy(lambda,delta_lambda,delta_lambda);
+    cusp::blas::axpy(r_g,delta_lambda,-1.0);
+    cusp::blas::xmy(Dinv,delta_lambda,delta_lambda);
+
     // (10) s_max = sup{s in [0,1]|lambda+s*delta_lambda>=0} = min{1,min{-lambda_i/delta_lambda_i|delta_lambda_i < 0 }}
     getSupremum<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(lambdaTmp_d), CASTD1(lambda_d), CASTD1(delta_lambda_d), 2*system->collisionDetector->numCollisions);
     s_max = Thrust_Min(lambdaTmp_d);

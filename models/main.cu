@@ -169,6 +169,7 @@ int main(int argc, char** argv)
   //sys.collisionDetector->setBinsPerAxis(make_uint3(min(numElementsPerSide,40),min(numElementsPerSide,40),min(numElementsPerSide,40)));
   sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys.solver->setPrecondType(0);
+  sys.solver->setSolverType(2);
   //sys.setSolverType((int)atoi(argv[3]));
   //sys.setPrecondType(atoi(argv[4]));
 //  if(atoi(argv[4])) {
