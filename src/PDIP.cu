@@ -19,6 +19,8 @@ int PDIP::setup()
   delta_gamma_d = system->a_h;
   delta_lambda_d = system->a_h;
   gammaTmp_d = system->a_h;
+  Dinv_d = system->a_h;
+  Mhat_d = system->a_h;
 
   thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
   thrust::device_ptr<double> wrapped_device_lambda(CASTD1(lambda_d));
@@ -29,6 +31,8 @@ int PDIP::setup()
   thrust::device_ptr<double> wrapped_device_delta_gamma(CASTD1(delta_gamma_d));
   thrust::device_ptr<double> wrapped_device_delta_lambda(CASTD1(delta_lambda_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
+  thrust::device_ptr<double> wrapped_device_Dinv(CASTD1(Dinv_d));
+  thrust::device_ptr<double> wrapped_device_Mhat(CASTD1(Mhat_d));
 
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
@@ -39,6 +43,8 @@ int PDIP::setup()
   delta_gamma = DeviceValueArrayView(wrapped_device_delta_gamma, wrapped_device_delta_gamma + delta_gamma_d.size());
   delta_lambda = DeviceValueArrayView(wrapped_device_delta_lambda, wrapped_device_delta_lambda + delta_lambda_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
+  Dinv = DeviceValueArrayView(wrapped_device_Dinv, wrapped_device_Dinv + Dinv_d.size());
+  M_hat = DeviceValueArrayView(wrapped_device_Mhat, wrapped_device_Mhat + Mhat_d.size());
 
   return 0;
 }
@@ -121,7 +127,7 @@ __global__ void constructConstraintGradientTranspose(int* grad_fI, int* grad_fJ,
 int PDIP::initializeConstraintGradient() {
   constructConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
-  // create contact jacobian using cusp library
+  // create constraint gradient using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_d));
   DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + grad_fI_d.size());
 
@@ -132,7 +138,7 @@ int PDIP::initializeConstraintGradient() {
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + grad_f_d.size());
 
   grad_f = DeviceView(2*system->collisionDetector->numCollisions, 3*system->collisionDetector->numCollisions, grad_f_d.size(), row_indices, column_indices, values);
-  // end create contact jacobian
+  // end create constraint gradient
 
   initializeConstraintGradientTranspose();
 
@@ -142,7 +148,7 @@ int PDIP::initializeConstraintGradient() {
 int PDIP::initializeConstraintGradientTranspose() {
   constructConstraintGradientTranspose<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
-  // create contact jacobian using cusp library
+  // create constraint gradient transpose using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_T_d));
   DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + grad_fI_T_d.size());
 
@@ -153,7 +159,7 @@ int PDIP::initializeConstraintGradientTranspose() {
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + grad_f_T_d.size());
 
   grad_f_T = DeviceView(3*system->collisionDetector->numCollisions, 2*system->collisionDetector->numCollisions, grad_f_T_d.size(), row_indices, column_indices, values);
-  // end create contact jacobian
+  // end create constraint gradient transpose
 
   return 0;
 }
@@ -192,21 +198,30 @@ int PDIP::updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayVie
   return 0;
 }
 
+__global__ void updateM_hat(double* M_hat, double* lambda, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = 0.1; // TODO: Put this in material library!
+
+  double l = lambda[3*index];
+  M_hat[3*index  ] = -pow(mu,2.0)*l;
+  M_hat[3*index+1] = l;
+  M_hat[3*index+2] = l;
+}
+
 int PDIP::solve() {
   int maxIterations = 1000;
   double tolerance = 1e-4;
 
   // Initialize scalars
-  double mu_pdip = 10;
+  double mu_pdip = 10.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  double eta_hat = 0;
-  double obj = 0;
-  double newobj = 0;
-  double t = 0;
-  double s = 1;
-  double s_max = 1;
-  double norm_rt = 0;
+  double eta_hat = 0.0;
+  double t = 0.0;
+  double s = 1.0;
+  double s_max = 1.0;
+  double norm_rt = 0.0;
   double residual = 10e30;
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
@@ -219,6 +234,8 @@ int PDIP::solve() {
   r_g_d.resize(2*system->collisionDetector->numCollisions);
   delta_gamma_d.resize(3*system->collisionDetector->numCollisions);
   delta_lambda_d.resize(3*system->collisionDetector->numCollisions);
+  Dinv_d.resize(2*system->collisionDetector->numCollisions);
+  Mhat_d.resize(3*system->collisionDetector->numCollisions);
 
   grad_fI_d.resize(4*system->collisionDetector->numCollisions);
   grad_fJ_d.resize(4*system->collisionDetector->numCollisions);
@@ -239,6 +256,8 @@ int PDIP::solve() {
   thrust::device_ptr<double> wrapped_device_delta_gamma(CASTD1(delta_gamma_d));
   thrust::device_ptr<double> wrapped_device_delta_lambda(CASTD1(delta_lambda_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
+  thrust::device_ptr<double> wrapped_device_Dinv(CASTD1(Dinv_d));
+  thrust::device_ptr<double> wrapped_device_Mhat(CASTD1(Mhat_d));
   system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
@@ -249,6 +268,8 @@ int PDIP::solve() {
   delta_gamma = DeviceValueArrayView(wrapped_device_delta_gamma, wrapped_device_delta_gamma + delta_gamma_d.size());
   delta_lambda = DeviceValueArrayView(wrapped_device_delta_lambda, wrapped_device_delta_lambda + delta_lambda_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
+  Dinv = DeviceValueArrayView(wrapped_device_Dinv, wrapped_device_Dinv + Dinv_d.size());
+  M_hat = DeviceValueArrayView(wrapped_device_Mhat, wrapped_device_Mhat + Mhat_d.size());
 
   // Provide an initial guess for gamma
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
@@ -273,9 +294,11 @@ int PDIP::solve() {
     eta_hat = -cusp::blas::dot(f,lambda);
 
     // (6) t = mu*m/eta_hat
-    t = mu_pdip * (f.size()) / eta_hat;
+    t = mu_pdip * f.size() / eta_hat;
 
-    // (7) A = A(gamma_k, lambda_k, f) TODO
+    // (7) A = A(gamma_k, lambda_k, f)
+    initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(Dinv_d), 2*system->collisionDetector->numCollisions);
+    updateM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Mhat_d), CASTD1(lambda_d), system->collisionDetector->numCollisions);
 
     // (8) r_t = r_t(gamma_k, lambda_k, t)
     updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);

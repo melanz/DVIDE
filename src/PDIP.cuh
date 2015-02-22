@@ -33,6 +33,8 @@ private:
   DeviceValueArrayView delta_gamma;
   DeviceValueArrayView delta_lambda;
   DeviceValueArrayView gammaTmp;
+  DeviceValueArrayView Dinv;
+  DeviceValueArrayView M_hat;
   DeviceView grad_f;
   DeviceView grad_f_T;
 
@@ -45,6 +47,8 @@ private:
   thrust::host_vector<double> delta_gamma_h;
   thrust::host_vector<double> delta_lambda_h;
   thrust::host_vector<double> gammaTmp_h;
+  thrust::host_vector<double> Dinv_h;
+  thrust::host_vector<double> Mhat_h;
 
   thrust::host_vector<int> grad_fI_h;
   thrust::host_vector<int> grad_fJ_h;
@@ -63,6 +67,8 @@ private:
   thrust::device_vector<double> delta_gamma_d;
   thrust::device_vector<double> delta_lambda_d;
   thrust::device_vector<double> gammaTmp_d;
+  thrust::device_vector<double> Dinv_d;
+  thrust::device_vector<double> Mhat_d;
 
   thrust::device_vector<int> grad_fI_d;
   thrust::device_vector<int> grad_fJ_d;
