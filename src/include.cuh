@@ -91,7 +91,7 @@ using namespace std;
 #define Thrust_Sequence(x) thrust::sequence(x.begin(),x.end())
 #define Thrust_Equal(x,y) thrust::equal(x.begin(),x.end(), y.begin())
 #define Thrust_Max(x) x[thrust::max_element(x.begin(),x.end())-x.begin()]
-#define Thrust_Min(x) x[thrust::max_element(x.begin(),x.end())-x.begin()]
+#define Thrust_Min(x) x[thrust::min_element(x.begin(),x.end())-x.begin()]
 #define Thrust_Total(x) thrust::reduce(x.begin(),x.end())
 
 #define PI 3.141592653589793238462643383279

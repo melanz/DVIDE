@@ -407,6 +407,35 @@ int PDIP::solve() {
     mySolver = new SpikeSolver(partitions, solverOptions);
     mySolver->setup(system->mass);
 
+//    ////////////////////////////////////////////////////////////////
+//    cusp::multiply(grad_f, system->gamma, lambdaTmp);
+//    cusp::blas::xmy(lambda,lambdaTmp,lambdaTmp);
+//    cusp::blas::xmy(Dinv,lambdaTmp,lambdaTmp);
+//    cusp::multiply(grad_f_T, lambdaTmp, gammaTmp);
+//
+//    cout << "Try the SpMV out (STEP 1)!" << endl;
+//    cusp::print(gammaTmp);
+//    cin.get();
+//
+//    // Step 2
+//    cusp::blas::xmy(M_hat,system->gamma,delta_gamma);
+//    cusp::blas::axpy(gammaTmp,delta_gamma,1.0);
+//
+//    cout << "Try the SpMV out (STEP 2)!" << endl;
+//    cusp::print(delta_gamma);
+//    cin.get();
+//
+//    // Step 3
+//    cusp::multiply(system->DT, system->gamma, system->f_contact);
+//    cusp::multiply(system->mass, system->f_contact, system->tmp);
+//    cusp::multiply(system->D, system->tmp, gammaTmp);
+//    cusp::blas::axpy(gammaTmp,delta_gamma,1.0);
+//
+//    cout << "Try the SpMV out (STEP 3)!" << endl;
+//    cusp::print(delta_gamma);
+//    cin.get();
+//    ///////////////////////////////////////////////////////////////
+
     bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
     cout << "Step 9" << endl;
     cusp::print(delta_gamma);
@@ -424,10 +453,14 @@ int PDIP::solve() {
     s_max = Thrust_Min(lambdaTmp_d);
     s_max = fmin(1.0,s_max);
     cout << "Step 10" << endl;
+    cout << "s_max = " << s_max << endl;
+    cin.get();
 
     // (11) s = 0.99 * s_max
     s = 0.99 * s_max;
     cout << "Step 11" << endl;
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (12) while max(f(gamma_k + s * delta_gamma) > 0)
     cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
@@ -435,16 +468,18 @@ int PDIP::solve() {
     cout << "Step 12" << endl;
     cusp::print(lambdaTmp);
     cin.get();
-    while(cusp::blas::nrmmax(lambdaTmp) > 0) {
+    while(Thrust_Max(lambdaTmp_d) > 0) {
       // (13) s = beta * s
       s = beta * s;
-      cout << "Step 13, ||lambdaTmp|| = " << cusp::blas::nrmmax(lambdaTmp) << ", s = " << s << endl;
+      cout << "Step 13, ||lambdaTmp|| = " << Thrust_Max(lambdaTmp_d) << ", s = " << s << endl;
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
       updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
 
       // (14) endwhile
     }
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (15) while norm(r_t(gamma_k + s * delta_gamma, lambda_k + s * delta_lambda),2) > (1-alpha*s)*norm(r_t,2)
     norm_rt = sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g));
@@ -465,18 +500,26 @@ int PDIP::solve() {
 
       // (17) endwhile
     }
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (18) gamma_(k+1) = gamma_k + s * delta_gamma
     cusp::blas::axpy(delta_gamma,system->gamma,s);
     cout << "Step 18" << endl;
+    cusp::print(system->gamma);
+    cin.get();
 
     // (19) lambda_(k+1) = lamda_k + s * delta_lambda
     cusp::blas::axpy(delta_lambda,lambda,s);
     cout << "Step 19" << endl;
+    cusp::print(lambda);
+    cin.get();
 
     // (20) r = r(gamma_(k+1))
     residual = cusp::blas::nrm2(r_g);
     cout << "Step 20" << endl;
+    cout << "residual = " << residual << endl;
+    cin.get();
 
     // (21) if r < tau
 

@@ -55,7 +55,7 @@ public:
 
     // Step 2
     cusp::blas::xmy(mMhat,v,Av);
-    cusp::blas::axpy(mgammaTmp,Av,-1.0);
+    cusp::blas::axpy(mgammaTmp,Av,1.0);
 
     // Step 3
     cusp::multiply(mD_T, v, mf_contact);
