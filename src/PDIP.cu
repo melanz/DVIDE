@@ -361,11 +361,13 @@ int PDIP::solve() {
     cusp::blas::xmy(Dinv,r_g,lambdaTmp);
     cusp::multiply(grad_f_T,lambdaTmp,rhs);
     cusp::blas::axpy(r_d,rhs,-1.0);
+
     m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
     mySolver = new SpikeSolver(partitions, solverOptions);
     mySolver->setup(system->mass);
 
     bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
+    spike::Stats stats = mySolver->getStats();
 
     cusp::multiply(grad_f,delta_gamma,delta_lambda);
     cusp::blas::xmy(lambda,delta_lambda,delta_lambda);
@@ -430,7 +432,7 @@ int PDIP::solve() {
     }
 
     // (24) endfor
-    cout << "  Iterations: " << k << " Residual: " << residual << endl;
+    cout << "  Iterations: " << k << " Residual: " << residual << " Krylov: " << stats.numIterations << endl;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)

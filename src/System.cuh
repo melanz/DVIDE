@@ -16,11 +16,13 @@
 #include <stdio.h>
 
 // use array1d_view to wrap the individual arrays
-typedef typename cusp::array1d_view<thrust::device_ptr<int> > DeviceIndexArrayView;
-typedef typename cusp::array1d_view<thrust::device_ptr<double> > DeviceValueArrayView;
+typedef typename cusp::array1d_view< thrust::device_ptr<int> > DeviceIndexArrayView;
+typedef typename cusp::array1d_view< thrust::device_ptr<double> > DeviceValueArrayView;
 
 //combine the three array1d_views into a coo_matrix_view
 typedef typename cusp::coo_matrix_view<DeviceIndexArrayView, DeviceIndexArrayView, DeviceValueArrayView> DeviceView;
+
+typedef typename cusp::coo_matrix<int, double, cusp::device_memory> DeviceMatrix;
 
 class CollisionDetector;
 class PDIP;
@@ -46,6 +48,8 @@ public:
 	DeviceView mass;
 	DeviceView D;
 	DeviceView DT;
+	DeviceMatrix MinvDT;
+	DeviceMatrix N;
 
 	// host vectors
 	thrust::host_vector<double> p_h;
@@ -121,7 +125,8 @@ public:
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src);
 	int     buildAppliedImpulseVector();
-	int     buildRightHandSideVector();
+	int     buildSchurVector();
+	int     buildSchurMatrix();
 };
 
 #endif /* SYSTEM_CUH_ */

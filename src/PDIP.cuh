@@ -17,15 +17,14 @@
 typedef double PREC_REAL;
 
 // use array1d_view to wrap the individual arrays
-typedef typename cusp::array1d_view<thrust::device_ptr<int> > DeviceIndexArrayView;
-typedef typename cusp::array1d_view<thrust::device_ptr<double> > DeviceValueArrayView;
+typedef typename cusp::array1d_view< thrust::device_ptr<int> > DeviceIndexArrayView;
+typedef typename cusp::array1d_view< thrust::device_ptr<double> > DeviceValueArrayView;
 
 //combine the three array1d_views into a coo_matrix_view
 typedef typename cusp::coo_matrix_view<DeviceIndexArrayView, DeviceIndexArrayView, DeviceValueArrayView> DeviceView;
 
 typedef typename spike::Solver<DeviceValueArrayView, PREC_REAL> SpikeSolver;
 typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
-
 
 class MySpmv : public cusp::linear_operator<double, cusp::device_memory>{
 public:

@@ -190,7 +190,8 @@ int System::DoTimeStep() {
   if(collisionDetector->numCollisions) {
     // Set up the QOCC
     buildContactJacobian();
-    buildRightHandSideVector();
+    buildSchurVector();
+    buildSchurMatrix();
 
     // Solve the QOCC
     solver->solve();
@@ -436,7 +437,7 @@ __global__ void applyStabilization(double* r, double4* normalsAndPenetrations, d
   r[3*index] += penetration/timeStep;
 }
 
-int System::buildRightHandSideVector() {
+int System::buildSchurVector() {
   // build r
   r_d.resize(3*collisionDetector->numCollisions);
   // TODO: There's got to be a better way to do this...
@@ -447,6 +448,14 @@ int System::buildRightHandSideVector() {
   cusp::multiply(D,tmp,r);
 
   applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+
+  return 0;
+}
+
+int System::buildSchurMatrix() {
+  // build N
+  cusp::multiply(mass,DT,MinvDT);
+  cusp::multiply(D,MinvDT,N);
 
   return 0;
 }
