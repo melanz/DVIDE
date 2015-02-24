@@ -110,8 +110,8 @@ __global__ void updateConstraintVector(double* src, double* dst, uint numCollisi
 
   double mu = 0.1; // TODO: Put this in material library!
 
-  dst[index] = 0.5 * (pow(src[index+1], 2.0) + pow(src[index+2], 2.0) - pow(mu, 2.0) * pow(src[index], 2.0));
-  dst[index + numCollisions] = -src[index];
+  dst[index] = 0.5 * (pow(src[3*index+1], 2.0) + pow(src[3*index+2], 2.0) - pow(mu, 2.0) * pow(src[3*index], 2.0));
+  dst[index + numCollisions] = -src[3*index];
 }
 
 __global__ void initializeLambda(double* src, double* dst, uint numConstraints) {

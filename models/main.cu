@@ -176,7 +176,7 @@ int main(int argc, char** argv)
 //    sys.preconditionerUpdateModulus = precUpdateInterval;
 //    sys.preconditionerMaxKrylovIterations = precMaxKrylov;
 //  }
-  double radius = 0.4;
+  double radius = 0.5;
 /*
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
