@@ -150,8 +150,8 @@ void CallBackMotionFunc(int x, int y) {
 int main(int argc, char** argv)
 {
 	// command line arguments
-	// ImplicitBeamsGPU <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
-	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes
+	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
+	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG
 
 #ifdef WITH_GLUT
 	bool visualize = true;
@@ -159,25 +159,28 @@ int main(int argc, char** argv)
 	//visualize = false;
 
   sys.setTimeStep(1e-2, 1e-10);
-  //sys.setMaxSpikeIterations(5000);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
+  int precondType = 0;
+  int numElementsPerSide = 4;
+  int solverType = 3;
+  int numPartitions = 1;
 
-	//sys.setNumPartitions((int)atoi(argv[1]));
-  int numElementsPerSide = atoi(argv[2]);
-  //sys.collisionDetector->setBinsPerAxis(make_uint3(min(numElementsPerSide,40),min(numElementsPerSide,40),min(numElementsPerSide,40)));
+  if(argc > 1) {
+    numPartitions = atoi(argv[1]);
+    numElementsPerSide = atoi(argv[2]);
+    solverType = atoi(argv[3]);
+    numPartitions = atoi(argv[4]);
+  }
+
   sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
-  sys.solver->setPrecondType(0);
-  sys.solver->setSolverType(2);
-  //sys.setSolverType((int)atoi(argv[3]));
-  //sys.setPrecondType(atoi(argv[4]));
-//  if(atoi(argv[4])) {
-//    sys.preconditionerUpdateModulus = precUpdateInterval;
-//    sys.preconditionerMaxKrylovIterations = precMaxKrylov;
-//  }
-  double radius = 0.5;
-/*
+  sys.solver->setPrecondType(precondType);
+  sys.solver->setSolverType(solverType);
+  sys.solver->setNumPartitions(numPartitions);
+
+  double radius = 0.4;
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -211,16 +214,16 @@ int main(int argc, char** argv)
 //  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
 //  //ball1->setMass(20);
 //  sys.add(ball1);
-*/
+
   Body* bodyPtr;
   int numBodies = 0;
   // Add elements in x-direction
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < numElementsPerSide; i++) {
     for (int j = 0; j < numElementsPerSide; j++) {
-      for (int k = 0; k < 1; k++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+radius,k-0.5*numElementsPerSide+radius));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        if(j==0) bodyPtr->setBodyFixed(true);
+        //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
         //numBodies = sys.add(bodyPtr);
 

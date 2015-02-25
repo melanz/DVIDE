@@ -43,6 +43,7 @@
 #include <cusp/transpose.h>
 #include <thrust/functional.h>
 #include <cusp/linear_operator.h>
+#include <cusp/elementwise.h>
 
 #include "DanVIApi.h"
 
