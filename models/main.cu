@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 #endif
 	//visualize = false;
 
-  sys.setTimeStep(1e-2, 1e-10);
+  sys.setTimeStep(1e-3, 1e-10);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
@@ -166,18 +166,28 @@ int main(int argc, char** argv)
   int numElementsPerSide = 4;
   int solverType = 3;
   int numPartitions = 1;
+  double mu_pdip = 50.0;
+  double alpha = 0.01; // should be [0.01, 0.1]
+  double beta = 0.8; // should be [0.3, 0.8]
 
   if(argc > 1) {
     numPartitions = atoi(argv[1]);
     numElementsPerSide = atoi(argv[2]);
     solverType = atoi(argv[3]);
-    numPartitions = atoi(argv[4]);
+    precondType = atoi(argv[4]);
+    mu_pdip = atof(argv[5]);
+    alpha = atof(argv[6]);
+    beta = atof(argv[7]);
   }
 
   sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys.solver->setPrecondType(precondType);
   sys.solver->setSolverType(solverType);
   sys.solver->setNumPartitions(numPartitions);
+  sys.solver->alpha = alpha;
+  sys.solver->beta = beta;
+  sys.solver->mu_pdip = mu_pdip;
+  sys.solver->tolerance = 1e-2;//e-4;
 
   double radius = 0.4;
 
@@ -211,9 +221,9 @@ int main(int argc, char** argv)
   frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
   sys.add(frontPtr);
 
-//  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
-//  //ball1->setMass(20);
-//  sys.add(ball1);
+  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
+  //ball1->setMass(20);
+  sys.add(ball1);
 
   Body* bodyPtr;
   int numBodies = 0;

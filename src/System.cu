@@ -206,14 +206,14 @@ int System::DoTimeStep() {
     cusp::multiply(mass,k,v);
   }
 
-//  // Apply sinusoidal motion
-//  v_h = v_d;
-//  for(int i=0;i<5;i++) {
-//    v_h[3*i] = v_h[3*i]+4.0*sin(time*3.0);
-//    v_h[3*i+1] = 0;
-//    v_h[3*i+2] = 0;
-//  }
-//  v_d = v_h;
+  // Apply sinusoidal motion
+  v_h = v_d;
+  for(int i=0;i<5;i++) {
+    v_h[3*i] = v_h[3*i]+4.0*sin(time*3.0);
+    v_h[3*i+1] = 0;
+    v_h[3*i+2] = 0;
+  }
+  v_d = v_h;
 
   cusp::blas::axpy(v, p, h);
 

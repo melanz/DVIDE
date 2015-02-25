@@ -7,6 +7,11 @@ PDIP::PDIP(System* sys)
 {
   system = sys;
 
+  mu_pdip = 50.0;
+  alpha = 0.01; // should be [0.01, 0.1]
+  beta = 0.8; // should be [0.3, 0.8]
+  tolerance = 1e-4;
+
   // spike stuff
   partitions = 1;
   solverOptions.safeFactorization = true;
@@ -76,6 +81,9 @@ void PDIP::setSolverType(int solverType)
     break;
   case 4:
     solverOptions.solverType = spike::CG_C;
+    break;
+  case 5:
+    solverOptions.solverType = spike::CR_C;
     break;
   }
 }
@@ -327,6 +335,7 @@ int PDIP::performSchurComplementProduct(DeviceValueArrayView src) {
 
 int PDIP::updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t) {
   performSchurComplementProduct(gamma); // gammaTmp = N*gamma
+  //cusp::multiply(system->N,gamma,gammaTmp);
   cusp::multiply(grad_f_T,lambda,r_d);
   cusp::blas::axpbypcz(gammaTmp, system->r, r_d, r_d, 1.0, 1.0, 1.0);
   cusp::blas::xmy(lambda,f,r_g);
@@ -362,22 +371,62 @@ int PDIP::buildAMatrix() {
   return 0;
 }
 
+__global__ void project(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = 0.1; //TODO: Put this in material library
+  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
+  double gamma_n = gamma.x;
+  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
+
+  if(mu == 0) {
+    gamma = make_double3(gamma_n,0,0);
+    if (gamma_n < 0) gamma = make_double3(0,0,0);
+  }
+  else if(gamma_t < mu * gamma_n) {
+    // Don't touch gamma!
+  }
+  else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
+    gamma = make_double3(0,0,0);
+  }
+  else {
+    double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
+    double gamma_t_proj = gamma_n_proj * mu;
+    double tproj_div_t = gamma_t_proj/gamma_t;
+    double gamma_u_proj = tproj_div_t * gamma.y;
+    double gamma_v_proj = tproj_div_t * gamma.z;
+    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
+  }
+
+  src[3*index  ] = gamma.x;
+  src[3*index+1] = gamma.y;
+  src[3*index+2] = gamma.z;
+}
+
+double PDIP::getResidual(DeviceValueArrayView src) {
+  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
+  performSchurComplementProduct(src);
+  cusp::blas::axpy(system->r,gammaTmp,1.0);
+  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
+  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
+
+  return cusp::blas::nrmmax(gammaTmp);
+}
+
 int PDIP::solve() {
   int maxIterations = 1000;
-  double tolerance = 1e-4;
   solverOptions.relTol = std::min(0.01 * tolerance, 1e-6);
   solverOptions.absTol = 1e-10;
 
   // Initialize scalars
-  double mu_pdip = 10.0;
-  double alpha = 0.01; // should be [0.01, 0.1]
-  double beta = 0.8; // should be [0.3, 0.8]
   double eta_hat = 0.0;
   double t = 0.0;
   double s = 1.0;
   double s_max = 1.0;
   double norm_rt = 0.0;
   double residual = 10e30;
+  double res_check;
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
@@ -436,6 +485,7 @@ int PDIP::solve() {
 
   // Provide an initial guess for gamma
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  //project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // Initialize the constraint gradient and constraint gradient transpose
   initializeConstraintGradient();
@@ -477,13 +527,14 @@ int PDIP::solve() {
     buildAMatrix();
 
     //m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
-    if(k==0) {
+    //if(k==0) {
       delete mySolver;
       mySolver = new SpikeSolver(partitions, solverOptions);
       mySolver->setup(A);
-    }
+    //}
 
     //bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
+    cusp::blas::fill(delta_gamma,0.0);
     bool success = mySolver->solve(A, rhs, delta_gamma);
     spike::Stats stats = mySolver->getStats();
 
@@ -539,8 +590,12 @@ int PDIP::solve() {
     cusp::blas::axpy(delta_lambda,lambda,s);
 
     // (20) r = r(gamma_(k+1))
-    residual = cusp::blas::nrm2(r_g)/system->collisionDetector->numCollisions;
-
+    //residual = cusp::blas::nrm2(r_g)/pow(system->collisionDetector->numCollisions,2.0);
+    residual = cusp::blas::nrm2(r_g);
+    performSchurComplementProduct(system->gamma);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    residual = residual/fmax(1.0,cusp::blas::nrm2(gammaTmp));
+    res_check = getResidual(system->gamma);
     // (21) if r < tau
     if (residual < tolerance) {
       // (22) break
@@ -550,11 +605,11 @@ int PDIP::solve() {
     }
 
     // (24) endfor
-    cout << "  Iterations: " << k << " Residual: " << residual << " Krylov: " << stats.numIterations << endl;
+    cout << "  Iterations: " << k << " Residual: " << residual << " Res check: " << res_check << " Krylov: " << stats.numIterations << endl;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)
-  cout << "  Iterations: " << k << " Residual: " << residual << endl;
+  cout << "  Iterations: " << k << " Residual: " << residual << " Res check: " << res_check << endl;
 
   return 0;
 }
