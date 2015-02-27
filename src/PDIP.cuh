@@ -190,6 +190,7 @@ public:
   double alpha;
   double beta;
   double tolerance;
+  int maxIterations;
 
 	PDIP(System* sys);
 	int setup();

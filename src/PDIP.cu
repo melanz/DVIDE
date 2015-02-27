@@ -11,6 +11,7 @@ PDIP::PDIP(System* sys)
   alpha = 0.01; // should be [0.01, 0.1]
   beta = 0.8; // should be [0.3, 0.8]
   tolerance = 1e-4;
+  maxIterations = 1000;
 
   // spike stuff
   partitions = 1;
@@ -95,8 +96,8 @@ void PDIP::setPrecondType(int useSpike)
 
 void PDIP::printSolverParams()
 {
-//  printf("Step size: %e\n", h);
-//  printf("Newton tolerance: %e\n", tol);
+  //  printf("Step size: %e\n", h);
+  //  printf("Newton tolerance: %e\n", tol);
   printf("Krylov relTol: %e  abdTol: %e\n", solverOptions.relTol, solverOptions.absTol);
   printf("Max. Krylov iterations: %d\n", solverOptions.maxNumIterations);
   printf("----------------------------\n");
@@ -415,7 +416,6 @@ double PDIP::getResidual(DeviceValueArrayView src) {
 }
 
 int PDIP::solve() {
-  int maxIterations = 1000;
   solverOptions.relTol = std::min(0.01 * tolerance, 1e-6);
   solverOptions.absTol = 1e-10;
 
@@ -526,16 +526,16 @@ int PDIP::solve() {
     cusp::blas::axpy(r_d,rhs,-1.0);
     buildAMatrix();
 
-    //m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
-    //if(k==0) {
-      delete mySolver;
-      mySolver = new SpikeSolver(partitions, solverOptions);
-      mySolver->setup(A);
-    //}
+    delete mySolver;
+    mySolver = new SpikeSolver(partitions, solverOptions);
+    mySolver->setup(A);
 
-    //bool success = mySolver->solve(*m_spmv, rhs, delta_gamma);
     cusp::blas::fill(delta_gamma,0.0);
     bool success = mySolver->solve(A, rhs, delta_gamma);
+    if(!success) {
+      cout << "SOLVER FAIL" << endl;
+      cin.get();
+    }
     spike::Stats stats = mySolver->getStats();
 
     cusp::multiply(grad_f,delta_gamma,delta_lambda);
@@ -590,12 +590,12 @@ int PDIP::solve() {
     cusp::blas::axpy(delta_lambda,lambda,s);
 
     // (20) r = r(gamma_(k+1))
-    //residual = cusp::blas::nrm2(r_g)/pow(system->collisionDetector->numCollisions,2.0);
-    residual = cusp::blas::nrm2(r_g);
-    performSchurComplementProduct(system->gamma);
-    cusp::blas::axpy(system->r,gammaTmp,1.0);
-    residual = residual/fmax(1.0,cusp::blas::nrm2(gammaTmp));
-    res_check = getResidual(system->gamma);
+    residual = cusp::blas::nrm2(r_g)/system->collisionDetector->numCollisions;
+    //residual = cusp::blas::nrm2(r_g);
+    //performSchurComplementProduct(system->gamma);
+    //cusp::blas::axpy(system->r,gammaTmp,1.0);
+    //residual = residual/fmax(1.0,cusp::blas::nrm2(gammaTmp));
+    res_check = 0;//getResidual(system->gamma);
     // (21) if r < tau
     if (residual < tolerance) {
       // (22) break

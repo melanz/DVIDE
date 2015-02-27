@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 #endif
 	//visualize = false;
 
-  sys.setTimeStep(1e-3, 1e-10);
+  sys.setTimeStep(1e-2, 1e-10);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
@@ -187,7 +187,8 @@ int main(int argc, char** argv)
   sys.solver->alpha = alpha;
   sys.solver->beta = beta;
   sys.solver->mu_pdip = mu_pdip;
-  sys.solver->tolerance = 1e-2;//e-4;
+  sys.solver->tolerance = 1e-4;
+  //sys.solver->maxIterations = 10;
 
   double radius = 0.4;
 
