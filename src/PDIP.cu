@@ -590,11 +590,11 @@ int PDIP::solve() {
     cusp::blas::axpy(delta_lambda,lambda,s);
 
     // (20) r = r(gamma_(k+1))
-    residual = cusp::blas::nrm2(r_g)/system->collisionDetector->numCollisions;
+    //residual = cusp::blas::nrm2(r_g)/system->collisionDetector->numCollisions;
     //residual = cusp::blas::nrm2(r_g);
-    //performSchurComplementProduct(system->gamma);
-    //cusp::blas::axpy(system->r,gammaTmp,1.0);
-    //residual = residual/fmax(1.0,cusp::blas::nrm2(gammaTmp));
+    performSchurComplementProduct(system->gamma);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    residual = cusp::blas::nrm2(r_g)/fmax(1.0,cusp::blas::nrm2(gammaTmp));
     res_check = 0;//getResidual(system->gamma);
     // (21) if r < tau
     if (residual < tolerance) {
@@ -605,7 +605,7 @@ int PDIP::solve() {
     }
 
     // (24) endfor
-    cout << "  Iterations: " << k << " Residual: " << residual << " Res check: " << res_check << " Krylov: " << stats.numIterations << endl;
+    //cout << "  Iterations: " << k << " Residual: " << residual << " Res check: " << res_check << " Krylov: " << stats.numIterations << endl;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)

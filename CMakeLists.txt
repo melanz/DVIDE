@@ -94,7 +94,8 @@ SET(IBEAMS_SOURCES
 	src/CollisionDetector.cuh
 	src/CollisionDetector.cu
 	src/Solver.cuh
-	src/Solver.cu
+	src/APGD.cuh
+	src/APGD.cu
 	src/PDIP.cuh
 	src/PDIP.cu
 	)

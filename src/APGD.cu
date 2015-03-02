@@ -1,14 +1,14 @@
 #include <algorithm>
 #include <vector>
 #include "include.cuh"
-#include "Solver.cuh"
+#include "APGD.cuh"
 
-Solver::Solver(System* sys)
+APGD::APGD(System* sys)
 {
   system = sys;
 }
 
-int Solver::setup()
+int APGD::setup()
 {
   gammaHat_d = system->a_h;
   gammaNew_d = system->a_h;
@@ -67,7 +67,7 @@ __global__ void project(double* src, uint numCollisions) {
 }
 
 
-int Solver::performSchurComplementProduct(DeviceValueArrayView src) {
+int APGD::performSchurComplementProduct(DeviceValueArrayView src) {
   cusp::multiply(system->DT,src,system->f_contact);
   cusp::multiply(system->mass,system->f_contact,system->tmp);
   cusp::multiply(system->D,system->tmp,gammaTmp);
@@ -76,7 +76,7 @@ int Solver::performSchurComplementProduct(DeviceValueArrayView src) {
 }
 
 
-double Solver::getResidual(DeviceValueArrayView src) {
+double APGD::getResidual(DeviceValueArrayView src) {
   double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
   performSchurComplementProduct(src);
   cusp::blas::axpy(system->r,gammaTmp,1.0);
@@ -87,7 +87,7 @@ double Solver::getResidual(DeviceValueArrayView src) {
   return cusp::blas::nrmmax(gammaTmp);
 }
 
-int Solver::solve() {
+int APGD::solve() {
   int maxIterations = 1000;
   double tolerance = 1e-4;
 

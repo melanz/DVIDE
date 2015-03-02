@@ -147,6 +147,17 @@ void CallBackMotionFunc(int x, int y) {
 #endif
 // END OPENGL RENDERING CODE //
 
+double getRandomNumber(double min, double max)
+{
+  // x is in [0,1[
+  double x = rand()/static_cast<double>(RAND_MAX);
+
+  // [0,1[ * (max - min) + min is in [min,max[
+  double that = min + ( x * (max - min) );
+
+  return that;
+}
+
 int main(int argc, char** argv)
 {
 	// command line arguments
@@ -192,6 +203,13 @@ int main(int argc, char** argv)
 
   double radius = 0.4;
 
+//  // Top
+//  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3,0));
+//  //topPtr->setBodyFixed(true);
+//  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+//  topPtr->setMass(1000);
+//  sys.add(topPtr);
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
@@ -222,9 +240,10 @@ int main(int argc, char** argv)
   frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
   sys.add(frontPtr);
 
-  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
-  //ball1->setMass(20);
-  sys.add(ball1);
+//  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
+//  ball1->setGeometry(make_double3(radius,0,0));
+//  //ball1->setMass(20);
+//  sys.add(ball1);
 
   Body* bodyPtr;
   int numBodies = 0;
@@ -232,7 +251,11 @@ int main(int argc, char** argv)
   for (int i = 0; i < numElementsPerSide; i++) {
     for (int j = 0; j < numElementsPerSide; j++) {
       for (int k = 0; k < numElementsPerSide; k++) {
-        bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius,j+radius,k-0.5*numElementsPerSide+radius));
+
+        double xWig = getRandomNumber(-.1, .1);
+        double yWig = 0;//getRandomNumber(-.1, .1);
+        double zWig = getRandomNumber(-.1, .1);
+        bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius + xWig,j+radius+yWig,k-0.5*numElementsPerSide+radius+zWig));
         bodyPtr->setGeometry(make_double3(radius,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys.add(bodyPtr);
