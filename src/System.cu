@@ -2,6 +2,9 @@
 #include <vector>
 #include "include.cuh"
 #include "System.cuh"
+#include "Solver.cuh"
+#include "APGD.cuh"
+#include "PDIP.cuh"
 
 System::System()
 {
@@ -12,7 +15,7 @@ System::System()
   time = 0;
 
   collisionDetector = new CollisionDetector(this);
-  solver = new PDIP(this);
+  solver = new APGD(this);
 }
 
 void System::setTimeStep(double step_size, double precision)

@@ -11,7 +11,7 @@
 #include "include.cuh"
 #include "Body.cuh"
 #include "CollisionDetector.cuh"
-#include "PDIP.cuh"
+#include "Solver.cuh"
 
 #include <stdio.h>
 
@@ -25,7 +25,7 @@ typedef typename cusp::coo_matrix_view<DeviceIndexArrayView, DeviceIndexArrayVie
 typedef typename cusp::coo_matrix<int, double, cusp::device_memory> DeviceMatrix;
 
 class CollisionDetector;
-class PDIP;
+class Solver;
 class System {
 public:
   // variables
@@ -110,7 +110,7 @@ public:
 public:
 	System();
 	vector<Body*> bodies;
-	PDIP* solver;
+	Solver* solver;
 	double  getCurrentTime() const    {return time;}
 	double  getTimeStep() const       {return h;}
 	double  getTolerance() const      {return tol;}

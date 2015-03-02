@@ -6,6 +6,9 @@
 APGD::APGD(System* sys)
 {
   system = sys;
+
+  tolerance = 1e-4;
+  maxIterations = 1000;
 }
 
 int APGD::setup()
@@ -88,8 +91,6 @@ double APGD::getResidual(DeviceValueArrayView src) {
 }
 
 int APGD::solve() {
-  int maxIterations = 1000;
-  double tolerance = 1e-4;
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaHat_d.resize(3*system->collisionDetector->numCollisions);

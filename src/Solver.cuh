@@ -19,40 +19,22 @@ class Solver {
 private:
   System* system;
 
-  // APGD Solver
-  DeviceValueArrayView gammaHat;
-  DeviceValueArrayView gammaNew;
-  DeviceValueArrayView g;
-  DeviceValueArrayView y;
-  DeviceValueArrayView yNew;
-  DeviceValueArrayView gammaTmp;
-  // End APGD Solver
-
-  // APGD Solver
-  thrust::host_vector<double> gammaHat_h;
-  thrust::host_vector<double> gammaNew_h;
-  thrust::host_vector<double> g_h;
-  thrust::host_vector<double> y_h;
-  thrust::host_vector<double> yNew_h;
-  thrust::host_vector<double> gammaTmp_h;
-  // End APGD Solver
-
-  // APGD Solver
-  thrust::device_vector<double> gammaHat_d;
-  thrust::device_vector<double> gammaNew_d;
-  thrust::device_vector<double> g_d;
-  thrust::device_vector<double> y_d;
-  thrust::device_vector<double> yNew_d;
-  thrust::device_vector<double> gammaTmp_d;
-  // End APGD Solver
-
-  int performSchurComplementProduct(DeviceValueArrayView src);
-  double getResidual(DeviceValueArrayView src);
-
 public:
-	Solver(System* sys);
-	int setup();
-	int solve();
+  double tolerance;
+  int maxIterations;
+
+  Solver() {
+    system = 0;
+    tolerance = 0;
+    maxIterations = 1000000;
+  }
+	Solver(System* sys) {
+	  system = sys;
+	  tolerance = 0;
+	  maxIterations = 1000000;
+	}
+	virtual int setup() = 0;
+	virtual int solve() = 0;
 };
 
 #endif /* SOLVER_CUH_ */

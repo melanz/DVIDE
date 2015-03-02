@@ -10,11 +10,12 @@
 
 #include "include.cuh"
 #include "System.cuh"
+#include "Solver.cuh"
 
 typedef typename cusp::array1d_view<thrust::device_ptr<double> > DeviceValueArrayView;
 
 class System;
-class APGD {
+class APGD :public Solver {
   friend class System;
 private:
   System* system;
@@ -50,9 +51,12 @@ private:
   double getResidual(DeviceValueArrayView src);
 
 public:
+  int maxIterations;
+  double tolerance;
+
 	APGD(System* sys);
 	int setup();
 	int solve();
 };
 
-#endif /* SOLVER_CUH_ */
+#endif /* APGD_CUH_ */

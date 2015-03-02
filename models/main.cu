@@ -192,12 +192,12 @@ int main(int argc, char** argv)
   }
 
   sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
-  sys.solver->setPrecondType(precondType);
-  sys.solver->setSolverType(solverType);
-  sys.solver->setNumPartitions(numPartitions);
-  sys.solver->alpha = alpha;
-  sys.solver->beta = beta;
-  sys.solver->mu_pdip = mu_pdip;
+//  sys.solver->setPrecondType(precondType);
+//  sys.solver->setSolverType(solverType);
+//  sys.solver->setNumPartitions(numPartitions);
+//  sys.solver->alpha = alpha;
+//  sys.solver->beta = beta;
+//  sys.solver->mu_pdip = mu_pdip;
   sys.solver->tolerance = 1e-4;
   //sys.solver->maxIterations = 10;
 
