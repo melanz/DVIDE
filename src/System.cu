@@ -18,32 +18,54 @@ System::System()
   solver = new APGD(this);
 }
 
+System::System(int solverType)
+{
+  gravity = make_double3(0,-9.81,0);
+  tol = 1e-8;
+  h = 1e-3;
+  timeIndex = 0;
+  time = 0;
+
+  collisionDetector = new CollisionDetector(this);
+
+  switch(solverType) {
+  case 1:
+    solver = new APGD(this);
+    break;
+  case 2:
+    solver = new PDIP(this);
+    break;
+  default:
+    solver = new APGD(this);
+  }
+}
+
 void System::setTimeStep(double step_size, double precision)
 {
-	h = step_size;
+  h = step_size;
 
-//	// Set tolerance for Newton iteration based on the precision in positions
-//	// and integration step-size.
-//	double safety = 1;////0.5;
-//	tol = safety * precision / (h * h);
-//
-//	// Set the tolerances for Krylov
-//	solverOptions.relTol = std::min(0.01 * tol, 1e-6);
-//	solverOptions.absTol = 1e-10;
+  //	// Set tolerance for Newton iteration based on the precision in positions
+  //	// and integration step-size.
+  //	double safety = 1;////0.5;
+  //	tol = safety * precision / (h * h);
+  //
+  //	// Set the tolerances for Krylov
+  //	solverOptions.relTol = std::min(0.01 * tol, 1e-6);
+  //	solverOptions.absTol = 1e-10;
 }
 
 int System::add(Body* body) {
   // TODO: make this function general for any Body
-	//add the element
+  //add the element
   body->setIndex(p_h.size()); // Indicates the Body's location in the position array
   indices_h.push_back(p_h.size()); // Push Body's location to global library
   body->setIdentifier(bodies.size()); // Indicates the number that the Body was added
-	bodies.push_back(body);
+  bodies.push_back(body);
 
-	// update p
-	p_h.push_back(body->pos.x);
-	p_h.push_back(body->pos.y);
-	p_h.push_back(body->pos.z);
+  // update p
+  p_h.push_back(body->pos.x);
+  p_h.push_back(body->pos.y);
+  p_h.push_back(body->pos.z);
 
   // update v
   v_h.push_back(body->vel.x);
@@ -55,7 +77,7 @@ int System::add(Body* body) {
   a_h.push_back(body->acc.y);
   a_h.push_back(body->acc.z);
 
-	// update external force vector (gravity)
+  // update external force vector (gravity)
   if(body->isFixed()) {
     f_h.push_back(0);
     f_h.push_back(0);
@@ -83,86 +105,86 @@ int System::add(Body* body) {
   k_h.push_back(0);
   k_h.push_back(0);
 
-//  for(int i=0; i<3; i++) {
-//    gamma_h.push_back(0);
-//    gammaHat_h.push_back(0);
-//    gammaNew_h.push_back(0);
-//    g_h.push_back(0);
-//    y_h.push_back(0);
-//    yNew_h.push_back(0);
-//    gammaTmp_h.push_back(0);
-//  }
+  //  for(int i=0; i<3; i++) {
+  //    gamma_h.push_back(0);
+  //    gammaHat_h.push_back(0);
+  //    gammaNew_h.push_back(0);
+  //    g_h.push_back(0);
+  //    y_h.push_back(0);
+  //    yNew_h.push_back(0);
+  //    gammaTmp_h.push_back(0);
+  //  }
 
-	// update the mass matrix
-	for (int i = 0; i < body->numDOF; i++) {
-      massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
-      massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
-      if(body->isFixed()) {
-        mass_h.push_back(0);
-      }
-      else {
-        mass_h.push_back(1.0/body->mass);
-      }
-	}
+  // update the mass matrix
+  for (int i = 0; i < body->numDOF; i++) {
+    massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
+    massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
+    if(body->isFixed()) {
+      mass_h.push_back(0);
+    }
+    else {
+      mass_h.push_back(1.0/body->mass);
+    }
+  }
 
-	contactGeometry_h.push_back(body->contactGeometry);
+  contactGeometry_h.push_back(body->contactGeometry);
 
-	return bodies.size();
+  return bodies.size();
 }
 
 int System::initializeDevice() {
   indices_d = indices_h;
-	p_d = p_h;
-	v_d = v_h;
-	a_d = a_h;
-	f_d = f_h;
-	f_contact_d = f_contact_h;
-	tmp_d = tmp_h;
-	r_d = r_h;
-	k_d = k_h;
+  p_d = p_h;
+  v_d = v_h;
+  a_d = a_h;
+  f_d = f_h;
+  f_contact_d = f_contact_h;
+  tmp_d = tmp_h;
+  r_d = r_h;
+  k_d = k_h;
   gamma_d = a_h;
 
-	massI_d = massI_h;
-	massJ_d = massJ_h;
-	mass_d = mass_h;
+  massI_d = massI_h;
+  massJ_d = massJ_h;
+  mass_d = mass_h;
 
-	contactGeometry_d = contactGeometry_h;
-	fixedBodies_d = fixedBodies_h;
+  contactGeometry_d = contactGeometry_h;
+  fixedBodies_d = fixedBodies_h;
 
-	thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
-	thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
-	thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
-	thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
-	thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
-	thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
-	thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
-	thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
-	thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
+  thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
+  thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
+  thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
+  thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
+  thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
+  thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
+  thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+  thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
+  thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
 
-	p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
-	v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
-	a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
-	f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
-	f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
-	tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
-	r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
-	k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
-	gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
+  p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
+  v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
+  a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
+  f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
+  f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
+  tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
+  r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+  k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
+  gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
 
-	// create mass matrix using cusp library (shouldn't change)
-	thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
-	DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + massI_d.size());
+  // create mass matrix using cusp library (shouldn't change)
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(massI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + massI_d.size());
 
-	thrust::device_ptr<int> wrapped_device_J(CASTI1(massJ_d));
-	DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + massJ_d.size());
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(massJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + massJ_d.size());
 
-	thrust::device_ptr<double> wrapped_device_V(CASTD1(mass_d));
-	DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + mass_d.size());
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(mass_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + mass_d.size());
 
-	mass = DeviceView(a_d.size(), a_d.size(), mass_d.size(), row_indices, column_indices, values);
-	// end create mass matrix
+  mass = DeviceView(a_d.size(), a_d.size(), mass_d.size(), row_indices, column_indices, values);
+  // end create mass matrix
 
-	return 0;
+  return 0;
 }
 
 int System::initializeSystem() {
@@ -172,21 +194,21 @@ int System::initializeSystem() {
     contactGeometry_h[i] = bodies[i]->contactGeometry;
     if(bodies[i]->isFixed()) fixedBodies_h.push_back(i);
   }
-	initializeDevice();
-	solver->setup();
+  initializeDevice();
+  solver->setup();
 
-	return 0;
+  return 0;
 }
 
 int System::DoTimeStep() {
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  cudaEventRecord(start, 0);
 
-	// Perform collision detection
-	collisionDetector->generateAxisAlignedBoundingBoxes();
-	collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  // Perform collision detection
+  collisionDetector->generateAxisAlignedBoundingBoxes();
+  collisionDetector->detectPossibleCollisions_spatialSubdivision();
   collisionDetector->detectCollisions();
 
   buildAppliedImpulseVector();
@@ -209,14 +231,14 @@ int System::DoTimeStep() {
     cusp::multiply(mass,k,v);
   }
 
-//  // Apply sinusoidal motion
-//  v_h = v_d;
-//  for(int i=0;i<5;i++) {
-//    v_h[3*i] = v_h[3*i]+4.0*sin(time*3.0);
-//    v_h[3*i+1] = 0;
-//    v_h[3*i+2] = 0;
-//  }
-//  v_d = v_h;
+  //  // Apply sinusoidal motion
+  //  v_h = v_d;
+  //  for(int i=0;i<5;i++) {
+  //    v_h[3*i] = v_h[3*i]+4.0*sin(time*3.0);
+  //    v_h[3*i+1] = 0;
+  //    v_h[3*i+2] = 0;
+  //  }
+  //  v_d = v_h;
 
   cusp::blas::axpy(v, p, h);
 
@@ -224,13 +246,13 @@ int System::DoTimeStep() {
   timeIndex++;
   p_h = p_d;
 
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	float elapsedTime;
-	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("Time: %f (Exec. Time: %f), Collisions: %d (%d possible)\n",time,elapsedTime,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
+  cudaEventRecord(stop, 0);
+  cudaEventSynchronize(stop);
+  float elapsedTime;
+  cudaEventElapsedTime(&elapsedTime, start, stop);
+  printf("Time: %f (Exec. Time: %f), Collisions: %d (%d possible)\n",time,elapsedTime,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
 
-	return 0;
+  return 0;
 }
 
 int System::applyContactForces_CPU() {

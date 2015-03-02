@@ -109,6 +109,7 @@ public:
 
 public:
 	System();
+	System(int solverType);
 	vector<Body*> bodies;
 	Solver* solver;
 	double  getCurrentTime() const    {return time;}

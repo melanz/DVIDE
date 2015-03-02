@@ -1,12 +1,13 @@
 #include "include.cuh"
 #include "System.cuh"
 #include "Body.cuh"
+#include "PDIP.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
-System sys;
+System* sys;
 
 #ifdef WITH_GLUT
 OpenGLCamera oglcamera(camreal3(4,5,-40),camreal3(4,5,0),camreal3(0,1,0),.01);
@@ -54,13 +55,13 @@ void drawAll()
 
 		oglcamera.Update();
 
-		for(int i=0;i<sys.bodies.size();i++)
+		for(int i=0;i<sys->bodies.size();i++)
 		{
 			if(wireFrame) {
 			  glPushMatrix();
-			  double3 position = sys.bodies[i]->getPosition();
-			  glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
-			  double3 geometry = sys.bodies[i]->getGeometry();
+			  double3 position = sys->bodies[i]->getPosition();
+			  glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
+			  double3 geometry = sys->bodies[i]->getGeometry();
 			  if(geometry.y) {
 			    glColor3f(0.0f,1.0f,0.0f);
 			    glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
@@ -74,9 +75,9 @@ void drawAll()
 			}
 			else {
         glPushMatrix();
-        double3 position = sys.bodies[i]->getPosition();
-        glTranslatef(sys.p_h[3*i],sys.p_h[3*i+1],sys.p_h[3*i+2]);
-        double3 geometry = sys.bodies[i]->getGeometry();
+        double3 position = sys->bodies[i]->getPosition();
+        glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
+        double3 geometry = sys->bodies[i]->getGeometry();
         if(geometry.y) {
           glColor3f(0.0f,1.0f,0.0f);
           glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
@@ -96,9 +97,9 @@ void drawAll()
 
 void renderSceneAll(){
 	if(OGL){
-		//if(sys.timeIndex%10==0)
+		//if(sys->timeIndex%10==0)
 		drawAll();
-		sys.DoTimeStep();
+		sys->DoTimeStep();
 	}
 }
 
@@ -162,14 +163,8 @@ int main(int argc, char** argv)
 {
 	// command line arguments
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
-	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG
+	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-#ifdef WITH_GLUT
-	bool visualize = true;
-#endif
-	//visualize = false;
-
-  sys.setTimeStep(1e-2, 1e-10);
   double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
@@ -177,9 +172,10 @@ int main(int argc, char** argv)
   int numElementsPerSide = 4;
   int solverType = 3;
   int numPartitions = 1;
-  double mu_pdip = 50.0;
+  double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
+  int solverTypeQOCC = 1;
 
   if(argc > 1) {
     numPartitions = atoi(argv[1]);
@@ -189,61 +185,72 @@ int main(int argc, char** argv)
     mu_pdip = atof(argv[5]);
     alpha = atof(argv[6]);
     beta = atof(argv[7]);
+    solverTypeQOCC = atoi(argv[8]);
   }
 
-  sys.collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
-//  sys.solver->setPrecondType(precondType);
-//  sys.solver->setSolverType(solverType);
-//  sys.solver->setNumPartitions(numPartitions);
-//  sys.solver->alpha = alpha;
-//  sys.solver->beta = beta;
-//  sys.solver->mu_pdip = mu_pdip;
-  sys.solver->tolerance = 1e-4;
-  //sys.solver->maxIterations = 10;
+#ifdef WITH_GLUT
+	bool visualize = true;
+#endif
+	//visualize = false;
+
+	sys = new System(solverTypeQOCC);
+  sys->setTimeStep(1e-2, 1e-10);
+
+  sys->collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
+  if(solverTypeQOCC==2) {
+    dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<PDIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
+    dynamic_cast<PDIP*>(sys->solver)->beta = beta;
+    dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
+  sys->solver->tolerance = 1e-4;
+  //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
 
-//  // Top
-//  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3,0));
-//  //topPtr->setBodyFixed(true);
-//  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
-//  topPtr->setMass(1000);
-//  sys.add(topPtr);
+  // Top
+  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3,0));
+  //topPtr->setBodyFixed(true);
+  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+  topPtr->setMass(1000);
+  sys->add(topPtr);
 
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
-  sys.add(groundPtr);
+  sys->add(groundPtr);
 
   // Left
   Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-2*radius,0.5*numElementsPerSide+radius,0));
   leftPtr->setBodyFixed(true);
   leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
-  sys.add(leftPtr);
+  sys->add(leftPtr);
 
   // Right
   Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+2*radius,0.5*numElementsPerSide+radius,0));
   rightPtr->setBodyFixed(true);
   rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
-  sys.add(rightPtr);
+  sys->add(rightPtr);
 
   // Back
   Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,-0.5*numElementsPerSide-2*radius));
   backPtr->setBodyFixed(true);
   backPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
-  sys.add(backPtr);
+  sys->add(backPtr);
 
   // Front
   Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+2*radius));
   frontPtr->setBodyFixed(true);
   frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
-  sys.add(frontPtr);
+  sys->add(frontPtr);
 
 //  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
 //  ball1->setGeometry(make_double3(radius,0,0));
 //  //ball1->setMass(20);
-//  sys.add(ball1);
+//  sys->add(ball1);
 
   Body* bodyPtr;
   int numBodies = 0;
@@ -252,14 +259,14 @@ int main(int argc, char** argv)
     for (int j = 0; j < numElementsPerSide; j++) {
       for (int k = 0; k < numElementsPerSide; k++) {
 
-        double xWig = getRandomNumber(-.1, .1);
+        double xWig = getRandomNumber(-.2, .2);
         double yWig = 0;//getRandomNumber(-.1, .1);
-        double zWig = getRandomNumber(-.1, .1);
+        double zWig = getRandomNumber(-.2, .2);
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius + xWig,j+radius+yWig,k-0.5*numElementsPerSide+radius+zWig));
         bodyPtr->setGeometry(make_double3(radius,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
-        numBodies = sys.add(bodyPtr);
-        //numBodies = sys.add(bodyPtr);
+        numBodies = sys->add(bodyPtr);
+        //numBodies = sys->add(bodyPtr);
 
         if(numBodies%100==0) printf("Bodies %d\n",numBodies);
       }
@@ -271,24 +278,24 @@ int main(int argc, char** argv)
 //  bodyPtr = new Body(make_double3(4,0,0));
 //  bodyPtr->setGeometry(make_double3(2,0,0));
 //  bodyPtr->setBodyFixed(true);
-//  sys.add(bodyPtr);
+//  sys->add(bodyPtr);
 //
 //  bodyPtr = new Body(make_double3(4,10.5,0));
 //  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys.add(bodyPtr);
+//  sys->add(bodyPtr);
 //
 //  bodyPtr = new Body(make_double3(4,20.5,0));
 //  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys.add(bodyPtr);
+//  sys->add(bodyPtr);
 //
 //  bodyPtr = new Body(make_double3(4,30.5,0));
 //  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys.add(bodyPtr);
+//  sys->add(bodyPtr);
 
 
-	sys.initializeSystem();
+	sys->initializeSystem();
 	printf("System initialized!\n");
-	//sys.printSolverParams();
+	//sys->printSolverParams();
 
 #ifdef WITH_GLUT
 	if(visualize)
@@ -311,9 +318,9 @@ int main(int argc, char** argv)
 #endif
 	
 	// if you don't want to visualize, then output the data
-	while(sys.time < t_end)
+	while(sys->time < t_end)
 	{
-		sys.DoTimeStep();
+		sys->DoTimeStep();
 	}
 
 	return 0;

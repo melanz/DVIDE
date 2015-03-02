@@ -133,7 +133,6 @@ private:
   int updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t);
   int buildAMatrix();
 
-  double getResidual(DeviceValueArrayView src); // TODO: Get rid of this
 public:
   double mu_pdip;
   double alpha;
