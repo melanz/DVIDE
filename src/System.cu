@@ -482,5 +482,76 @@ int System::buildSchurMatrix() {
   cusp::multiply(mass,DT,MinvDT);
   cusp::multiply(D,MinvDT,N);
 
+//  cout << "Minv" << endl;
+//  cusp::print(mass);
+//  cin.get();
+//
+//  cout << "DT" << endl;
+//  cusp::print(DT);
+//  cin.get();
+//
+//  cout << "MinvDT" << endl;
+//  cusp::print(MinvDT);
+//  cin.get();
+//
+//  cout << "D" << endl;
+//  cusp::print(D);
+//  cin.get();
+//
+//  cout << "N" << endl;
+//  cusp::print(N);
+//  cin.get();
+
+  return 0;
+}
+
+int System::exportSystem(string filename) {
+  ofstream filestream;
+  filestream.open(filename.c_str());
+
+  p_h = p_d;
+  v_h = v_d;
+  filestream << bodies.size() << ", " << endl;
+  for (int i = 0; i < bodies.size(); i++) {
+    filestream << p_h[3*i] << ", " << p_h[3*i+1] << ", " << p_h[3*i+2] << ", " << v_h[3*i] << ", " << v_h[3*i+1] << ", " << v_h[3*i+2] << ", " << contactGeometry_h[i].x << ", " << contactGeometry_h[i].y << ", " << contactGeometry_h[i].z << ", " << bodies[i]->isFixed() << ", " << bodies[i]->getMass() << ", \n";
+  }
+  filestream.close();
+
+  return 0;
+}
+
+int System::importSystem(string filename) {
+  double3 pos;
+  double3 vel;
+  double3 geometry;
+  double mass;
+  int fixed;
+  string temp_data;
+  int numBodies;
+
+  ifstream ifile(filename.c_str());
+  getline(ifile,temp_data);
+  for(int i=0; i<temp_data.size(); ++i){
+    if(temp_data[i]==','){temp_data[i]=' ';}
+  }
+  stringstream ss1(temp_data);
+  ss1>>numBodies;
+
+  Body* bodyPtr;
+  for(int i=0; i<numBodies; i++) {
+    getline(ifile,temp_data);
+    for(int i=0; i<temp_data.size(); ++i){
+      if(temp_data[i]==','){temp_data[i]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>pos.x>>pos.y>>pos.z>>vel.x>>vel.y>>vel.z>>geometry.x>>geometry.y>>geometry.z>>fixed>>mass;
+
+    bodyPtr = new Body(pos);
+    bodyPtr->setBodyFixed(fixed);
+    bodyPtr->setGeometry(geometry);
+    bodyPtr->setMass(mass);
+    add(bodyPtr);
+  }
+
   return 0;
 }

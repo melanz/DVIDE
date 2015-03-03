@@ -137,8 +137,6 @@ public:
   double mu_pdip;
   double alpha;
   double beta;
-  double tolerance;
-  int maxIterations;
 
 	PDIP(System* sys);
 	int setup();

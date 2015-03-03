@@ -128,6 +128,8 @@ public:
 	int     buildAppliedImpulseVector();
 	int     buildSchurVector();
 	int     buildSchurMatrix();
+	int     exportSystem(string filename);
+	int     importSystem(string filename);
 };
 
 #endif /* SYSTEM_CUH_ */

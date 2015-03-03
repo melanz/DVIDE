@@ -99,6 +99,9 @@ void renderSceneAll(){
 	if(OGL){
 		//if(sys->timeIndex%10==0)
 		drawAll();
+		char filename[100];
+		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
+		sys->exportSystem(filename);
 		sys->DoTimeStep();
 	}
 }
@@ -292,6 +295,7 @@ int main(int argc, char** argv)
 //  bodyPtr->setGeometry(make_double3(2,0,0));
 //  sys->add(bodyPtr);
 
+  //sys->importSystem("../data/data_500.dat");
 
 	sys->initializeSystem();
 	printf("System initialized!\n");

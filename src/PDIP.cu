@@ -357,8 +357,14 @@ __global__ void updateM_hat(double* M_hat, double* lambda, uint numCollisions) {
 }
 
 int PDIP::buildAMatrix() {
-  // Step 1: A = grad_fT*Dinv*(diagLambda)*grad_f (TODO: 3 matrix multiplies!)
   DeviceMatrix tmp;
+  DeviceMatrix N;
+
+  // Form N
+  cusp::multiply(system->mass,system->DT,tmp);
+  cusp::multiply(system->D,tmp,N);
+
+  // Step 1: A = grad_fT*Dinv*(diagLambda)*grad_f (TODO: 3 matrix multiplies!)
   cusp::multiply(grad_f_T,Dinv,A);
   cusp::multiply(A,diagLambda,tmp);
   cusp::multiply(tmp,grad_f,A);
@@ -367,7 +373,7 @@ int PDIP::buildAMatrix() {
   cusp::add(M_hat,A,tmp);
 
   // Step 3: A = N + tmp
-  cusp::add(system->N,tmp,A);
+  cusp::add(N,tmp,A);
 
   return 0;
 }
@@ -546,7 +552,7 @@ int PDIP::solve() {
     cusp::blas::axpy(delta_lambda,lambda,s);
 
     // (20) r = r(gamma_(k+1))
-    residual = cusp::blas::nrm2(r_g)/pow(system->collisionDetector->numCollisions,2.0);
+    residual = cusp::blas::nrm2(r_g)/system->collisionDetector->numCollisions;
     //residual = cusp::blas::nrm2(r_g);
     //performSchurComplementProduct(system->gamma);
     //cusp::blas::axpy(system->r,gammaTmp,1.0);
@@ -560,7 +566,7 @@ int PDIP::solve() {
     }
 
     // (24) endfor
-    //cout << "  Iterations: " << k << " Residual: " << residual << " Res check: " << res_check << " Krylov: " << stats.numIterations << endl;
+    //cout << "  Iterations: " << k << " Residual: " << residual << " Krylov: " << stats.numIterations << endl;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)

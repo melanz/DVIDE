@@ -51,8 +51,6 @@ private:
   double getResidual(DeviceValueArrayView src);
 
 public:
-  int maxIterations;
-  double tolerance;
 
 	APGD(System* sys);
 	int setup();
