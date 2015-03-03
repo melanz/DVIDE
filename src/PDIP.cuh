@@ -124,7 +124,7 @@ private:
   thrust::device_vector<int> grad_fJ_T_d;
   thrust::device_vector<double> grad_f_T_d;
 
-  int performSchurComplementProduct(DeviceValueArrayView src);
+  //int performSchurComplementProduct(DeviceValueArrayView src);
   int initializeConstraintGradient();
   int initializeConstraintGradientTranspose();
   int initializeM_hat();
