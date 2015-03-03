@@ -211,14 +211,14 @@ int main(int argc, char** argv)
   sys->solver->tolerance = 1e-4;
   //sys->solver->maxIterations = 10;
 
-  double radius = 0.5;
-/*
-  // Top
-  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3,0));
-  //topPtr->setBodyFixed(true);
-  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
-  topPtr->setMass(1000);
-  sys->add(topPtr);
+  double radius = 0.4;
+
+//  // Top
+//  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3,0));
+//  //topPtr->setBodyFixed(true);
+//  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+//  topPtr->setMass(1000);
+//  sys->add(topPtr);
 
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
@@ -254,20 +254,20 @@ int main(int argc, char** argv)
 //  ball1->setGeometry(make_double3(radius,0,0));
 //  //ball1->setMass(20);
 //  sys->add(ball1);
-*/
+
   Body* bodyPtr;
   int numBodies = 0;
   // Add elements in x-direction
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < numElementsPerSide; i++) {
     for (int j = 0; j < numElementsPerSide; j++) {
-      for (int k = 0; k < 1; k++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
 
-        double xWig = 0;//getRandomNumber(-.2, .2);
+        double xWig = getRandomNumber(-.1, .1);
         double yWig = 0;//getRandomNumber(-.1, .1);
-        double zWig = 0;//getRandomNumber(-.2, .2);
+        double zWig = getRandomNumber(-.1, .1);
         bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius + xWig,j+radius+yWig,k-0.5*numElementsPerSide+radius+zWig));
         bodyPtr->setGeometry(make_double3(radius,0,0));
-        if(j==0) bodyPtr->setBodyFixed(true);
+        //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys->add(bodyPtr);
         //numBodies = sys->add(bodyPtr);
 
