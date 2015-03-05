@@ -12,6 +12,7 @@ PDIP::PDIP(System* sys)
   beta = 0.8; // should be [0.3, 0.8]
   tolerance = 1e-4;
   maxIterations = 1000;
+  iterations = 0;
 
   // spike stuff
   partitions = 1;
@@ -498,7 +499,7 @@ int PDIP::solve() {
     // (10) s_max = sup{s in [0,1]|lambda+s*delta_lambda>=0} = min{1,min{-lambda_i/delta_lambda_i|delta_lambda_i < 0 }}
     getSupremum<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(lambdaTmp_d), CASTD1(lambda_d), CASTD1(delta_lambda_d), 2*system->collisionDetector->numCollisions);
     s_max = Thrust_Min(lambdaTmp_d);
-    //s_max = fmin(1.0,s_max);
+    s_max = fmin(1.0,s_max);
 
     // (11) s = 0.99 * s_max
     s = 0.99 * s_max;
@@ -561,6 +562,7 @@ int PDIP::solve() {
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)
+  iterations = k;
   cout << "  Iterations: " << k << " Residual: " << residual << endl;
 
   return 0;

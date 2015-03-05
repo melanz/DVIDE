@@ -9,6 +9,7 @@ APGD::APGD(System* sys)
 
   tolerance = 1e-4;
   maxIterations = 10000;
+  iterations = 0;
 }
 
 int APGD::setup()
@@ -40,7 +41,7 @@ int APGD::setup()
 __global__ void project(double* src, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; //TODO: Put this in material library
+  double mu = 0.0; //TODO: Put this in material library
   double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
@@ -258,6 +259,7 @@ int APGD::solve() {
   cout << "  Iterations: " << k << " Residual: " << residual << endl;
 
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
+  iterations = k;
   cusp::blas::copy(gammaHat,system->gamma);
 
   return 0;

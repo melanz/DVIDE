@@ -34,6 +34,7 @@ public:
   double h; //time step
   double tol;
   double3 gravity;
+  double elapsedTime;
 
 	// cusp
 	DeviceValueArrayView p;
