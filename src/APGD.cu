@@ -72,14 +72,9 @@ __global__ void project(double* src, uint numCollisions) {
 
 
 int APGD::performSchurComplementProduct(DeviceValueArrayView src) {
-//  cusp::multiply(system->DT,src,system->f_contact);
-//  cusp::multiply(system->mass,system->f_contact,system->tmp);
-//  cusp::multiply(system->D,system->tmp,gammaTmp);
-  cout << "N" << endl;
-  cusp::print(system->N);
-  cin.get();
-
-  cusp::multiply(system->N,src,gammaTmp);
+  cusp::multiply(system->DT,src,system->f_contact);
+  cusp::multiply(system->mass,system->f_contact,system->tmp);
+  cusp::multiply(system->D,system->tmp,gammaTmp);
 
   return 0;
 }
@@ -87,7 +82,7 @@ int APGD::performSchurComplementProduct(DeviceValueArrayView src) {
 
 double APGD::getResidual(DeviceValueArrayView src) {
   double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
-  cusp::multiply(system->N,src,gammaTmp); //performSchurComplementProduct(src);
+  performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
   cusp::blas::axpy(system->r,gammaTmp,1.0);
   cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
   project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
@@ -150,8 +145,8 @@ int APGD::solve() {
   // (5) L_k = norm(N * (gamma_0 - gamma_hat_0)) / norm(gamma_0 - gamma_hat_0)
   cusp::blas::axpby(system->gamma,gammaHat,gammaTmp,1.0,-1.0);
   double L = cusp::blas::nrm2(gammaTmp);
-  cusp::multiply(system->N,gammaTmp,g); //performSchurComplementProduct(gammaTmp);
-  L = cusp::blas::nrm2(g)/L;
+  performSchurComplementProduct(gammaTmp); //cusp::multiply(system->N,gammaTmp,g); //
+  L = cusp::blas::nrm2(gammaTmp)/L;
 
   // (6) t_k = 1 / L_k
   double t = 1.0/L;
@@ -160,19 +155,17 @@ int APGD::solve() {
   int k;
   for (k=0; k < maxIterations; k++) {
     // (8) g = N * y_k - r
-    cusp::multiply(system->N,y,gammaTmp); //performSchurComplementProduct(y);
-    cusp::blas::copy(gammaTmp,g);
-    cusp::blas::axpy(system->r,g,1.0);
+    performSchurComplementProduct(y); //cusp::multiply(system->N,y,gammaTmp); //
+    cusp::blas::axpby(gammaTmp,system->r,g,1.0,1.0);
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-    //project(gammaNew_d);
     project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), system->collisionDetector->numCollisions);
 
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
-    cusp::multiply(system->N,gammaNew,gammaTmp); //performSchurComplementProduct(gammaNew);
+    performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //
     obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,system->r);
-    cusp::multiply(system->N,y,gammaTmp); //performSchurComplementProduct(y);
+    performSchurComplementProduct(y); //cusp::multiply(system->N,y,gammaTmp); //
     obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,system->r);
     cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
     obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
@@ -186,13 +179,12 @@ int APGD::solve() {
 
       // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
       cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-      //project(gammaNew_d);
       project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), system->collisionDetector->numCollisions);
 
       // Update the components of the while condition
-      cusp::multiply(system->N,gammaNew,gammaTmp); //performSchurComplementProduct(gammaNew);
+      performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //
       obj1 = 0.5 * cusp::blas::dot(gammaNew,gammaTmp) + cusp::blas::dot(gammaNew,system->r);
-      cusp::multiply(system->N,y,gammaTmp); //performSchurComplementProduct(y);
+      performSchurComplementProduct(y); //cusp::multiply(system->N,y,gammaTmp); //
       obj2 = 0.5 * cusp::blas::dot(y,gammaTmp) + cusp::blas::dot(y,system->r);
       cusp::blas::axpby(gammaNew,y,gammaTmp,1.0,-1.0);
       obj2 += cusp::blas::dot(g,gammaTmp) + 0.5 * L * pow(cusp::blas::nrm2(gammaTmp),2.0);
@@ -255,6 +247,7 @@ int APGD::solve() {
     cusp::blas::copy(yNew,y);
 
     // (32) endfor
+    cout << "  Iterations: " << k << " Residual: " << residual << endl;
   }
   cout << "  Iterations: " << k << " Residual: " << residual << endl;
 

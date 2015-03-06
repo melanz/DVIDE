@@ -259,19 +259,17 @@ int main(int argc, char** argv)
   Body* bodyPtr;
   int numBodies = 0;
   // Add elements in x-direction
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 2*numElementsPerSide; i++) {
     for (int j = 0; j < numElementsPerSide; j++) {
-      for (int k = 0; k < 1; k++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
 
         double xWig = getRandomNumber(-.1, .1);
         double yWig = 0;//getRandomNumber(-.1, .1);
         double zWig = getRandomNumber(-.1, .1);
-        bodyPtr = new Body(make_double3(i-numElementsPerSide+radius + xWig,j+radius+yWig,k-0.5*numElementsPerSide+radius+zWig));
+        bodyPtr = new Body(make_double3(i-numElementsPerSide+radius + xWig,j+0.5+yWig,k-0.5*numElementsPerSide+radius+zWig));
         bodyPtr->setGeometry(make_double3(radius,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys->add(bodyPtr);
-        //numBodies = sys->add(bodyPtr);
-        numBodies++;
 
         if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
       }

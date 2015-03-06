@@ -218,7 +218,6 @@ int System::DoTimeStep() {
     // Set up the QOCC
     buildContactJacobian();
     buildSchurVector();
-    buildSchurMatrix();
 
     // Solve the QOCC
     solver->solve();

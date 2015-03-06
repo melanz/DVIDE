@@ -386,6 +386,8 @@ int PDIP::solve() {
   double norm_rt = 0.0;
   double residual = 10e30;
 
+  system->buildSchurMatrix();
+
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
   f_d.resize(2*system->collisionDetector->numCollisions);
