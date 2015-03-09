@@ -486,26 +486,6 @@ int System::buildSchurMatrix() {
   cusp::multiply(mass,DT,MinvDT);
   cusp::multiply(D,MinvDT,N);
 
-//  cout << "Minv" << endl;
-//  cusp::print(mass);
-//  cin.get();
-//
-//  cout << "DT" << endl;
-//  cusp::print(DT);
-//  cin.get();
-//
-//  cout << "MinvDT" << endl;
-//  cusp::print(MinvDT);
-//  cin.get();
-//
-//  cout << "D" << endl;
-//  cusp::print(D);
-//  cin.get();
-//
-//  cout << "N" << endl;
-//  cusp::print(N);
-//  cin.get();
-
   return 0;
 }
 

@@ -54,10 +54,11 @@ private:
   DeviceValueArrayView ones;
   DeviceValueArrayView r_d;
   DeviceValueArrayView r_g;
+  DeviceValueArrayView r_t;
   DeviceValueArrayView delta_gamma;
   DeviceValueArrayView delta_lambda;
+  DeviceValueArrayView delta;
   DeviceValueArrayView gammaTmp;
-  DeviceValueArrayView rhs;
   DeviceView grad_f;
   DeviceView grad_f_global;
   DeviceView grad_f_T;
@@ -76,10 +77,8 @@ private:
   thrust::host_vector<double> lambda_h;
   thrust::host_vector<double> lambdaTmp_h;
   thrust::host_vector<double> ones_h;
-  thrust::host_vector<double> r_d_h;
-  thrust::host_vector<double> r_g_h;
-  thrust::host_vector<double> delta_gamma_h;
-  thrust::host_vector<double> delta_lambda_h;
+  thrust::host_vector<double> r_t_h;
+  thrust::host_vector<double> delta_h;
   thrust::host_vector<double> gammaTmp_h;
 
   thrust::host_vector<int> lambdaI_h;
@@ -105,12 +104,9 @@ private:
   thrust::device_vector<double> lambda_d;
   thrust::device_vector<double> lambdaTmp_d;
   thrust::device_vector<double> ones_d;
-  thrust::device_vector<double> r_d_d;
-  thrust::device_vector<double> r_g_d;
-  thrust::device_vector<double> delta_gamma_d;
-  thrust::device_vector<double> delta_lambda_d;
+  thrust::device_vector<double> r_t_d;
+  thrust::device_vector<double> delta_d;
   thrust::device_vector<double> gammaTmp_d;
-  thrust::device_vector<double> rhs_d;
 
   thrust::device_vector<int> lambdaI_d;
   thrust::device_vector<int> lambdaJ_d;
@@ -134,7 +130,7 @@ private:
   thrust::device_vector<int> BI_d;
   thrust::device_vector<int> BJ_d;
 
-  //int performSchurComplementProduct(DeviceValueArrayView src);
+  int performSchurComplementProduct(DeviceValueArrayView src);
   int initializeConstraintGradient();
   int initializeConstraintGradientTranspose();
   int initializeM_hat();
