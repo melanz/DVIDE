@@ -218,15 +218,15 @@ int PDIP::initializeConstraintGradientTranspose() {
 __global__ void constructB(int* BI, int* BJ, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  BI[4*index  ] = 3*numCollisions+3*index;
-  BI[4*index+1] = 3*numCollisions+3*index;
-  BI[4*index+2] = 3*numCollisions+3*index+1;
-  BI[4*index+3] = 3*numCollisions+3*index+2;
+  BI[4*index  ] = 3*index;
+  BI[4*index+1] = 3*index;
+  BI[4*index+2] = 3*index+1;
+  BI[4*index+3] = 3*index+2;
 
-  BJ[4*index  ] = index;
-  BJ[4*index+1] = index+numCollisions;
-  BJ[4*index+2] = index;
-  BJ[4*index+3] = index;
+  BJ[4*index  ] = 3*numCollisions+index;
+  BJ[4*index+1] = 3*numCollisions+index+numCollisions;
+  BJ[4*index+2] = 3*numCollisions+index;
+  BJ[4*index+3] = 3*numCollisions+index;
 }
 
 int PDIP::initializeB() {
@@ -430,11 +430,31 @@ int PDIP::buildSchurComplementMatrix() {
 }
 
 int PDIP::buildAMatrix() {
+  cout << "N+M_hat = A" << endl;
   cusp::add(N,M_hat,A);
+  cusp::print(A);
+  cout << "DONE" << endl;
+  cin.get();
+  cout << "A+B=A" << endl;
   cusp::add(A,B,A);
-  cusp::add(A,D,A);
+  cusp::print(A);
+  cout << "DONE" << endl;
+  cin.get();
+  cout << "A+D=A" << endl;
+  cusp::add(A,Dinv,A);
+  cusp::print(A);
+  cout << "DONE" << endl;
+  cin.get();
+  cout << "diagLambda*grad_f_global=C" << endl;
   cusp::multiply(diagLambda,grad_f_global,C);
+  cusp::print(A);
+  cout << "DONE" << endl;
+  cin.get();
+  cout << "A-C=A" << endl;
   cusp::subtract(A,C,A);
+  cusp::print(A);
+  cout << "DONE" << endl;
+  cin.get();
 
   return 0;
 }
@@ -507,9 +527,11 @@ int PDIP::solve() {
   delta = DeviceValueArrayView(wrapped_device_delta, wrapped_device_delta + delta_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
-
   // Provide an initial guess for gamma
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  cout << "Initialize impulse" << endl;
+  cusp::print(system->gamma);
+  cin.get();
 
   // Initialize the constraint gradient and constraint gradient transpose
   initializeConstraintGradient();
@@ -517,52 +539,107 @@ int PDIP::solve() {
   initializeDinv();
   initializeDiagLambda();
   initializeB();
+  cout << "Initialize gradient" << endl;
+  cusp::print(grad_f);
+  cusp::print(grad_f_T);
+  cout << "Initialize M_hat" << endl;
+  cusp::print(M_hat);
+  cout << "Initialize Dinv" << endl;
+  cusp::print(Dinv);
+  cout << "Initialize DiagLambda" << endl;
+  cusp::print(diagLambda);
+  cin.get();
+  cout << "Initialize B" << endl;
+  cusp::print(B);
+  cin.get();
 
   // (1) f = f(gamma_0)
   updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+  cout << "Step 1" << endl;
+  cusp::print(f);
+  cin.get();
 
   // (2) lambda_0 = -1/f
   initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(lambda_d), 2*system->collisionDetector->numCollisions);
   cusp::blas::fill(ones,1.0);
+  cout << "Step 2" << endl;
+  cusp::print(lambda);
+  cusp::print(ones);
+  cin.get();
 
   // (3) for k := 0 to N_max
   int k;
   for (k=0; k < maxIterations; k++) {
     // (4) f = f(gamma_k)
     updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+    cout << "Step 4" << endl;
+    cusp::print(f);
+    cin.get();
 
     // (5) eta_hat = -f^T * lambda_k
     eta_hat = -cusp::blas::dot(f,lambda);
+    cout << "Step 5" << endl;
+    cout << "eta_hat = " << eta_hat << endl;
+    cin.get();
 
     // (6) t = mu*m/eta_hat
     t = mu_pdip * f.size() / eta_hat;
+    cout << "Step 6" << endl;
+    cout << "t = " << t << endl;
+    cin.get();
 
     // (7) A = A(gamma_k, lambda_k, f)
     updateDinv<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Dinv_d), CASTD1(f_d), system->collisionDetector->numCollisions);
     updateM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Mhat_d), CASTD1(lambda_d), system->collisionDetector->numCollisions);
+    cout << "Step 7" << endl;
+    cusp::print(Dinv);
+    cusp::print(M_hat);
+    cin.get();
 
     // (8) r_t = r_t(gamma_k, lambda_k, t)
     updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+    cout << "Update constraint gradient" << endl;
+    cusp::print(grad_f);
+    cusp::print(grad_f_T);
+    cin.get();
     updateNewtonStepVector(system->gamma, lambda, f, t);
+    cout << "Step 8" << endl;
+    cusp::print(r_t);
+    cusp::print(r_d);
+    cusp::print(r_g);
+    cin.get();
 
     // (9) Solve the linear system A * y = -r_t
     buildAMatrix();
+    cout << "Step 9" << endl;
+    cusp::print(A);
+    cin.get();
 
     delete mySolver;
     mySolver = new SpikeSolver(partitions, solverOptions);
     mySolver->setup(A);
 
-    cusp::blas::fill(delta_gamma,0.0);
+    cusp::blas::fill(delta,0.0);
     bool success = mySolver->solve(A, r_t, delta);
+    cusp::blas::scal(delta,-1.0);
     spike::Stats stats = mySolver->getStats();
+    cout << "Step 9" << endl;
+    cusp::print(delta);
+    cin.get();
 
     // (10) s_max = sup{s in [0,1]|lambda+s*delta_lambda>=0} = min{1,min{-lambda_i/delta_lambda_i|delta_lambda_i < 0 }}
     getSupremum<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(lambdaTmp_d), CASTD1(lambda_d), CASTD1(delta_d), system->collisionDetector->numCollisions);
     s_max = Thrust_Min(lambdaTmp_d);
     s_max = fmin(1.0,s_max);
+    cout << "Step 10" << endl;
+    cout << "s_max = " << s_max << endl;
+    cin.get();
 
     // (11) s = 0.99 * s_max
     s = 0.99 * s_max;
+    cout << "Step 11" << endl;
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (12) while max(f(gamma_k + s * delta_gamma) > 0)
     cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
@@ -570,12 +647,15 @@ int PDIP::solve() {
     while(Thrust_Max(lambdaTmp_d) > 0) {
       // (13) s = beta * s
       s = beta * s;
+      cout << "Step 13, ||lambdaTmp|| = " << Thrust_Max(lambdaTmp_d) << ", s = " << s << endl;
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
       updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
 
       // (14) endwhile
     }
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (15) while norm(r_t(gamma_k + s * delta_gamma, lambda_k + s * delta_lambda),2) > (1-alpha*s)*norm(r_t,2)
     norm_rt = cusp::blas::nrm2(r_t);
@@ -596,12 +676,21 @@ int PDIP::solve() {
 
       // (17) endwhile
     }
+    cout << "s = " << s << endl;
+    cin.get();
 
     // (18) gamma_(k+1) = gamma_k + s * delta_gamma
     cusp::blas::axpy(delta_gamma,system->gamma,s);
+    cout << "Step 18" << endl;
+    cusp::print(system->gamma);
+    cin.get();
 
     // (19) lambda_(k+1) = lamda_k + s * delta_lambda
     cusp::blas::axpy(delta_lambda,lambda,s);
+    cusp::blas::axpy(delta_lambda,lambda,s);
+    cout << "Step 19" << endl;
+    cusp::print(lambda);
+    cin.get();
 
     // (20) r = r(gamma_(k+1))
     //residual = cusp::blas::nrm2(r_g);///system->collisionDetector->numCollisions;
