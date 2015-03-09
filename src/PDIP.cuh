@@ -59,11 +59,18 @@ private:
   DeviceValueArrayView gammaTmp;
   DeviceValueArrayView rhs;
   DeviceView grad_f;
+  DeviceView grad_f_global;
   DeviceView grad_f_T;
   DeviceView diagLambda;
   DeviceView Dinv;
   DeviceView M_hat;
   DeviceMatrix A;
+  DeviceView D;
+  DeviceView DT;
+  DeviceView B;
+  DeviceMatrix N;
+  DeviceMatrix MinvDT;
+  DeviceMatrix C;
 
   thrust::host_vector<double> f_h;
   thrust::host_vector<double> lambda_h;
@@ -124,6 +131,9 @@ private:
   thrust::device_vector<int> grad_fJ_T_d;
   thrust::device_vector<double> grad_f_T_d;
 
+  thrust::device_vector<int> BI_d;
+  thrust::device_vector<int> BJ_d;
+
   //int performSchurComplementProduct(DeviceValueArrayView src);
   int initializeConstraintGradient();
   int initializeConstraintGradientTranspose();
@@ -132,6 +142,9 @@ private:
   int initializeDiagLambda();
   int updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t);
   int buildAMatrix();
+
+  int buildSchurComplementMatrix();
+  int initializeB();
 
 public:
   double mu_pdip;
