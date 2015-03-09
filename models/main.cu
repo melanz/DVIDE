@@ -214,7 +214,7 @@ int main(int argc, char** argv)
   //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
-/*
+
   // Top
   Body* topPtr = new Body(make_double3(0,numElementsPerSide+3*radius,0));
   topPtr->setBodyFixed(true);
@@ -275,16 +275,16 @@ int main(int argc, char** argv)
       }
     }
   }
-*/
-  Body* bodyPtr;
-  bodyPtr = new Body(make_double3(0,0,0));
-  bodyPtr->setGeometry(make_double3(1,0,0));
-  bodyPtr->setBodyFixed(true);
-  sys->add(bodyPtr);
 
-  bodyPtr = new Body(make_double3(0,2,0));
-  bodyPtr->setGeometry(make_double3(1,0,0));
-  sys->add(bodyPtr);
+//  Body* bodyPtr;
+//  bodyPtr = new Body(make_double3(0,0,0));
+//  bodyPtr->setGeometry(make_double3(1,0,0));
+//  bodyPtr->setBodyFixed(true);
+//  sys->add(bodyPtr);
+//
+//  bodyPtr = new Body(make_double3(0,2,0));
+//  bodyPtr->setGeometry(make_double3(1,0,0));
+//  sys->add(bodyPtr);
 
 //  bodyPtr = new Body(make_double3(0,4,0));
 //  bodyPtr->setGeometry(make_double3(1,0,0));
