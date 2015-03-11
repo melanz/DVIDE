@@ -247,7 +247,7 @@ int APGD::solve() {
     cusp::blas::copy(yNew,y);
 
     // (32) endfor
-    cout << "  Iterations: " << k << " Residual: " << residual << endl;
+    //cout << "  Iterations: " << k << " Residual: " << residual << endl;
   }
   cout << "  Iterations: " << k << " Residual: " << residual << endl;
 

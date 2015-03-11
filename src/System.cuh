@@ -35,6 +35,7 @@ public:
   double tol;
   double3 gravity;
   double elapsedTime;
+  double totalGPUMemoryUsed;
 
 	// cusp
 	DeviceValueArrayView p;

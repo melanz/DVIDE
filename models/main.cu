@@ -196,12 +196,13 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2, 1e-10);
 
-  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,binsPerAxis,binsPerAxis));
+  int numElementsPerSideY = 10;
+  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
@@ -216,39 +217,39 @@ int main(int argc, char** argv)
   double radius = 0.4;
 
   // Top
-  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3*radius,0));
+  Body* topPtr = new Body(make_double3(0,numElementsPerSideY+3*radius,0));
   topPtr->setBodyFixed(true);
-  topPtr->setGeometry(make_double3(numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
   sys->add(topPtr);
 
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+  groundPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
   sys->add(groundPtr);
 
   // Left
-  Body* leftPtr = new Body(make_double3(-numElementsPerSide-2*radius,0.5*numElementsPerSide+radius,0));
+  Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-2*radius,0.5*numElementsPerSideY+radius,0));
   leftPtr->setBodyFixed(true);
-  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+radius));
   sys->add(leftPtr);
 
   // Right
-  Body* rightPtr = new Body(make_double3(numElementsPerSide+2*radius,0.5*numElementsPerSide+radius,0));
+  Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+2*radius,0.5*numElementsPerSideY+radius,0));
   rightPtr->setBodyFixed(true);
-  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+radius));
   sys->add(rightPtr);
 
   // Back
-  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,-0.5*numElementsPerSide-2*radius));
+  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSideY+radius,-0.5*numElementsPerSide-2*radius));
   backPtr->setBodyFixed(true);
-  backPtr->setGeometry(make_double3(numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
+  backPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSideY+radius,radius));
   sys->add(backPtr);
 
   // Front
-  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+2*radius));
+  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+2*radius));
   frontPtr->setBodyFixed(true);
-  frontPtr->setGeometry(make_double3(numElementsPerSide+radius,0.5*numElementsPerSide+radius,radius));
+  frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSideY+radius,radius));
   sys->add(frontPtr);
 
 //  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
@@ -259,14 +260,14 @@ int main(int argc, char** argv)
   Body* bodyPtr;
   int numBodies = 0;
   // Add elements in x-direction
-  for (int i = 0; i < 2*numElementsPerSide; i++) {
-    for (int j = 0; j < numElementsPerSide; j++) {
+  for (int i = 0; i < numElementsPerSide; i++) {
+    for (int j = 0; j < numElementsPerSideY; j++) {
       for (int k = 0; k < numElementsPerSide; k++) {
 
         double xWig = getRandomNumber(-.1, .1);
         double yWig = 0;//getRandomNumber(-.1, .1);
         double zWig = getRandomNumber(-.1, .1);
-        bodyPtr = new Body(make_double3(i-numElementsPerSide+radius + xWig,j+0.5+yWig,k-0.5*numElementsPerSide+radius+zWig));
+        bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius + xWig,j+0.5+yWig,k-0.5*numElementsPerSide+radius+zWig));
         bodyPtr->setGeometry(make_double3(radius,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys->add(bodyPtr);
@@ -322,7 +323,16 @@ int main(int argc, char** argv)
 	
 	// if you don't want to visualize, then output the data
   char filename[100];
-  sprintf(filename, "../data/stats.dat");
+  sprintf(filename, "../data/stats_%d_%d_%d_%d_%.3f_%.3f_%.3f_%d_%d.dat",
+      numPartitions,
+      numElementsPerSide,
+      solverType,
+      precondType,
+      mu_pdip,
+      alpha,
+      beta,
+      solverTypeQOCC,
+      binsPerAxis);
 	ofstream statStream(filename);
 	while(sys->time < t_end)
 	{
@@ -332,7 +342,7 @@ int main(int argc, char** argv)
 
 		sys->DoTimeStep();
 
-		statStream << sys->time << ", " << sys->elapsedTime << ", " << sys->solver->iterations << ", " << endl;
+		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << endl;
 	}
 
 	return 0;

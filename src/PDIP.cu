@@ -461,6 +461,7 @@ int PDIP::solve() {
 
   // (3) for k := 0 to N_max
   int k;
+  totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
     // (4) f = f(gamma_k)
     updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
@@ -560,12 +561,13 @@ int PDIP::solve() {
     }
 
     // (24) endfor
-    cout << "  Iterations: " << k << " Residual: " << residual << " Krylov: " << stats.numIterations << endl;
+    //cout << "  Iterations: " << k << " Residual: " << residual << " Krylov: " << stats.numIterations << endl;
+    totalKrylovIterations += stats.numIterations;
   }
 
   // (25) return Value at time step t_(l+1), gamma_(l+1) := gamma_(k+1)
   iterations = k;
-  cout << "  Iterations: " << k << " Residual: " << residual << endl;
+  cout << "  Iterations: " << k << " Residual: " << residual << " Total Krylov iters: " << totalKrylovIterations << endl;
 
   return 0;
 }

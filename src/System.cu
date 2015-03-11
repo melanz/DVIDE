@@ -254,7 +254,15 @@ int System::DoTimeStep() {
   float execTime;
   cudaEventElapsedTime(&execTime, start, stop);
   elapsedTime = execTime;
+
   printf("Time: %f (Exec. Time: %f), Collisions: %d (%d possible)\n",time,elapsedTime,collisionDetector->numCollisions, (int)collisionDetector->numPossibleCollisions);
+
+  size_t avail;
+  size_t total;
+  cudaMemGetInfo( &avail, &total );
+  size_t used = total - avail;
+  totalGPUMemoryUsed = used/1000000.0;
+  cout << "  Device memory used: " << totalGPUMemoryUsed << " MB (Avail: " << avail/1000000 << " MB)" << endl;
 
   return 0;
 }

@@ -137,6 +137,7 @@ public:
   double mu_pdip;
   double alpha;
   double beta;
+  double totalKrylovIterations;
 
 	PDIP(System* sys);
 	int setup();
