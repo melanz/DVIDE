@@ -143,7 +143,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   double3 geometryA = geometries[bodyA];
   double3 geometryB = geometries[bodyB];
 
-  double envelope = 0;//.01;
+  double envelope = 0.01;
 
   if(geometryA.y == 0 && geometryB.y == 0) {
     // sphere-sphere case

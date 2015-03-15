@@ -223,13 +223,16 @@ int System::DoTimeStep() {
     solver->solve();
 
     // Perform time integration (contacts)
-    cusp::multiply(DT,gamma,v);
-    cusp::blas::axpby(k,v,tmp,1.0,1.0);
+    cusp::multiply(DT,gamma,f_contact);
+    cusp::blas::axpby(k,f_contact,tmp,1.0,1.0);
     cusp::multiply(mass,tmp,v);
+    cusp::blas::scal(f_contact,1.0/h);
   }
   else {
     // Perform time integration (no contacts)
     cusp::multiply(mass,k,v);
+
+    cusp::blas::fill(f_contact,0.0);
   }
 
 //  if(time>2 && time < 6) {

@@ -103,6 +103,14 @@ void renderSceneAll(){
 		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		sys->exportSystem(filename);
 		sys->DoTimeStep();
+
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    double weight = 0;
+    for(int i=0; i<6; i++) {
+      weight += sys->f_contact_h[3*i+1];
+    }
+    cout << "  Weight: " << weight << endl;
 	}
 }
 
@@ -211,7 +219,7 @@ int main(int argc, char** argv)
     dynamic_cast<PDIP*>(sys->solver)->beta = beta;
     dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
   }
-  sys->solver->tolerance = 1e-4;
+  sys->solver->tolerance = 1e-5;
   //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
@@ -334,6 +342,7 @@ int main(int argc, char** argv)
       solverTypeQOCC,
       binsPerAxis);
 	ofstream statStream(filename);
+	double maxVel = 0;
 	while(sys->time < t_end)
 	{
     char filename[100];
@@ -341,9 +350,20 @@ int main(int argc, char** argv)
     sys->exportSystem(filename);
 
 		sys->DoTimeStep();
+		double maxVelNow = Thrust_Max(sys->v_d);
+		if(maxVelNow>maxVel) maxVel = maxVelNow;
 
-		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << endl;
+		// Determine contact force on the container
+		sys->f_contact_h = sys->f_contact_d;
+		double weight = 0;
+		for(int i=0; i<6; i++) {
+		  weight += sys->f_contact_h[3*i+1];
+		}
+		cout << "  Weight: " << weight << endl;
+
+		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << endl;
 	}
+	cout << "Maximum Velocity = " << maxVel << endl;
 
 	return 0;
 }
