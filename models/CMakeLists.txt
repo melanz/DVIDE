@@ -27,3 +27,7 @@ ENDIF("${isSystemDir}" STREQUAL "-1")
 cuda_add_executable(FlexibleNet main.cu)
 target_link_libraries(FlexibleNet ImplicitBeamsGPU)
 add_dependencies(FlexibleNet ImplicitBeamsGPU)
+
+cuda_add_executable(test_edge test_edge.cu)
+target_link_libraries(test_edge ImplicitBeamsGPU)
+add_dependencies(test_edge ImplicitBeamsGPU)

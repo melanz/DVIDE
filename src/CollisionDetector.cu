@@ -151,52 +151,41 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     if(penetration>=-envelope) numCollisions++;
   }
 
-  else if(geometryA.y != 0 && geometryB.y == 0) {
+  else if((geometryA.y != 0 && geometryB.y == 0) || (geometryA.y == 0 && geometryB.y != 0)) {
     // box-sphere case
-    // check x-face
-    if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-    {
-      penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      if(penetration>=-envelope) numCollisions++;
+    double dmin = 0;
+    double r = geometryB.x;
+    double3 center = posB;
+    double3 bmin = posA-geometryA;
+    double3 bmax = posA+geometryA;
+    if (geometryA.y == 0 && geometryB.y != 0) {
+      // sphere-box case
+      r = geometryA.x;
+      center = posA;
+      bmin = posB-geometryB;
+      bmax = posB+geometryB;
     }
 
-    // check y
-    else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-    {
-      penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
-      if(penetration>=-envelope) numCollisions++;
+    if (center.x < bmin.x) {
+        dmin += pow(center.x - bmin.x, 2.0);
+    } else if (center.x > bmax.x) {
+        dmin += pow(center.x - bmax.x, 2.0);
     }
 
-    // check z
-    else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
-    {
-      penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
-      if(penetration>=-envelope) numCollisions++;
-    }
-  }
-
-  else if(geometryA.y == 0 && geometryB.y != 0) {
-    // sphere-box case
-    // check x-face
-    if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-    {
-      penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      if(penetration>=-envelope) numCollisions++;
+    if (center.y < bmin.y) {
+        dmin += pow(center.y - bmin.y, 2.0);
+    } else if (center.y > bmax.y) {
+        dmin += pow(center.y - bmax.y, 2.0);
     }
 
-    // check y
-    else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-    {
-      penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
-      if(penetration>=-envelope) numCollisions++;
+    if (center.z < bmin.z) {
+        dmin += pow(center.z - bmin.z, 2.0);
+    } else if (center.z > bmax.z) {
+        dmin += pow(center.z - bmax.z, 2.0);
     }
 
-    // check z
-    else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
-    {
-      penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
-      if(penetration>=-envelope) numCollisions++;
-    }
+    penetration = r-sqrt(dmin);
+    if(penetration>=-envelope) numCollisions++;
   }
 
   numCollisionsPerPair[index] = numCollisions;
@@ -231,62 +220,53 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       normal = normalize(posB-posA); // from A to B!
     }
 
-    else if(geometryA.y != 0 && geometryB.y == 0) {
+    else if((geometryA.y != 0 && geometryB.y == 0) || (geometryA.y == 0 && geometryB.y != 0)) {
       // box-sphere case
-      // check x-face
-      if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-      {
-        normal = normalize(make_double3(posB.x-posA.x,0,0));
-        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
+      double dmin = 0;
+      double r = geometryB.x;
+      double3 center = posB;
+      double3 bmin = posA-geometryA;
+      double3 bmax = posA+geometryA;
+      if (geometryA.y == 0 && geometryB.y != 0) {
+        // sphere-box case
+        r = geometryA.x;
+        center = posA;
+        bmin = posB-geometryB;
+        bmax = posB+geometryB;
+      }
+      normal = make_double3(0,0,0);
+
+      if (center.x < bmin.x) {
+          dmin += pow(center.x - bmin.x, 2.0);
+          normal+=make_double3(center.x - bmin.x,0,0);
+      } else if (center.x > bmax.x) {
+          dmin += pow(center.x - bmax.x, 2.0);
+          normal+=make_double3(center.x - bmax.x,0,0);
       }
 
-      // check y
-      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-      {
-        normal = normalize(make_double3(0,posB.y-posA.y,0));
-        penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
+      if (center.y < bmin.y) {
+          dmin += pow(center.y - bmin.y, 2.0);
+          normal+=make_double3(0,center.y - bmin.y,0);
+      } else if (center.y > bmax.y) {
+          dmin += pow(center.y - bmax.y, 2.0);
+          normal+=make_double3(0,center.y - bmax.y,0);
       }
 
-      // check z
-      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
-      {
-        normal = normalize(make_double3(0,0,posB.z-posA.z));
-        penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
+      if (center.z < bmin.z) {
+          dmin += pow(center.z - bmin.z, 2.0);
+          normal+=make_double3(0,0,center.z - bmin.z);
+      } else if (center.z > bmax.z) {
+          dmin += pow(center.z - bmax.z, 2.0);
+          normal+=make_double3(0,0,center.z - bmax.z);
       }
+
+      normal = normalize(normal);
+      penetration = r-sqrt(dmin);
     }
 
-    else if(geometryA.y == 0 && geometryB.y != 0) {
-      // sphere-box case
-      // check x-face
-      if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-      {
-        normal = normalize(make_double3(posB.x-posA.x,0,0));
-        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      }
-
-      // check y
-      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-      {
-        normal = normalize(make_double3(0,posB.y-posA.y,0));
-        penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
-      }
-
-      // check z
-      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
-      {
-        normal = normalize(make_double3(0,0,posB.z-posA.z));
-        penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
-      }
-    }
-
-    //if(penetration<0) penetration = 0;
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,-penetration); // from B to A!
-
-    //bodyIdentifiersA[i+numCollisions] = bodyB;
-    //bodyIdentifiersB[i+numCollisions] = bodyA;
-    //normalsAndPenetrations[i+numCollisions] = make_double4(normal.x,normal.y,normal.z,penetration); // from A to B!
 
     count++;
   }

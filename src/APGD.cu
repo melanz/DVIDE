@@ -101,14 +101,6 @@ int APGD::solve() {
   yNew_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
 
-//  gamma.resize(3*collisionDetector->numCollisions);
-//  gammaHat.resize(3*collisionDetector->numCollisions);
-//  gammaNew.resize(3*collisionDetector->numCollisions);
-//  g.resize(3*collisionDetector->numCollisions);
-//  y.resize(3*collisionDetector->numCollisions);
-//  yNew.resize(3*collisionDetector->numCollisions);
-//  gammaTmp.resize(3*collisionDetector->numCollisions);
-
   // TODO: There's got to be a better way to do this...
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
   thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));

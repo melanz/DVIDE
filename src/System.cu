@@ -5,6 +5,7 @@
 #include "Solver.cuh"
 #include "APGD.cuh"
 #include "PDIP.cuh"
+#include "TPAS.cuh"
 
 System::System()
 {
@@ -36,6 +37,9 @@ System::System(int solverType)
     break;
   case 2:
     solver = new PDIP(this);
+    break;
+  case 3:
+    solver = new TPAS(this);
     break;
   default:
     solver = new APGD(this);

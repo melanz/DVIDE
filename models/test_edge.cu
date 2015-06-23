@@ -10,7 +10,7 @@ bool wireFrame = 1;
 System* sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(4,5,-140),camreal3(4,5,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(4,0.4,-14),camreal3(4,0.4,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -97,11 +97,10 @@ void drawAll()
 
 void renderSceneAll(){
 	if(OGL){
-		//if(sys->timeIndex%10==0)
-		drawAll();
-		char filename[100];
-		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
-		sys->exportSystem(filename);
+		if(sys->timeIndex%10==0) drawAll();
+		//char filename[100];
+		//sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
+		//sys->exportSystem(filename);
 		sys->DoTimeStep();
 
     // Determine contact force on the container
@@ -207,7 +206,7 @@ int main(int argc, char** argv)
 	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-2, 1e-10);
+  sys->setTimeStep(1e-4, 1e-10);
 
   int numElementsPerSideY = 10;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
@@ -224,86 +223,37 @@ int main(int argc, char** argv)
 
   double radius = 0.4;
 
-  // Top
-  Body* topPtr = new Body(make_double3(0,numElementsPerSideY+3*radius,0));
-  topPtr->setBodyFixed(true);
-  topPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
-  sys->add(topPtr);
+//  Body* ball1 = new Body(make_double3(5.2*radius,2.1*radius,5.2*radius));
+//  ball1->setGeometry(make_double3(radius,0,0));
+//  sys->add(ball1);
+//
+//  Body* ball2 = new Body(make_double3(5.2*radius,2.1*radius,0));
+//  ball2->setGeometry(make_double3(radius,0,0));
+//  sys->add(ball2);
+
+  Body* ball3 = new Body(make_double3(0,2.1*radius,0));
+  ball3->setGeometry(make_double3(radius,0,0));
+  sys->add(ball3);
 
   // Bottom
-  Body* groundPtr = new Body(make_double3(0,-radius,0));
+  Body* groundPtr = new Body(make_double3(0,0,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,radius,0.5*numElementsPerSide+radius));
+  groundPtr->setGeometry(make_double3(5*radius,radius,5*radius));
   sys->add(groundPtr);
 
-  // Left
-  Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-2*radius,0.5*numElementsPerSideY+radius,0));
-  leftPtr->setBodyFixed(true);
-  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+radius));
-  sys->add(leftPtr);
-
-  // Right
-  Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+2*radius,0.5*numElementsPerSideY+radius,0));
-  rightPtr->setBodyFixed(true);
-  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+radius));
-  sys->add(rightPtr);
-
-  // Back
-  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSideY+radius,-0.5*numElementsPerSide-2*radius));
-  backPtr->setBodyFixed(true);
-  backPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSideY+radius,radius));
-  sys->add(backPtr);
-
-  // Front
-  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSideY+radius,0.5*numElementsPerSide+2*radius));
-  frontPtr->setBodyFixed(true);
-  frontPtr->setGeometry(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSideY+radius,radius));
-  sys->add(frontPtr);
-
-//  Body* ball1 = new Body(make_double3(0,numElementsPerSide+2,0));
-//  ball1->setGeometry(make_double3(radius,0,0));
-//  //ball1->setMass(20);
-//  sys->add(ball1);
-
-  Body* bodyPtr;
-  int numBodies = 0;
-  // Add elements in x-direction
-  for (int i = 0; i < numElementsPerSide; i++) {
-    for (int j = 0; j < numElementsPerSideY; j++) {
-      for (int k = 0; k < numElementsPerSide; k++) {
-
-        double xWig = getRandomNumber(-.1, .1);
-        double yWig = 0;//getRandomNumber(-.1, .1);
-        double zWig = getRandomNumber(-.1, .1);
-        bodyPtr = new Body(make_double3(i-0.5*numElementsPerSide+radius + xWig,j+0.5+yWig,k-0.5*numElementsPerSide+radius+zWig));
-        bodyPtr->setGeometry(make_double3(radius,0,0));
-        //if(j==0) bodyPtr->setBodyFixed(true);
-        numBodies = sys->add(bodyPtr);
-
-        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-      }
-    }
-  }
-
-//  Body* bodyPtr;
-//  bodyPtr = new Body(make_double3(0,0,0));
-//  bodyPtr->setGeometry(make_double3(1,0,0));
-//  bodyPtr->setBodyFixed(true);
-//  sys->add(bodyPtr);
+//  Body* ball4 = new Body(make_double3(-5.2*radius,2.1*radius,-5.2*radius));
+//  ball4->setGeometry(make_double3(radius,0,0));
+//  sys->add(ball4);
 //
-//  bodyPtr = new Body(make_double3(0,2,0));
-//  bodyPtr->setGeometry(make_double3(1,0,0));
-//  sys->add(bodyPtr);
+//  Body* ball5 = new Body(make_double3(-5.2*radius,2.1*radius,0));
+//  ball5->setGeometry(make_double3(radius,0,0));
+//  sys->add(ball5);
+//
+//  Body* ball6 = new Body(make_double3(2.1*radius,2.1*radius,0));
+//  ball6->setGeometry(make_double3(radius,0,0));
+//  sys->add(ball6);
 
-//  bodyPtr = new Body(make_double3(0,4,0));
-//  bodyPtr->setGeometry(make_double3(1,0,0));
-//  sys->add(bodyPtr);
 
-//  bodyPtr = new Body(make_double3(4,30.5,0));
-//  bodyPtr->setGeometry(make_double3(2,0,0));
-//  sys->add(bodyPtr);
-
-  //sys->importSystem("../data/data_500.dat");
 
 	sys->initializeSystem();
 	printf("System initialized!\n");

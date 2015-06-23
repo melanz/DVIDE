@@ -98,6 +98,8 @@ SET(IBEAMS_SOURCES
 	src/APGD.cu
 	src/PDIP.cuh
 	src/PDIP.cu
+	src/TPAS.cuh
+	src/TPAS.cu
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})
