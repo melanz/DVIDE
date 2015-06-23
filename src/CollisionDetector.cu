@@ -261,13 +261,13 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       }
 
       normal = normalize(normal);
+      if (geometryA.y == 0 && geometryB.y != 0) normal = -normal;
       penetration = r-sqrt(dmin);
     }
 
     bodyIdentifiersA[i] = bodyA;
     bodyIdentifiersB[i] = bodyB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,-penetration); // from B to A!
-
     count++;
   }
 }

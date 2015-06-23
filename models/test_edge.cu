@@ -223,13 +223,13 @@ int main(int argc, char** argv)
 
   double radius = 0.4;
 
-//  Body* ball1 = new Body(make_double3(5.2*radius,2.1*radius,5.2*radius));
-//  ball1->setGeometry(make_double3(radius,0,0));
-//  sys->add(ball1);
-//
-//  Body* ball2 = new Body(make_double3(5.2*radius,2.1*radius,0));
-//  ball2->setGeometry(make_double3(radius,0,0));
-//  sys->add(ball2);
+  Body* ball1 = new Body(make_double3(5.2*radius,2.1*radius,5.2*radius));
+  ball1->setGeometry(make_double3(radius,0,0));
+  sys->add(ball1);
+
+  Body* ball2 = new Body(make_double3(5.2*radius,2.1*radius,0));
+  ball2->setGeometry(make_double3(radius,0,0));
+  sys->add(ball2);
 
   Body* ball3 = new Body(make_double3(0,2.1*radius,0));
   ball3->setGeometry(make_double3(radius,0,0));
@@ -241,17 +241,17 @@ int main(int argc, char** argv)
   groundPtr->setGeometry(make_double3(5*radius,radius,5*radius));
   sys->add(groundPtr);
 
-//  Body* ball4 = new Body(make_double3(-5.2*radius,2.1*radius,-5.2*radius));
-//  ball4->setGeometry(make_double3(radius,0,0));
-//  sys->add(ball4);
-//
-//  Body* ball5 = new Body(make_double3(-5.2*radius,2.1*radius,0));
-//  ball5->setGeometry(make_double3(radius,0,0));
-//  sys->add(ball5);
-//
-//  Body* ball6 = new Body(make_double3(2.1*radius,2.1*radius,0));
-//  ball6->setGeometry(make_double3(radius,0,0));
-//  sys->add(ball6);
+  Body* ball4 = new Body(make_double3(-5.2*radius,2.1*radius,-5.2*radius));
+  ball4->setGeometry(make_double3(radius,0,0));
+  sys->add(ball4);
+
+  Body* ball5 = new Body(make_double3(-5.2*radius,2.1*radius,0));
+  ball5->setGeometry(make_double3(radius,0,0));
+  sys->add(ball5);
+
+  Body* ball6 = new Body(make_double3(2.1*radius,2.1*radius,0));
+  ball6->setGeometry(make_double3(radius,0,0));
+  sys->add(ball6);
 
 
 
