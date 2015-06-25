@@ -38,10 +38,10 @@ int APGD::setup()
   return 0;
 }
 
-__global__ void project(double* src, uint numCollisions) {
+__global__ void project(double* src, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.0; //TODO: Put this in material library
+  double mu = friction[index];
   double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
@@ -85,7 +85,7 @@ double APGD::getResidual(DeviceValueArrayView src) {
   performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
   cusp::blas::axpy(system->r,gammaTmp,1.0);
   cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
   cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
 
   return cusp::blas::nrmmax(gammaTmp);
@@ -118,7 +118,7 @@ int APGD::solve() {
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
   // (1) gamma_0 = zeros(nc,1)
-  cusp::blas::fill(system->gamma,0);
+  //cusp::blas::fill(system->gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -152,7 +152,7 @@ int APGD::solve() {
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-    project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), system->collisionDetector->numCollisions);
+    project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
     performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //
@@ -171,7 +171,7 @@ int APGD::solve() {
 
       // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
       cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-      project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), system->collisionDetector->numCollisions);
+      project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
       // Update the components of the while condition
       performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //

@@ -63,6 +63,7 @@ public:
   thrust::host_vector<double> r_h;
   thrust::host_vector<double> k_h;
   thrust::host_vector<double> gamma_h;
+  thrust::host_vector<double> friction_h;
 
 	thrust::host_vector<int> massI_h;
 	thrust::host_vector<int> massJ_h;
@@ -82,6 +83,7 @@ public:
   thrust::device_vector<double> r_d;
   thrust::device_vector<double> k_d;
   thrust::device_vector<double> gamma_d;
+  thrust::device_vector<double> friction_d;
 
 	thrust::device_vector<int> massI_d;
 	thrust::device_vector<int> massJ_d;

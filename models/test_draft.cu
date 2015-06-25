@@ -10,7 +10,7 @@ bool wireFrame = 1;
 System* sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(4,0.4,-14),camreal3(4,0.4,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(4,5,-500),camreal3(4,5,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -97,19 +97,20 @@ void drawAll()
 
 void renderSceneAll(){
 	if(OGL){
-		if(sys->timeIndex%10==0) drawAll();
+		//if(sys->timeIndex%10==0)
+		drawAll();
 		//char filename[100];
 		//sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		//sys->exportSystem(filename);
 		sys->DoTimeStep();
 
-    // Determine contact force on the container
-    sys->f_contact_h = sys->f_contact_d;
-    double weight = 0;
-    for(int i=0; i<6; i++) {
-      weight += sys->f_contact_h[3*i+1];
-    }
-    cout << "  Weight: " << weight << endl;
+//    // Determine contact force on the container
+//    sys->f_contact_h = sys->f_contact_d;
+//    double weight = 0;
+//    for(int i=0; i<6; i++) {
+//      weight += sys->f_contact_h[3*i+1];
+//    }
+//    cout << "  Weight: " << weight << endl;
 	}
 }
 
@@ -175,7 +176,7 @@ int main(int argc, char** argv)
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 3.0;
+  double t_end = 6.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 0;
@@ -188,72 +189,91 @@ int main(int argc, char** argv)
   int solverTypeQOCC = 1;
   int binsPerAxis = 10;
 
-  if(argc > 1) {
-    numPartitions = atoi(argv[1]);
-    numElementsPerSide = atoi(argv[2]);
-    solverType = atoi(argv[3]);
-    precondType = atoi(argv[4]);
-    mu_pdip = atof(argv[5]);
-    alpha = atof(argv[6]);
-    beta = atof(argv[7]);
-    solverTypeQOCC = atoi(argv[8]);
-    binsPerAxis = atoi(argv[9]);
-  }
 
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-4, 1e-10);
+  sys->setTimeStep(1e-3, 1e-10);
+  sys->gravity = make_double3(0,-981,0);
 
-  int numElementsPerSideY = 10;
-  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
-  if(solverTypeQOCC==2) {
-    dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
-    dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
-    dynamic_cast<PDIP*>(sys->solver)->setNumPartitions(numPartitions);
-    dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
-    dynamic_cast<PDIP*>(sys->solver)->beta = beta;
-    dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
-  }
-  sys->solver->tolerance = 1e-4;
+  sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
+  sys->solver->tolerance = 5;
   //sys->solver->maxIterations = 10;
 
-  double radius = 0.4;
+  double r = 1.2;
+  double L = 600;
+  double W = 60;
+  double H = 80;
+  double bL = 1;
+  double bH = 60;
+  double bW = 20;
+  double depth = 20;
+  double th = 1;
+  double density = 2.6;
 
-  Body* ball1 = new Body(make_double3(5.2*radius,2.1*radius,5.2*radius));
-  ball1->setGeometry(make_double3(radius,0,0));
-  sys->add(ball1);
-
-  Body* ball2 = new Body(make_double3(5.2*radius,2.1*radius,0));
-  ball2->setGeometry(make_double3(radius,0,0));
-  sys->add(ball2);
-
-  Body* ball3 = new Body(make_double3(0,2.1*radius,0));
-  ball3->setGeometry(make_double3(radius,0,0));
-  sys->add(ball3);
+  // Blade
+  Body* bladePtr = new Body(make_double3(0.5*L+2*th,0.5*H+0.5*depth,0));
+  bladePtr->setBodyFixed(true);
+  bladePtr->setGeometry(make_double3(0.5*bL,0.5*bH,0.5*bW));
+  sys->add(bladePtr);
 
   // Bottom
-  Body* groundPtr = new Body(make_double3(0,0,0));
+  Body* groundPtr = new Body(make_double3(0,-th,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(5*radius,radius,5*radius));
+  groundPtr->setGeometry(make_double3(0.5*L+th,th,0.5*W+th));
   sys->add(groundPtr);
 
-  Body* ball4 = new Body(make_double3(-5.2*radius,2.1*radius,-5.2*radius));
-  ball4->setGeometry(make_double3(radius,0,0));
-  sys->add(ball4);
+  // Left
+  Body* leftPtr = new Body(make_double3(-0.5*L-2*th,0.5*H+th,0));
+  leftPtr->setBodyFixed(true);
+  leftPtr->setGeometry(make_double3(th,0.5*H+th,0.5*W+th));
+  sys->add(leftPtr);
 
-  Body* ball5 = new Body(make_double3(-5.2*radius,2.1*radius,0));
-  ball5->setGeometry(make_double3(radius,0,0));
-  sys->add(ball5);
+  // Right
+  Body* rightPtr = new Body(make_double3(0.5*L+2*th,0.5*H+th,0));
+  rightPtr->setBodyFixed(true);
+  rightPtr->setGeometry(make_double3(th,0.5*H+th,0.5*W+th));
+  sys->add(rightPtr);
 
-  Body* ball6 = new Body(make_double3(2.1*radius,2.1*radius,0));
-  ball6->setGeometry(make_double3(radius,0,0));
-  sys->add(ball6);
+  // Back
+  Body* backPtr = new Body(make_double3(0,0.5*H+th,-0.5*W-2*th));
+  backPtr->setBodyFixed(true);
+  backPtr->setGeometry(make_double3(0.5*L+th,0.5*H+th,th));
+  sys->add(backPtr);
 
+  // Front
+  Body* frontPtr = new Body(make_double3(0,0.5*H+th,0.5*W+2*th));
+  frontPtr->setBodyFixed(true);
+  frontPtr->setGeometry(make_double3(0.5*L+th,0.5*H+th,th));
+  sys->add(frontPtr);
 
+  Body* bodyPtr;
+  double wiggle = .3;//0.1;
+  int numElementsPerSideX = L/(2*r+2*wiggle);
+  int numElementsPerSideY = H/(2*r+2*wiggle);
+  int numElementsPerSideZ = W/(2*r+2*wiggle);
+  int numBodies = 0;
+  // Add elements in x-direction
+  for (int i = 0; i < numElementsPerSideX; i++) {
+    for (int j = 0; j < numElementsPerSideY; j++) {
+      for (int k = 0; k < numElementsPerSideZ; k++) {
+
+        double xWig = getRandomNumber(-wiggle, wiggle);
+        double yWig = 0;//getRandomNumber(-.1, .1);
+        double zWig = getRandomNumber(-wiggle, wiggle);
+        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W+r+zWig));
+        bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*density);
+        bodyPtr->setGeometry(make_double3(r,0,0));
+        //if(j==0) bodyPtr->setBodyFixed(true);
+        numBodies = sys->add(bodyPtr);
+
+        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+      }
+    }
+  }
 
 	sys->initializeSystem();
 	printf("System initialized!\n");
@@ -292,13 +312,14 @@ int main(int argc, char** argv)
       solverTypeQOCC,
       binsPerAxis);
 	ofstream statStream(filename);
-	double maxVel = 0;
+	int fileIndex = 0;
 	while(sys->time < t_end)
 	{
-	  if(sys->timeIndex%10==0) {
+	  if(sys->timeIndex%20==0) {
       char filename[100];
-      sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
+      sprintf(filename, "../data/data_%03d.dat", fileIndex);
       sys->exportSystem(filename);
+      fileIndex++;
 	  }
 
 		sys->DoTimeStep();
@@ -306,17 +327,16 @@ int main(int argc, char** argv)
 		// Determine contact force on the container
 		sys->f_contact_h = sys->f_contact_d;
 		double weight = 0;
-		for(int i=0; i<6; i++) {
-		  weight += sys->f_contact_h[3*i+1];
+		for(int i=0; i<1; i++) {
+		  weight += sys->f_contact_h[3*i];
 		}
-		cout << "  Weight: " << weight << endl;
+		cout << "  Draft force: " << weight << endl;
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
-		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << sys->p_h[0] << ", " << numKrylovIter << ", " << endl;
+		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
 	}
-	cout << "Maximum Velocity = " << maxVel << endl;
 
 	return 0;
 }

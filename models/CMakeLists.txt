@@ -31,3 +31,7 @@ add_dependencies(FlexibleNet ImplicitBeamsGPU)
 cuda_add_executable(test_edge test_edge.cu)
 target_link_libraries(test_edge ImplicitBeamsGPU)
 add_dependencies(test_edge ImplicitBeamsGPU)
+
+cuda_add_executable(test_draft test_draft.cu)
+target_link_libraries(test_draft ImplicitBeamsGPU)
+add_dependencies(test_draft ImplicitBeamsGPU)

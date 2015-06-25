@@ -149,6 +149,7 @@ int System::initializeDevice() {
   r_d = r_h;
   k_d = k_h;
   gamma_d = a_h;
+  friction_d = a_h;
 
   massI_d = massI_h;
   massJ_d = massJ_h;
@@ -239,16 +240,16 @@ int System::DoTimeStep() {
     cusp::blas::fill(f_contact,0.0);
   }
 
-//  if(time>2 && time < 6) {
-//    // Apply sinusoidal motion
-//    v_h = v_d;
-//    for(int i=0;i<6;i++) {
-//      v_h[3*i] = v_h[3*i]+4.0*sin((time-2)*3.0);
-//      v_h[3*i+1] = 0;
-//      v_h[3*i+2] = 0;
-//    }
-//    v_d = v_h;
-//  }
+  if(time>1.5 && time < 6) {
+    // Apply sinusoidal motion
+    v_h = v_d;
+    for(int i=0;i<1;i++) {
+      v_h[3*i] = -20;//v_h[3*i]+4.0*sin((time-2)*3.0);
+      v_h[3*i+1] = 0;
+      v_h[3*i+2] = 0;
+    }
+    v_d = v_h;
+  }
 
   cusp::blas::axpy(v, p, h);
 
@@ -314,8 +315,10 @@ int System::applyContactForces_CPU() {
   return 0;
 }
 
-__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
+__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
   double4 nAndP;
   double3 n, u, v;
@@ -413,7 +416,9 @@ int System::buildContactJacobian() {
   DI_d.resize(18*collisionDetector->numCollisions);
   DJ_d.resize(18*collisionDetector->numCollisions);
   D_d.resize(18*collisionDetector->numCollisions);
-  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
+  friction_d.resize(collisionDetector->numCollisions);
+
+  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -510,9 +515,36 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
-  filestream << bodies.size() << ", " << endl;
+  filestream << "0, " << bodies.size() << ", 0, " << endl;
   for (int i = 0; i < bodies.size(); i++) {
-    filestream << p_h[3*i] << ", " << p_h[3*i+1] << ", " << p_h[3*i+2] << ", " << v_h[3*i] << ", " << v_h[3*i+1] << ", " << v_h[3*i+2] << ", " << contactGeometry_h[i].x << ", " << contactGeometry_h[i].y << ", " << contactGeometry_h[i].z << ", " << bodies[i]->isFixed() << ", " << bodies[i]->getMass() << ", \n";
+    filestream
+        << i << ", "
+        << bodies[i]->isFixed() << ", "
+        << p_h[3*i] << ", "
+        << p_h[3*i+1] << ", "
+        << p_h[3*i+2] << ", "
+        << "1, "
+        << "0, "
+        << "0, "
+        << "0, "
+        << v_h[3*i] << ", "
+        << v_h[3*i+1] << ", "
+        << v_h[3*i+2] << ", ";
+
+        if(contactGeometry_h[i].y == 0) {
+          filestream
+            << "0, "
+            << contactGeometry_h[i].x << ", ";
+        }
+        else {
+          filestream
+            << "2, "
+            << contactGeometry_h[i].x << ", "
+            << contactGeometry_h[i].y << ", "
+            << contactGeometry_h[i].z << ", ";
+        }
+        filestream
+          << "\n";
   }
   filestream.close();
 

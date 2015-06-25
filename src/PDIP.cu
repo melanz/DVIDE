@@ -112,10 +112,10 @@ __global__ void initializeImpulseVector(double* src, uint numCollisions) {
   src[3*index+2] = 0.0;
 }
 
-__global__ void updateConstraintVector(double* src, double* dst, uint numCollisions) {
+__global__ void updateConstraintVector(double* src, double* friction, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   dst[index] = 0.5 * (pow(src[3*index+1], 2.0) + pow(src[3*index+2], 2.0) - pow(mu, 2.0) * pow(src[3*index], 2.0));
   dst[index + numCollisions] = -src[3*index];
@@ -137,10 +137,10 @@ __global__ void getSupremum(double* lambdaTmp, double* lambda, double* delta_lam
   lambdaTmp[index] = tmp;
 }
 
-__global__ void constructConstraintGradient(int* grad_fI, int* grad_fJ, double* grad_f, double* gamma, uint numCollisions) {
+__global__ void constructConstraintGradient(int* grad_fI, int* grad_fJ, double* grad_f, double* gamma, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   grad_fI[3*index  ] = index;
   grad_fI[3*index+1] = index;
@@ -158,10 +158,10 @@ __global__ void constructConstraintGradient(int* grad_fI, int* grad_fJ, double* 
   grad_f[3*numCollisions+index] = -1.0;
 }
 
-__global__ void constructConstraintGradientTranspose(int* grad_fI, int* grad_fJ, double* grad_f, double* gamma, uint numCollisions) {
+__global__ void constructConstraintGradientTranspose(int* grad_fI, int* grad_fJ, double* grad_f, double* gamma, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   grad_fI[4*index  ] = 3*index;
   grad_fI[4*index+1] = 3*index;
@@ -180,7 +180,7 @@ __global__ void constructConstraintGradientTranspose(int* grad_fI, int* grad_fJ,
 }
 
 int PDIP::initializeConstraintGradient() {
-  constructConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  constructConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTD1(system->gamma_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
   // create constraint gradient using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_d));
@@ -201,7 +201,7 @@ int PDIP::initializeConstraintGradient() {
 }
 
 int PDIP::initializeConstraintGradientTranspose() {
-  constructConstraintGradientTranspose<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  constructConstraintGradientTranspose<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
   // create constraint gradient transpose using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_T_d));
@@ -219,10 +219,10 @@ int PDIP::initializeConstraintGradientTranspose() {
   return 0;
 }
 
-__global__ void constructM_hat(int* i_indices, int* j_indices, double* values, double* lambda, uint numCollisions) {
+__global__ void constructM_hat(int* i_indices, int* j_indices, double* values, double* lambda, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   i_indices[3*index  ] = 3*index;
   i_indices[3*index+1] = 3*index+1;
@@ -239,7 +239,7 @@ __global__ void constructM_hat(int* i_indices, int* j_indices, double* values, d
 }
 
 int PDIP::initializeM_hat() {
-  constructM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(MhatI_d), CASTI1(MhatJ_d), CASTD1(Mhat_d), CASTD1(lambda_d), system->collisionDetector->numCollisions);
+  constructM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(MhatI_d), CASTI1(MhatJ_d), CASTD1(Mhat_d), CASTD1(lambda_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
   // create constraint gradient transpose using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(MhatI_d));
@@ -311,10 +311,10 @@ int PDIP::initializeDiagLambda() {
   return 0;
 }
 
-__global__ void updateConstraintGradient(double* grad_f, double* grad_f_T, double* gamma, uint numCollisions) {
+__global__ void updateConstraintGradient(double* grad_f, double* grad_f_T, double* gamma, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   grad_f[3*index  ] = -pow(mu,2.0)*gamma[3*index];
   grad_f[3*index+1] = gamma[3*index+1];
@@ -347,10 +347,10 @@ int PDIP::updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayVie
   return 0;
 }
 
-__global__ void updateM_hat(double* M_hat, double* lambda, uint numCollisions) {
+__global__ void updateM_hat(double* M_hat, double* lambda, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = 0.1; // TODO: Put this in material library!
+  double mu = friction[index];
 
   double l = lambda[index];
   M_hat[3*index  ] = -pow(mu,2.0)*l;
@@ -359,7 +359,7 @@ __global__ void updateM_hat(double* M_hat, double* lambda, uint numCollisions) {
 }
 
 int PDIP::buildAMatrix() {
-  // Step 1: A = grad_fT*Dinv*(diagLambda)*grad_f (TODO: 3 matrix multiplies!)
+  // Step 1: A = grad_fT*Dinv*(diagLambda)*grad_f
   DeviceMatrix tmp;
   cusp::multiply(grad_f_T,Dinv,A);
   cusp::multiply(A,diagLambda,tmp);
@@ -453,7 +453,7 @@ int PDIP::solve() {
   initializeDiagLambda();
 
   // (1) f = f(gamma_0)
-  updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+  updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->friction_d), CASTD1(f_d), system->collisionDetector->numCollisions);
 
   // (2) lambda_0 = -1/f
   initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(lambda_d), 2*system->collisionDetector->numCollisions);
@@ -464,7 +464,7 @@ int PDIP::solve() {
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
     // (4) f = f(gamma_k)
-    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->friction_d), CASTD1(f_d), system->collisionDetector->numCollisions);
 
     // (5) eta_hat = -f^T * lambda_k
     eta_hat = -cusp::blas::dot(f,lambda);
@@ -474,13 +474,13 @@ int PDIP::solve() {
 
     // (7) A = A(gamma_k, lambda_k, f)
     initializeLambda<<<BLOCKS(2*system->collisionDetector->numCollisions),THREADS>>>(CASTD1(f_d), CASTD1(Dinv_d), 2*system->collisionDetector->numCollisions);
-    updateM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Mhat_d), CASTD1(lambda_d), system->collisionDetector->numCollisions);
+    updateM_hat<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Mhat_d), CASTD1(lambda_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
     // (8) r_t = r_t(gamma_k, lambda_k, t)
-    updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+    updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
     updateNewtonStepVector(system->gamma, lambda, f, t);
 
-    // (9) Solve the linear system A * y = -r_t TODO
+    // (9) Solve the linear system A * y = -r_t
     cusp::multiply(Dinv,r_g,lambdaTmp);
     cusp::multiply(grad_f_T,lambdaTmp,rhs);
     cusp::blas::axpy(r_d,rhs,-1.0);
@@ -509,13 +509,13 @@ int PDIP::solve() {
 
     // (12) while max(f(gamma_k + s * delta_gamma) > 0)
     cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
-    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
+    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
     while(Thrust_Max(lambdaTmp_d) > 0) {
       // (13) s = beta * s
       s = beta * s;
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
-      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
+      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), CASTD1(lambdaTmp_d), system->collisionDetector->numCollisions);
 
       // (14) endwhile
     }
@@ -523,8 +523,8 @@ int PDIP::solve() {
     // (15) while norm(r_t(gamma_k + s * delta_gamma, lambda_k + s * delta_lambda),2) > (1-alpha*s)*norm(r_t,2)
     norm_rt = sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g));
     cusp::blas::axpby(lambda,delta_lambda,lambdaTmp,1.0,s);
-    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
-    updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+    updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+    updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
     updateNewtonStepVector(gammaTmp, lambdaTmp, f, t);
     while (sqrt(cusp::blas::dot(r_d,r_d) + cusp::blas::dot(r_g,r_g)) > (1.0 - alpha * s) * norm_rt) {
 
@@ -533,8 +533,8 @@ int PDIP::solve() {
 
       cusp::blas::axpby(system->gamma,delta_gamma,gammaTmp,1.0,s);
       cusp::blas::axpby(lambda,delta_lambda,lambdaTmp,1.0,s);
-      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(f_d), system->collisionDetector->numCollisions);
-      updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+      updateConstraintVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), CASTD1(f_d), system->collisionDetector->numCollisions);
+      updateConstraintGradient<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(grad_f_d), CASTD1(grad_f_T_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
       updateNewtonStepVector(gammaTmp, lambdaTmp, f, t);
 
       // (17) endwhile
