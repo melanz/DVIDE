@@ -46,18 +46,9 @@ System::System(int solverType)
   }
 }
 
-void System::setTimeStep(double step_size, double precision)
+void System::setTimeStep(double step_size)
 {
   h = step_size;
-
-  //	// Set tolerance for Newton iteration based on the precision in positions
-  //	// and integration step-size.
-  //	double safety = 1;////0.5;
-  //	tol = safety * precision / (h * h);
-  //
-  //	// Set the tolerances for Krylov
-  //	solverOptions.relTol = std::min(0.01 * tol, 1e-6);
-  //	solverOptions.absTol = 1e-10;
 }
 
 int System::add(Body* body) {
@@ -110,16 +101,6 @@ int System::add(Body* body) {
   k_h.push_back(0);
   k_h.push_back(0);
   k_h.push_back(0);
-
-  //  for(int i=0; i<3; i++) {
-  //    gamma_h.push_back(0);
-  //    gammaHat_h.push_back(0);
-  //    gammaNew_h.push_back(0);
-  //    g_h.push_back(0);
-  //    y_h.push_back(0);
-  //    yNew_h.push_back(0);
-  //    gammaTmp_h.push_back(0);
-  //  }
 
   // update the mass matrix
   for (int i = 0; i < body->numDOF; i++) {
@@ -240,7 +221,7 @@ int System::DoTimeStep() {
     cusp::blas::fill(f_contact,0.0);
   }
 
-  if(time>1.5 && time < 6) {
+  if(time>1.5) {
     // Apply sinusoidal motion
     v_h = v_d;
     for(int i=0;i<1;i++) {

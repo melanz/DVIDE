@@ -120,7 +120,7 @@ public:
 	double  getTimeStep() const       {return h;}
 	double  getTolerance() const      {return tol;}
 	int     getTimeIndex() const      {return timeIndex;}
-	void    setTimeStep(double step_size, double precision = 1e-10);
+	void    setTimeStep(double step_size);
 	int     add(Body* body);
 	int     DoTimeStep();
 	int     initializeDevice();

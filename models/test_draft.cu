@@ -176,7 +176,7 @@ int main(int argc, char** argv)
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 6.0;
+  double t_end = 10;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 0;
@@ -195,16 +195,19 @@ int main(int argc, char** argv)
 #endif
 	visualize = false;
 
+	double hh = 1e-3;
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-3, 1e-10);
+  sys->setTimeStep(hh);
   sys->gravity = make_double3(0,-981,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
   sys->solver->tolerance = 5;
   //sys->solver->maxIterations = 10;
 
-  double r = 1.2;
-  double L = 600;
+  double rMin = 0.8;
+  double rMax = 1.6;
+  double r = rMax;
+  double L = 460;
   double W = 60;
   double H = 80;
   double bL = 1;
@@ -215,7 +218,7 @@ int main(int argc, char** argv)
   double density = 2.6;
 
   // Blade
-  Body* bladePtr = new Body(make_double3(0.5*L+2*th,0.5*H+0.5*depth,0));
+  Body* bladePtr = new Body(make_double3(0.5*L+2*th,0.5*bH+depth,0));
   bladePtr->setBodyFixed(true);
   bladePtr->setGeometry(make_double3(0.5*bL,0.5*bH,0.5*bW));
   sys->add(bladePtr);
@@ -252,9 +255,9 @@ int main(int argc, char** argv)
 
   Body* bodyPtr;
   double wiggle = .3;//0.1;
-  int numElementsPerSideX = L/(2*r+2*wiggle);
-  int numElementsPerSideY = H/(2*r+2*wiggle);
-  int numElementsPerSideZ = W/(2*r+2*wiggle);
+  int numElementsPerSideX = (L+2*th)/(2*r+2*wiggle);
+  int numElementsPerSideY = 2.5*H/(2*r+2*wiggle);
+  int numElementsPerSideZ = (W+2*th)/(2*r+2*wiggle);
   int numBodies = 0;
   // Add elements in x-direction
   for (int i = 0; i < numElementsPerSideX; i++) {
@@ -264,9 +267,9 @@ int main(int argc, char** argv)
         double xWig = getRandomNumber(-wiggle, wiggle);
         double yWig = 0;//getRandomNumber(-.1, .1);
         double zWig = getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W+r+zWig));
+        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L-th+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W-th+r+zWig));
         bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*density);
-        bodyPtr->setGeometry(make_double3(r,0,0));
+        bodyPtr->setGeometry(make_double3(getRandomNumber(rMin, rMax),0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys->add(bodyPtr);
 
@@ -301,16 +304,9 @@ int main(int argc, char** argv)
 	
 	// if you don't want to visualize, then output the data
   char filename[100];
-  sprintf(filename, "../data/stats_%d_%d_%d_%d_%.3f_%.3f_%.3f_%d_%d.dat",
-      numPartitions,
-      numElementsPerSide,
-      solverType,
-      precondType,
-      mu_pdip,
-      alpha,
-      beta,
-      solverTypeQOCC,
-      binsPerAxis);
+  sprintf(filename, "../data/stats_tol%f_h%f.dat",
+      sys->solver->tolerance,
+      hh);
 	ofstream statStream(filename);
 	int fileIndex = 0;
 	while(sys->time < t_end)

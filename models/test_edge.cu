@@ -206,7 +206,7 @@ int main(int argc, char** argv)
 	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-4, 1e-10);
+  sys->setTimeStep(1e-4);
 
   int numElementsPerSideY = 10;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
