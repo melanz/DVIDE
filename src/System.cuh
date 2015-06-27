@@ -42,6 +42,7 @@ public:
 	DeviceValueArrayView v;
 	DeviceValueArrayView a;
 	DeviceValueArrayView f;
+	DeviceValueArrayView fApplied;
   DeviceValueArrayView f_contact;
   DeviceValueArrayView tmp;
   DeviceValueArrayView r;
@@ -58,6 +59,7 @@ public:
 	thrust::host_vector<double> v_h;
 	thrust::host_vector<double> a_h;
 	thrust::host_vector<double> f_h;
+	thrust::host_vector<double> fApplied_h;
   thrust::host_vector<double> f_contact_h;
   thrust::host_vector<double> tmp_h;
   thrust::host_vector<double> r_h;
@@ -78,6 +80,7 @@ public:
 	thrust::device_vector<double> v_d;
 	thrust::device_vector<double> a_d;
 	thrust::device_vector<double> f_d;
+	thrust::device_vector<double> fApplied_d;
   thrust::device_vector<double> f_contact_d;
   thrust::device_vector<double> tmp_d;
   thrust::device_vector<double> r_d;
@@ -125,7 +128,9 @@ public:
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();
-	int     applyContactForces_CPU();
+	int     applyContactForces_CPU(); //TODO: Get rid of this!
+	int     applyForce(Body* body, double3 force);
+	int     clearAppliedForces();
 	int     buildContactJacobian();
 	int     buildContactJacobianTranspose();
 	int     performSchurComplementProduct(DeviceValueArrayView src);

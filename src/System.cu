@@ -90,6 +90,11 @@ int System::add(Body* body) {
   f_contact_h.push_back(0);
   f_contact_h.push_back(0);
 
+  fApplied_h.push_back(0);
+  fApplied_h.push_back(0);
+  fApplied_h.push_back(0);
+  fApplied_d = fApplied_h;
+
   tmp_h.push_back(0);
   tmp_h.push_back(0);
   tmp_h.push_back(0);
@@ -131,6 +136,7 @@ int System::initializeDevice() {
   k_d = k_h;
   gamma_d = a_h;
   friction_d = a_h;
+  fApplied_d = fApplied_h;
 
   massI_d = massI_h;
   massJ_d = massJ_h;
@@ -144,6 +150,7 @@ int System::initializeDevice() {
   thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
   thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
   thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
+  thrust::device_ptr<double> wrapped_device_fApplied(CASTD1(fApplied_d));
   thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
   thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
@@ -154,6 +161,7 @@ int System::initializeDevice() {
   a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
+  fApplied = DeviceValueArrayView(wrapped_device_fApplied, wrapped_device_fApplied + fApplied_d.size());
   tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
   k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
@@ -292,6 +300,25 @@ int System::applyContactForces_CPU() {
 
   }
   f_contact_d = f_contact_h;
+
+  return 0;
+}
+
+int System::applyForce(Body* body, double3 force) {
+  int index = body->getIndex();
+  cout << index << endl;
+
+  fApplied_h = fApplied_d;
+  fApplied_h[index]+=force.x;
+  fApplied_h[index+1]+=force.y;
+  fApplied_h[index+2]+=force.z;
+  fApplied_d = fApplied_h;
+
+  return 0;
+}
+
+int System::clearAppliedForces() {
+  Thrust_Fill(fApplied_d,0.0);
 
   return 0;
 }
@@ -453,7 +480,7 @@ __global__ void multiplyByMass(double* massInv, double* src, double* dst, uint n
 int System::buildAppliedImpulseVector() {
   // build k
   multiplyByMass<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), v_d.size());
-  cusp::blas::axpy(f,k,h);
+  cusp::blas::axpby(f,fApplied,k,h,h);
 
   return 0;
 }

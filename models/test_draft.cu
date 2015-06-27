@@ -201,7 +201,7 @@ int main(int argc, char** argv)
   sys->gravity = make_double3(0,-981,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 5;
+  sys->solver->tolerance = 0.5;
   //sys->solver->maxIterations = 10;
 
   double rMin = 0.8;
@@ -213,7 +213,7 @@ int main(int argc, char** argv)
   double bL = 1;
   double bH = 60;
   double bW = 20;
-  double depth = 20;
+  double depth = 25;
   double th = 1;
   double density = 2.6;
 
@@ -268,8 +268,9 @@ int main(int argc, char** argv)
         double yWig = 0;//getRandomNumber(-.1, .1);
         double zWig = getRandomNumber(-wiggle, wiggle);
         bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L-th+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W-th+r+zWig));
-        bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*density);
-        bodyPtr->setGeometry(make_double3(getRandomNumber(rMin, rMax),0,0));
+        double rRand = getRandomNumber(rMin, rMax);
+        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
+        bodyPtr->setGeometry(make_double3(rRand,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
         numBodies = sys->add(bodyPtr);
 
