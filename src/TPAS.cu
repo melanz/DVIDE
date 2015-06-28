@@ -570,7 +570,7 @@ int TPAS::performEQPStage(int currentIterate) {
   bool sameActiveSetTangent = false;
 
   int h;
-  for(h=currentIterate; h<maxIterations; h++) {
+  for(h=currentIterate+1; h<maxIterations; h++) {
     // Step 7: Build the constraint gradient
     initializeActiveConstraintGradient();
 
@@ -588,6 +588,9 @@ int TPAS::performEQPStage(int currentIterate) {
     // Step 11: Update the gamma and lambda vectors with delta
     cusp::blas::axpy(delta_gamma, gammaNew, -1.0);
     cusp::blas::axpy(delta_lambda, lambda, -1.0);
+
+    double res = getResidual(gammaNew); // TODO: Get rid of this, for debugging only
+    printf("   Iteration %d, Residual (EQP): %f\n",h,res);
 
     // Step 12: Check for incorrect active set
     updateActiveSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d),CASTD1(system->friction_d),CASTI1(activeSetNormalEQP_d),CASTI1(activeSetTangentEQP_d),system->collisionDetector->numCollisions);
@@ -753,12 +756,14 @@ int TPAS::solve() {
 
       // (22) endif
     }
+    printf("   Iteration %d, Residual (PG): %f\n",k,residual);
 
     updateActiveSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d),CASTD1(system->friction_d),CASTI1(activeSetNormalNew_d),CASTI1(activeSetTangentNew_d),system->collisionDetector->numCollisions);
     sameActiveSetNormal = thrust::equal(activeSetNormalNew_d.begin(),activeSetNormalNew_d.end(), activeSetNormal_d.begin());
     sameActiveSetTangent = thrust::equal(activeSetTangentNew_d.begin(),activeSetTangentNew_d.end(), activeSetTangent_d.begin());
     activeSetNormal_d = activeSetNormalNew_d;
     activeSetTangent_d = activeSetTangentNew_d;
+    printf("   Same active set? %d\n",sameActiveSetNormal && sameActiveSetTangent);
 
     if(residual < tol_p && sameActiveSetNormal && sameActiveSetTangent) {
       k = performEQPStage(k);

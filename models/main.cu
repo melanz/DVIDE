@@ -2,6 +2,7 @@
 #include "System.cuh"
 #include "Body.cuh"
 #include "PDIP.cuh"
+#include "TPAS.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -186,7 +187,7 @@ int main(int argc, char** argv)
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 1;
+  int solverTypeQOCC = 3;
   int binsPerAxis = 10;
 
   if(argc > 1) {
@@ -218,6 +219,14 @@ int main(int argc, char** argv)
     dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
     dynamic_cast<PDIP*>(sys->solver)->beta = beta;
     dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
+  if(solverTypeQOCC==3) {
+    dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<TPAS*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<TPAS*>(sys->solver)->alpha = alpha;
+    dynamic_cast<TPAS*>(sys->solver)->beta = beta;
+    dynamic_cast<TPAS*>(sys->solver)->mu_pdip = mu_pdip;
   }
   sys->solver->tolerance = 1e-4;
   //sys->solver->maxIterations = 10;
@@ -363,6 +372,7 @@ int main(int argc, char** argv)
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+		if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
 		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
 	}
