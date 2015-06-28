@@ -480,7 +480,7 @@ __global__ void multiplyByMass(double* massInv, double* src, double* dst, uint n
 int System::buildAppliedImpulseVector() {
   // build k
   multiplyByMass<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), v_d.size());
-  cusp::blas::axpby(f,fApplied,k,h,h);
+  cusp::blas::axpbypcz(f,fApplied,k,k,h,h,1);
 
   return 0;
 }

@@ -181,7 +181,7 @@ int main(int argc, char** argv)
   float  precMaxKrylov = -1;
   int precondType = 0;
   int numElementsPerSide = 4;
-  int solverType = 3;
+  int solverType = 1;
   int numPartitions = 1;
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
@@ -201,7 +201,7 @@ int main(int argc, char** argv)
   sys->gravity = make_double3(0,-981,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 0.5;
+  sys->solver->tolerance = 5;
   //sys->solver->maxIterations = 10;
 
   double rMin = 0.8;

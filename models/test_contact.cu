@@ -1,7 +1,7 @@
 #include "include.cuh"
 #include "System.cuh"
 #include "Body.cuh"
-#include "PDIP.cuh"
+#include "TPAS.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -171,18 +171,27 @@ double getRandomNumber(double min, double max)
 
 int main(int argc, char** argv)
 {
+  // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
 	//visualize = false;
 
-	int solverTypeQOCC = 1;
+	int solverTypeQOCC = 3;
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-5);
+  sys->setTimeStep(1e-2);
   sys->collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys->solver->tolerance = 1e-4;
   sys->solver->maxIterations = 100;
+  int precondType = 0;
+  int solverType = 3;
+  int numPartitions = 1;
+  if(solverTypeQOCC==3) {
+    dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<TPAS*>(sys->solver)->setNumPartitions(numPartitions);
+  }
 
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-0.5,0));
