@@ -85,6 +85,8 @@ private:
   float stepKrylovIterations;
   // end spike stuff
 
+  double residual;
+
   uint numActiveNormalConstraints;
   uint numActiveTangentConstraints;
 
@@ -156,8 +158,10 @@ private:
 
   thrust::device_vector<int> activeSetNormal_d;
   thrust::device_vector<int> activeSetNormalNew_d;
+  thrust::device_vector<int> activeSetNormalEQP_d;
   thrust::device_vector<int> activeSetTangent_d;
   thrust::device_vector<int> activeSetTangentNew_d;
+  thrust::device_vector<int> activeSetTangentEQP_d;
 
   thrust::host_vector<int> activeSet_h; //TODO: GET RID OF THIS
 
@@ -203,12 +207,13 @@ private:
 
   int performSchurComplementProduct(DeviceValueArrayView src);
   double getResidual(DeviceValueArrayView src);
-
+  int performEQPStage(int currentIterate);
 public:
   double mu_pdip;
   double alpha;
   double beta;
   double totalKrylovIterations;
+  double tol_p;
 
   TPAS(System* sys);
 	int setup();

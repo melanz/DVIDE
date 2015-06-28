@@ -24,6 +24,8 @@ TPAS::TPAS(System* sys)
   maxIterations = 1000;
   iterations = 0;
 
+  tol_p = 1e-2; // TODO: What is best here?
+
   // spike stuff
   partitions = 1;
   solverOptions.safeFactorization = true;
@@ -240,19 +242,19 @@ __global__ void updateConstraintVectorNormal(double* gamma, double* res, int* ac
 int TPAS::updateResidualVector() {
 
   // Update residual vector associated with gammas
-  performSchurComplementProduct(system->gamma); //cusp::multiply(system->N,system->gamma,gammaTmp);
+  performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,system->gamma,gammaTmp);
   cusp::multiply(grad_f_T,lambda,res_gamma);
   cusp::blas::axpbypcz(gammaTmp, system->r, res_gamma, res_gamma, 1.0, 1.0, 1.0);
 
   // Update residual vector associated with lambdas
-  updateConstraintVectorTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->friction_d), CASTD1(res_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints, system->collisionDetector->numCollisions);
-  updateConstraintVectorNormal<<<BLOCKS(numActiveNormalConstraints),THREADS>>>(CASTD1(system->gamma_d), CASTD1(res_d), CASTI1(activeSetNormalNew_d), numActiveTangentConstraints, numActiveNormalConstraints, system->collisionDetector->numCollisions);
+  updateConstraintVectorTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), CASTD1(res_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints, system->collisionDetector->numCollisions);
+  updateConstraintVectorNormal<<<BLOCKS(numActiveNormalConstraints),THREADS>>>(CASTD1(gammaNew_d), CASTD1(res_d), CASTI1(activeSetNormalNew_d), numActiveTangentConstraints, numActiveNormalConstraints, system->collisionDetector->numCollisions);
 
   return 0;
 }
 
 int TPAS::initializeActiveConstraintGradient() {
-  constructActiveConstraintGradientTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTD1(system->gamma_d), CASTD1(system->friction_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints);
+  constructActiveConstraintGradientTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTD1(gammaNew_d), CASTD1(system->friction_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints);
   constructActiveConstraintGradientNormal<<<BLOCKS(numActiveNormalConstraints),THREADS>>>(CASTI1(grad_fI_d), CASTI1(grad_fJ_d), CASTD1(grad_f_d), CASTI1(activeSetNormalNew_d), numActiveTangentConstraints, numActiveNormalConstraints);
 
   initializeConstraintGradientTranspose();
@@ -261,7 +263,7 @@ int TPAS::initializeActiveConstraintGradient() {
 }
 
 int TPAS::initializeConstraintGradientTranspose() {
-  constructActiveConstraintGradientTransposeTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTD1(system->gamma_d), CASTD1(system->friction_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints);
+  constructActiveConstraintGradientTransposeTangent<<<BLOCKS(numActiveTangentConstraints),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTD1(gammaNew_d), CASTD1(system->friction_d), CASTI1(activeSetTangentNew_d), numActiveTangentConstraints);
   constructActiveConstraintGradientTransposeNormal<<<BLOCKS(numActiveNormalConstraints),THREADS>>>(CASTI1(grad_fI_T_d), CASTI1(grad_fJ_T_d), CASTD1(grad_f_T_d), CASTI1(activeSetNormalNew_d), numActiveTangentConstraints, numActiveNormalConstraints);
 
   grad_f_T.sort_by_row();
@@ -500,6 +502,125 @@ double TPAS::getResidual(DeviceValueArrayView src) {
   return cusp::blas::nrmmax(gammaTmp);
 }
 
+int TPAS::performEQPStage(int currentIterate) {
+  // USE ACTIVE SET TO PERFORM EQP STAGE
+
+  // Step 1: Identify the indices of the active constraints (this copies the non-zero elements from the old to the new)
+  numActiveNormalConstraints = thrust::remove_copy(activeSetNormal_d.begin(),activeSetNormal_d.end(), activeSetNormalNew_d.begin(), 0)-activeSetNormalNew_d.begin();
+  activeSetNormalNew_d.resize(numActiveNormalConstraints);
+  numActiveTangentConstraints = thrust::remove_copy(activeSetTangent_d.begin(),activeSetTangent_d.end(), activeSetTangentNew_d.begin(), 0)-activeSetTangentNew_d.begin();
+  activeSetTangentNew_d.resize(numActiveTangentConstraints);
+
+  // Step 2: Update size of delta vector and set up submatrix views
+  delta_d.resize(3*system->collisionDetector->numCollisions+numActiveTangentConstraints+numActiveNormalConstraints);
+  thrust::device_ptr<double> wrapped_device_delta(CASTD1(delta_d));
+  delta = DeviceValueArrayView(wrapped_device_delta, wrapped_device_delta + delta_d.size());
+  delta_gamma = DeviceValueArrayView(wrapped_device_delta, wrapped_device_delta + system->gamma_d.size());
+  delta_lambda = DeviceValueArrayView(wrapped_device_delta + system->gamma_d.size(), wrapped_device_delta + delta_d.size());
+
+  // Step 3: Update the size of the lambda vector
+  lambda_d.resize(numActiveNormalConstraints+numActiveTangentConstraints);
+  thrust::device_ptr<double> wrapped_device_lambda(CASTD1(lambda_d));
+  lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
+
+  // Step 4: Initialize size of the grad_f matrix
+  grad_fI_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+  grad_fJ_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+  grad_f_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+
+  // create constraint gradient using cusp library
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + grad_fI_d.size());
+
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(grad_fJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + grad_fJ_d.size());
+
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(grad_f_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + grad_f_d.size());
+
+  grad_f = DeviceView(numActiveTangentConstraints+numActiveNormalConstraints, 3*system->collisionDetector->numCollisions, grad_f_d.size(), row_indices, column_indices, values);
+  // end create constraint gradient
+
+  // Step 5: Initialize the size of the grad_f_T matrix
+  grad_fI_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+  grad_fJ_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+  grad_f_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
+
+  // create constraint gradient transpose using cusp library
+  thrust::device_ptr<int> wrapped_device_IT(CASTI1(grad_fI_T_d));
+  DeviceIndexArrayView row_indicesT = DeviceIndexArrayView(wrapped_device_IT, wrapped_device_IT + grad_fI_T_d.size());
+
+  thrust::device_ptr<int> wrapped_device_JT(CASTI1(grad_fJ_T_d));
+  DeviceIndexArrayView column_indicesT = DeviceIndexArrayView(wrapped_device_JT, wrapped_device_JT + grad_fJ_T_d.size());
+
+  thrust::device_ptr<double> wrapped_device_VT(CASTD1(grad_f_T_d));
+  DeviceValueArrayView valuesT = DeviceValueArrayView(wrapped_device_VT, wrapped_device_VT + grad_f_T_d.size());
+
+  grad_f_T = DeviceView(3*system->collisionDetector->numCollisions, numActiveTangentConstraints+numActiveNormalConstraints, grad_f_T_d.size(), row_indicesT, column_indicesT, valuesT);
+  // end create constraint gradient transpose
+
+  // Step 6: Initialize the size of the residual matrix
+  res_d.resize(3*system->collisionDetector->numCollisions+numActiveTangentConstraints+numActiveNormalConstraints);
+  thrust::device_ptr<double> wrapped_device_res(CASTD1(res_d));
+  res = DeviceValueArrayView(wrapped_device_res, wrapped_device_res + res_d.size());
+  res_gamma = DeviceValueArrayView(wrapped_device_res, wrapped_device_res + system->gamma_d.size());
+  res_lambda = DeviceValueArrayView(wrapped_device_res + system->gamma_d.size(), wrapped_device_res + res_d.size());
+
+  bool sameActiveSetNormal = false;
+  bool sameActiveSetTangent = false;
+
+  int h;
+  for(h=currentIterate; h<maxIterations; h++) {
+    // Step 7: Build the constraint gradient
+    initializeActiveConstraintGradient();
+
+    // Step 8: Build the residual vector
+    updateResidualVector();
+
+    // Step 9: Build the Schur complement product matrix
+    //buildSchurMatrix(); // TODO: Build the full matrix, needed if I want to use preconditioning...
+
+    // Step 10: Solve the A*delta = res
+    cusp::blas::fill(delta, 0);
+    bool success = mySolver->solve(*m_spmv, res, delta);
+    spike::Stats stats = mySolver->getStats();
+
+    // Step 11: Update the gamma and lambda vectors with delta
+    cusp::blas::axpy(delta_gamma, gammaNew, -1.0);
+    cusp::blas::axpy(delta_lambda, lambda, -1.0);
+
+    // Step 12: Check for incorrect active set
+    updateActiveSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d),CASTD1(system->friction_d),CASTI1(activeSetNormalEQP_d),CASTI1(activeSetTangentEQP_d),system->collisionDetector->numCollisions);
+    sameActiveSetNormal = thrust::equal(activeSetNormalEQP_d.begin(),activeSetNormalEQP_d.end(), activeSetNormal_d.begin());
+    sameActiveSetTangent = thrust::equal(activeSetTangentEQP_d.begin(),activeSetTangentEQP_d.end(), activeSetTangent_d.begin());
+    if(!(sameActiveSetNormal&&sameActiveSetTangent)) {
+      tol_p = 0.5*tol_p;
+      break;
+    }
+
+    // Step 13: Calculate infinity norm of the correction and check for convergence
+    double delta_nrm = cusp::blas::nrmmax(delta);
+    if (delta_nrm <= tolerance) break;
+  }
+
+  // Step 14: Ensure that a better gamma was found
+  double res = getResidual(gammaNew);
+  if (res < residual) {
+    // r_min = r
+    residual = res;
+
+    // gamma_hat = gamma_(k+1)
+    cusp::blas::copy(gammaNew,gammaHat);
+  }
+  else {
+    // gamma_(k+1) = gamma_hat
+    cusp::blas::copy(gammaHat,gammaNew);
+  }
+
+  return h;
+  // END EQP STAGE
+}
+
 int TPAS::solve() {
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
@@ -517,6 +638,8 @@ int TPAS::solve() {
   activeSetTangent_d.resize(system->collisionDetector->numCollisions);
   thrust::fill(activeSetTangent_d.begin(),activeSetTangent_d.end(),0.0);
   activeSetTangentNew_d.resize(system->collisionDetector->numCollisions);
+  activeSetNormalEQP_d.resize(system->collisionDetector->numCollisions);
+  activeSetTangentEQP_d.resize(system->collisionDetector->numCollisions);
 
   // TODO: There's got to be a better way to do this...
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
@@ -534,6 +657,11 @@ int TPAS::solve() {
   yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
 
+  // Set up the linear solver TODO: could move this to the outside of everything
+  m_spmv = new MySpmv(system->mass, system->D, system->DT, grad_f, grad_f_T, system->tmp, gammaTmp, delta);
+  mySolver = new SpikeSolver(partitions, solverOptions);
+  mySolver->setup(system->mass); //TODO: Use preconditioning here! Need to build full matrix...
+
   // (1) gamma_0 = zeros(nc,1)
   cusp::blas::fill(system->gamma,0);
 
@@ -549,7 +677,7 @@ int TPAS::solve() {
   double Beta = 0.0;
   double obj1 = 0.0;
   double obj2 = 0.0;
-  double residual = 10e30;
+  residual = 10e30;
   bool sameActiveSetNormal = false;
   bool sameActiveSetTangent = false;
 
@@ -632,6 +760,14 @@ int TPAS::solve() {
     activeSetNormal_d = activeSetNormalNew_d;
     activeSetTangent_d = activeSetTangentNew_d;
 
+    if(residual < tol_p && sameActiveSetNormal && sameActiveSetTangent) {
+      k = performEQPStage(k);
+
+      // the new active set vector is destroyed in the EQP stage, need to rebuild it
+      activeSetNormalNew_d = activeSetNormal_d;
+      activeSetTangentNew_d = activeSetTangent_d;
+    }
+
     // (23) if r < Tau
     if (residual < tolerance) {
       // (24) break
@@ -672,99 +808,6 @@ int TPAS::solve() {
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   iterations = k;
   cusp::blas::copy(gammaHat,system->gamma);
-
-  // USE ACTIVE SET TO PERFORM EQP STAGE
-
-  // Step 1: Identify the indices of the active constraints
-  numActiveNormalConstraints = thrust::remove_copy(activeSetNormal_d.begin(),activeSetNormal_d.end(), activeSetNormalNew_d.begin(), 0)-activeSetNormalNew_d.begin();
-  activeSetNormalNew_d.resize(numActiveNormalConstraints);
-  numActiveTangentConstraints = thrust::remove_copy(activeSetTangent_d.begin(),activeSetTangent_d.end(), activeSetTangentNew_d.begin(), 0)-activeSetTangentNew_d.begin();
-  activeSetTangentNew_d.resize(numActiveTangentConstraints);
-
-  // Step 2: Update size of delta vector and set up submatrix views
-  delta_d.resize(3*system->collisionDetector->numCollisions+numActiveTangentConstraints+numActiveNormalConstraints);
-  thrust::device_ptr<double> wrapped_device_delta(CASTD1(delta_d));
-  delta = DeviceValueArrayView(wrapped_device_delta, wrapped_device_delta + delta_d.size());
-  delta_gamma = DeviceValueArrayView(wrapped_device_delta, wrapped_device_delta + system->gamma_d.size());
-  delta_lambda = DeviceValueArrayView(wrapped_device_delta + system->gamma_d.size(), wrapped_device_delta + delta_d.size());
-
-  // Step 3: Set up the linear solver TODO: could move this to the outside of everything
-  m_spmv = new MySpmv(system->mass, system->D, system->DT, grad_f, grad_f_T, system->tmp, gammaTmp, delta);
-  mySolver = new SpikeSolver(partitions, solverOptions);
-  mySolver->setup(system->mass); //TODO: Use preconditioning here! Need to build full matrix...
-
-  // Step 4: Update the size of the lambda vector
-  lambda_d.resize(numActiveNormalConstraints+numActiveTangentConstraints);
-  thrust::device_ptr<double> wrapped_device_lambda(CASTD1(lambda_d));
-  lambda = DeviceValueArrayView(wrapped_device_lambda, wrapped_device_lambda + lambda_d.size());
-
-  // Step 5: Initialize size of the grad_f matrix
-  grad_fI_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-  grad_fJ_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-  grad_f_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-
-  // create constraint gradient using cusp library
-  thrust::device_ptr<int> wrapped_device_I(CASTI1(grad_fI_d));
-  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + grad_fI_d.size());
-
-  thrust::device_ptr<int> wrapped_device_J(CASTI1(grad_fJ_d));
-  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + grad_fJ_d.size());
-
-  thrust::device_ptr<double> wrapped_device_V(CASTD1(grad_f_d));
-  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + grad_f_d.size());
-
-  grad_f = DeviceView(numActiveTangentConstraints+numActiveNormalConstraints, 3*system->collisionDetector->numCollisions, grad_f_d.size(), row_indices, column_indices, values);
-  // end create constraint gradient
-
-  // Step 6: Initialize the size of the grad_f_T matrix
-  grad_fI_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-  grad_fJ_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-  grad_f_T_d.resize(3*numActiveTangentConstraints+numActiveNormalConstraints);
-
-  // create constraint gradient transpose using cusp library
-  thrust::device_ptr<int> wrapped_device_IT(CASTI1(grad_fI_T_d));
-  DeviceIndexArrayView row_indicesT = DeviceIndexArrayView(wrapped_device_IT, wrapped_device_IT + grad_fI_T_d.size());
-
-  thrust::device_ptr<int> wrapped_device_JT(CASTI1(grad_fJ_T_d));
-  DeviceIndexArrayView column_indicesT = DeviceIndexArrayView(wrapped_device_JT, wrapped_device_JT + grad_fJ_T_d.size());
-
-  thrust::device_ptr<double> wrapped_device_VT(CASTD1(grad_f_T_d));
-  DeviceValueArrayView valuesT = DeviceValueArrayView(wrapped_device_VT, wrapped_device_VT + grad_f_T_d.size());
-
-  grad_f_T = DeviceView(3*system->collisionDetector->numCollisions, numActiveTangentConstraints+numActiveNormalConstraints, grad_f_T_d.size(), row_indicesT, column_indicesT, valuesT);
-  // end create constraint gradient transpose
-
-  // Step 7: Initialize the size of the residual matrix
-  res_d.resize(3*system->collisionDetector->numCollisions+numActiveTangentConstraints+numActiveNormalConstraints);
-  thrust::device_ptr<double> wrapped_device_res(CASTD1(res_d));
-  res = DeviceValueArrayView(wrapped_device_res, wrapped_device_res + res_d.size());
-  res_gamma = DeviceValueArrayView(wrapped_device_res, wrapped_device_res + system->gamma_d.size());
-  res_lambda = DeviceValueArrayView(wrapped_device_res + system->gamma_d.size(), wrapped_device_res + res_d.size());
-
-  for(int k=0; k<maxIterations; k++) {
-    // Step 2: Build the constraint gradient
-    initializeActiveConstraintGradient();
-
-    // Step 3: Build the residual vector
-    updateResidualVector();
-
-    // Step 4: Build the Schur complement product matrix
-    //buildSchurMatrix(); // TODO: Build the full matrix, needed if I want to use preconditioning...
-
-    // Step 5: Solve the A*delta = res
-    cusp::blas::fill(delta, 0);
-    bool success = mySolver->solve(*m_spmv, res, delta);
-    spike::Stats stats = mySolver->getStats();
-
-    // Step 6: Update the gamma and lambda vectors with delta
-    cusp::blas::axpy(delta_gamma, system->gamma, -1.0);
-    cusp::blas::axpy(delta_lambda, lambda, -1.0);
-
-    // Step 7: Calculate infinity norm of the correction and check for convergence
-    double delta_nrm = cusp::blas::nrmmax(delta);
-    if (delta_nrm <= tolerance) break;
-  }
-  // END EQP STAGE
 
   return 0;
 }
