@@ -132,6 +132,7 @@ private:
   int initializeDiagLambda();
   int updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t);
   int buildAMatrix();
+  double getResidual(DeviceValueArrayView src);
 
 public:
   double mu_pdip;

@@ -6,6 +6,7 @@
 #include "APGD.cuh"
 #include "PDIP.cuh"
 #include "TPAS.cuh"
+#include "JKIP.cuh"
 
 System::System()
 {
@@ -40,6 +41,9 @@ System::System(int solverType)
     break;
   case 3:
     solver = new TPAS(this);
+    break;
+  case 4:
+    solver = new JKIP(this);
     break;
   default:
     solver = new APGD(this);
@@ -326,7 +330,7 @@ int System::clearAppliedForces() {
 __global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
+  friction[index] = 1.0; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
   double4 nAndP;
   double3 n, u, v;

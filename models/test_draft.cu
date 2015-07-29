@@ -179,21 +179,20 @@ int main(int argc, char** argv)
   double t_end = 10;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
-  int precondType = 0;
+  int precondType = 1;
   int numElementsPerSide = 4;
-  int solverType = 1;
+  int solverType = 2;
   int numPartitions = 1;
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 1;
+  int solverTypeQOCC = 2;
   int binsPerAxis = 10;
-
 
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	//visualize = false;
 
 	double hh = 1e-3;
 	sys = new System(solverTypeQOCC);
@@ -201,13 +200,21 @@ int main(int argc, char** argv)
   sys->gravity = make_double3(0,-981,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 5;
-  //sys->solver->maxIterations = 10;
+  sys->solver->tolerance = 1e-3;
+  sys->solver->maxIterations = 30;
+  if(solverTypeQOCC==2) {
+    dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<PDIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
+    dynamic_cast<PDIP*>(sys->solver)->beta = beta;
+    dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
 
   double rMin = 0.8;
   double rMax = 1.6;
   double r = rMax;
-  double L = 460;
+  double L = 20;//460;
   double W = 60;
   double H = 80;
   double bL = 1;

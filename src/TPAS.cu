@@ -592,14 +592,14 @@ int TPAS::performEQPStage(int currentIterate) {
     double res = getResidual(gammaNew); // TODO: Get rid of this, for debugging only
     printf("   Iteration %d, Residual (EQP): %f\n",h,res);
 
-    // Step 12: Check for incorrect active set
-    updateActiveSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d),CASTD1(system->friction_d),CASTI1(activeSetNormalEQP_d),CASTI1(activeSetTangentEQP_d),system->collisionDetector->numCollisions);
-    sameActiveSetNormal = thrust::equal(activeSetNormalEQP_d.begin(),activeSetNormalEQP_d.end(), activeSetNormal_d.begin());
-    sameActiveSetTangent = thrust::equal(activeSetTangentEQP_d.begin(),activeSetTangentEQP_d.end(), activeSetTangent_d.begin());
-    if(!(sameActiveSetNormal&&sameActiveSetTangent)) {
-      tol_p = 0.5*tol_p;
-      break;
-    }
+//    // Step 12: Check for incorrect active set TODO: How do I do this?
+//    updateActiveSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d),CASTD1(system->friction_d),CASTI1(activeSetNormalEQP_d),CASTI1(activeSetTangentEQP_d),system->collisionDetector->numCollisions);
+//    sameActiveSetNormal = thrust::equal(activeSetNormalEQP_d.begin(),activeSetNormalEQP_d.end(), activeSetNormal_d.begin());
+//    sameActiveSetTangent = thrust::equal(activeSetTangentEQP_d.begin(),activeSetTangentEQP_d.end(), activeSetTangent_d.begin());
+//    if(!(sameActiveSetNormal&&sameActiveSetTangent)) {
+//      tol_p = 0.5*tol_p;
+//      break;
+//    }
 
     // Step 13: Calculate infinity norm of the correction and check for convergence
     double delta_nrm = cusp::blas::nrmmax(delta);

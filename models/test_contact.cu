@@ -2,6 +2,7 @@
 #include "System.cuh"
 #include "Body.cuh"
 #include "TPAS.cuh"
+#include "JKIP.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -178,19 +179,25 @@ int main(int argc, char** argv)
 #endif
 	//visualize = false;
 
-	int solverTypeQOCC = 3;
+	int solverTypeQOCC = 4;
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);
   sys->collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys->solver->tolerance = 1e-4;
   sys->solver->maxIterations = 100;
-  int precondType = 0;
-  int solverType = 3;
+  int precondType = 1;
+  int solverType = 2;
   int numPartitions = 1;
   if(solverTypeQOCC==3) {
     dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
     dynamic_cast<TPAS*>(sys->solver)->setNumPartitions(numPartitions);
+  }
+  if(solverTypeQOCC==4) {
+    dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<JKIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
   // Bottom
