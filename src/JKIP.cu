@@ -505,6 +505,7 @@ int JKIP::solve() {
   cusp::print(y);
 
   cout << "alpha: " << alpha << endl;
+  cin.get();
 
   // determine d vector
   double s = 2*alpha;
@@ -519,6 +520,7 @@ int JKIP::solve() {
   cusp::print(y);
   cusp::print(d);
   cout << "alpha: " << alpha << endl;
+  cin.get();
 
   double ds = 0;
   int k;
@@ -564,7 +566,7 @@ int JKIP::solve() {
     cin.get();
 
     getStepLength<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(dx_d), CASTD1(y_d), CASTD1(dy_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
-    double theta = 0.99*Thrust_Min(tmp_d);
+    double theta = fmin(Thrust_Min(tmp_d),1.0);
     std::cout << "theta: " << theta << std::endl;
     cin.get();
 
@@ -594,6 +596,7 @@ int JKIP::solve() {
     totalKrylovIterations += stats.numIterations;
 
     cout << "  Iterations: " << k << " Residual: " << residual << " Total Krylov iters: " << totalKrylovIterations << endl;
+    cin.get();
   }
   cusp::print(x);
   cusp::print(system->gamma);

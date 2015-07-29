@@ -105,7 +105,6 @@ void renderSceneAll(){
 		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		sys->exportSystem(filename);
 		sys->DoTimeStep();
-		std::cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -182,9 +181,9 @@ int main(int argc, char** argv)
   double t_end = 3.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
-  int precondType = 0;
+  int precondType = 1;
   int numElementsPerSide = 4;
-  int solverType = 3;
+  int solverType = 2;
   int numPartitions = 1;
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
@@ -234,7 +233,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<JKIP*>(sys->solver)->setSolverType(solverType);
     dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
-    dynamic_cast<JKIP*>(sys->solver)->careful = false;
+    dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
   sys->solver->tolerance = 1e-4;
   //sys->solver->maxIterations = 10;
