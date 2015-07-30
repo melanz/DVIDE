@@ -23,18 +23,21 @@ public:
   double tolerance;
   int maxIterations;
   int iterations;
+  bool verbose;
 
   Solver() {
     system = 0;
     tolerance = 0;
     maxIterations = 1000000;
     iterations = 0;
+    verbose = false;
   }
 	Solver(System* sys) {
 	  system = sys;
 	  tolerance = 0;
 	  maxIterations = 1000000;
 	  iterations = 0;
+	  verbose = false;
 	}
 	virtual int setup() = 0;
 	virtual int solve() = 0;

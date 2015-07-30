@@ -2,6 +2,7 @@
 #include "System.cuh"
 #include "Body.cuh"
 #include "PDIP.cuh"
+#include "JKIP.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -185,7 +186,7 @@ int main(int argc, char** argv)
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 1;
+  int solverTypeQOCC = 4;
   int binsPerAxis = 10;
 
   if(argc > 1) {
@@ -206,7 +207,7 @@ int main(int argc, char** argv)
 	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-4);
+  sys->setTimeStep(1e-3);
 
   int numElementsPerSideY = 10;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
@@ -217,6 +218,12 @@ int main(int argc, char** argv)
     dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
     dynamic_cast<PDIP*>(sys->solver)->beta = beta;
     dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
+  if(solverTypeQOCC==4) {
+    dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<JKIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
   sys->solver->tolerance = 1e-4;
   //sys->solver->maxIterations = 10;
@@ -313,6 +320,7 @@ int main(int argc, char** argv)
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
 		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << sys->p_h[0] << ", " << numKrylovIter << ", " << endl;
 
 	}

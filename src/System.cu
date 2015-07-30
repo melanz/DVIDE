@@ -330,7 +330,7 @@ int System::clearAppliedForces() {
 __global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  friction[index] = 1.0; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
+  friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
   double4 nAndP;
   double3 n, u, v;
@@ -595,6 +595,23 @@ int System::importSystem(string filename) {
     bodyPtr->setMass(mass);
     add(bodyPtr);
   }
+
+  return 0;
+}
+
+int System::exportMatrices(string directory) {
+
+  string filename = directory + "/D.mtx";
+  cusp::io::write_matrix_market_file(D, filename);
+
+  filename = directory + "/Minv.mtx";
+  cusp::io::write_matrix_market_file(mass, filename);
+
+  filename = directory + "/r.mtx";
+  cusp::io::write_matrix_market_file(r, filename);
+
+  filename = directory + "/k.mtx";
+  cusp::io::write_matrix_market_file(k, filename);
 
   return 0;
 }

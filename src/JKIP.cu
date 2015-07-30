@@ -138,7 +138,9 @@ __global__ void getFeasible(double* src, double* dst, uint numCollisions) {
   double xt1 = src[3*index+1];
   double xt2 = src[3*index+2];
 
-  dst[3*index] = -fmin(0.0,xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0)));
+  xn = xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
   dst[3*index+1] = -10e30;
   dst[3*index+2] = -10e30;
 }
@@ -148,6 +150,7 @@ __global__ void getStepLength(double* x, double* dx, double* y, double* dy, doub
 
   double tx;
   double ty;
+  double aux;
 
   double xn = x[3*index];
   double xt1 = x[3*index+1];
@@ -163,7 +166,12 @@ __global__ void getStepLength(double* x, double* dx, double* y, double* dy, doub
     tx = 1.0;
   } else {
     tx = 0.5*(dxn*xn-dxt1*xt1-dxt2*xt2);
-    tx = detx/(sqrt(pow(tx,2.0)-detdx*detx)-tx);
+    aux = pow(tx,2.0)-detdx*detx;
+    if(aux>0.0) {
+      tx = 0.99*detx/(sqrt(aux)-tx);
+    } else {
+      tx = -0.99*detx/tx;
+    }
   }
 
   xn = y[3*index];
@@ -180,7 +188,12 @@ __global__ void getStepLength(double* x, double* dx, double* y, double* dy, doub
     ty = 1.0;
   } else {
     ty = 0.5*(dxn*xn-dxt1*xt1-dxt2*xt2);
-    ty = detx/(sqrt(pow(ty,2.0)-detdx*detx)-ty);
+    aux = pow(ty,2.0)-detdx*detx;
+    if(aux>0.0) {
+      ty = 0.99*detx/(sqrt(aux)-ty);
+    } else {
+      ty = -0.99*detx/ty;
+    }
   }
 
   dst[3*index] = tx;
@@ -215,6 +228,8 @@ __global__ void constructPw(int* PwI, int* PwJ, double* Pw, double* x, double* y
 
   double sqrtDetx = sqrt(0.5*(pow(x0,2.0) - (pow(x1,2.0)+pow(x2,2.0))));
   double sqrtDety = sqrt(0.5*(pow(y0,2.0) - (pow(y1,2.0)+pow(y2,2.0))));
+  if(sqrtDetx!=sqrtDetx) sqrtDetx = 0.0;
+  if(sqrtDety!=sqrtDety) sqrtDety = 0.0;
 
   PwI[9*index] = 3*index;
   PwJ[9*index] = 3*index;
@@ -264,10 +279,12 @@ __global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
   double y1 = y[3*index+1];
   double y2 = y[3*index+2];
 
-  double sqrtDetx = sqrt(0.5*(pow(x0,2.0) - (pow(x1,2.0)+pow(x2,2.0))));
-  double sqrtDety = sqrt(0.5*(pow(y0,2.0) - (pow(y1,2.0)+pow(y2,2.0))));
+  double sqrtDetx = sqrt(abs(0.5*(pow(x0,2.0) - (pow(x1,2.0)+pow(x2,2.0)))));
+  double sqrtDety = sqrt(abs(0.5*(pow(y0,2.0) - (pow(y1,2.0)+pow(y2,2.0)))));
+  //if(sqrtDetx!=sqrtDetx) sqrtDetx = 1e-4;//0.0;
+  //if(sqrtDety!=sqrtDety) sqrtDety = 0.0;
 
-  Pw[9*index] = pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx;
+  Pw[9*index] =   pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx;
   Pw[9*index+1] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+2] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+3] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
@@ -424,10 +441,12 @@ double JKIP::updateAlpha(double s) {
   return 0.5*beta*dotprod/(n+1.0);
 }
 
-int JKIP::performSchurComplementProduct(DeviceValueArrayView src) {
-  cusp::multiply(system->DT,src,system->f_contact);
+int JKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2) {
+  cusp::multiply(invTx,src,tmp);
+  cusp::multiply(system->DT,tmp,system->f_contact);
   cusp::multiply(system->mass,system->f_contact,system->tmp);
-  cusp::multiply(system->D,system->tmp,tmp);
+  cusp::multiply(system->D,system->tmp,tmp2);
+  cusp::multiply(Ty,tmp2,tmp);
 
   return 0;
 }
@@ -487,25 +506,34 @@ int JKIP::solve() {
 
   // initialize matrices and vectors
   initializeT();
+
+  if(verbose) {
+    cusp::print(invTx);
+    cusp::print(Ty);
+
+    cin.get();
+  }
+
   initializePw();
   cusp::multiply(Ty,system->r,r);
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
-  performSchurComplementProduct(x);
+  performSchurComplementProduct(x,y); //NOTE: y is destroyed here
   cusp::blas::axpby(tmp,r,y,1.0,1.0);
 
   // determine initial alpha
   double alpha = cusp::blas::dot(x,y);
-  alpha = 0.5*abs(alpha)/ ((double) system->collisionDetector->numCollisions);
+  alpha = 0.5*abs(alpha)/((double) system->collisionDetector->numCollisions);
 
-  cusp::print(system->DT);
-  cusp::print(system->mass);
-  cusp::print(system->D);
-  cusp::print(r);
-  cusp::print(x);
-  cusp::print(y);
+  if(verbose) {
+    cusp::print(system->DT);
+    cusp::print(system->mass);
+    cusp::print(system->D);
+    cusp::print(r);
+    cusp::print(x);
+    cusp::print(y);
 
-  cout << "alpha: " << alpha << endl;
-  cin.get();
+    cout << "alpha: " << alpha << endl;
+  }
 
   // determine d vector
   double s = 2*alpha;
@@ -516,59 +544,76 @@ int JKIP::solve() {
 
   alpha = updateAlpha(s);
 
-  cusp::print(x);
-  cusp::print(y);
-  cusp::print(d);
-  cout << "alpha: " << alpha << endl;
-  cin.get();
+  if(verbose) {
+    cusp::print(x);
+    cusp::print(y);
+    cusp::print(d);
+    cout << "alpha: " << alpha << endl;
+  }
 
   double ds = 0;
   int k;
+  totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
     updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
-    cusp::print(Pw);
-    cin.get();
+    if(verbose) {
+      cusp::print(Pw);
+      cin.get();
+    }
 
     if(feasible) {
       ds = 0.0;
     } else {
       ds = 2.0*alpha-s;
     }
-    cout << "ds: " << ds << endl;
-    cin.get();
+    if(verbose) {
+      cout << "ds: " << ds << endl;
+      cin.get();
+    }
 
     getInverse<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(b_d), system->collisionDetector->numCollisions);
-    cusp::print(b);
-    cin.get();
     cusp::blas::axpbypcz(b,y,d,b,alpha,-1.0,-ds);
-    cusp::print(b);
-    cin.get();
 
-    system->buildSchurMatrix(); //TODO: remove this!
-    cusp::print(system->N);
-    cin.get();
+    if(verbose) {
+      cusp::print(b);
+      cin.get();
+
+      system->buildSchurMatrix(); //TODO: remove this!
+      cusp::print(system->N);
+      cin.get();
+    }
 
     // solve system
     delete mySolver;
-    m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, system->tmp, tmp);
+    m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Ty, invTx, system->tmp, system->f_contact, tmp);
     mySolver = new SpikeSolver(partitions, solverOptions);
     mySolver->setup(Pw); //TODO: Use preconditioning here! Need to build full matrix...
 
     cusp::blas::fill(dx, 0.0);
     bool success = mySolver->solve(*m_spmv, b, dx);
     spike::Stats stats = mySolver->getStats();
-    cusp::print(dx);
-    cin.get();
+    if(verbose) {
+      cusp::print(dx);
+      cin.get();
+    }
 
-    performSchurComplementProduct(dx);
+    performSchurComplementProduct(dx,dy); //NOTE: dy is destroyed here
     cusp::blas::axpby(tmp,d,dy,1.0,ds);
-    cusp::print(dy);
-    cin.get();
+    if(verbose) {
+      cusp::print(dy);
+      cin.get();
+    }
 
     getStepLength<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(dx_d), CASTD1(y_d), CASTD1(dy_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double theta = fmin(Thrust_Min(tmp_d),1.0);
-    std::cout << "theta: " << theta << std::endl;
-    cin.get();
+
+    if(verbose) {
+      cusp::print(x);
+      cusp::print(dx);
+      cusp::print(tmp);
+      std::cout << "theta: " << theta << std::endl;
+      cin.get();
+    }
 
     cusp::blas::axpy(dx,x,theta);
     cusp::blas::axpy(dy,y,theta);
@@ -583,23 +628,23 @@ int JKIP::solve() {
     double feasibleY = Thrust_Max(tmp_d);
     if(feasible==false && feasibleY == 0) {
       cusp::blas::axpy(d,y,-s);
-      s = 0;
+      s = 0.0;
       feasible = true;
     }
 
     residual = fmax(feasibleX,feasibleY);
     residual = fmax(residual,optim);
     if (residual < tolerance) break;
-    cusp::print(x);
+    if(verbose) cusp::print(x);
 
     alpha = updateAlpha(s);
     totalKrylovIterations += stats.numIterations;
 
-    cout << "  Iterations: " << k << " Residual: " << residual << " Total Krylov iters: " << totalKrylovIterations << endl;
-    cin.get();
+    if(verbose) {
+      cout << "  Iterations: " << k << " Residual: " << residual << " Total Krylov iters: " << totalKrylovIterations << endl;
+      cin.get();
+    }
   }
-  cusp::print(x);
-  cusp::print(system->gamma);
   cusp::multiply(invTx,x,system->gamma);
 
   iterations = k;

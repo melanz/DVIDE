@@ -139,6 +139,7 @@ public:
 	int     buildSchurMatrix();
 	int     exportSystem(string filename);
 	int     importSystem(string filename);
+	int     exportMatrices(string directory);
 };
 
 #endif /* SYSTEM_CUH_ */

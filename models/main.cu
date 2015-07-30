@@ -12,7 +12,7 @@ bool wireFrame = 1;
 System* sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(4,5,-140),camreal3(4,5,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(4,5,-14),camreal3(4,5,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -105,6 +105,17 @@ void renderSceneAll(){
 		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		sys->exportSystem(filename);
 		sys->DoTimeStep();
+		sys->exportMatrices("../data");
+//    sys->f_contact_h = sys->f_contact_d;
+//    for(int i=0; i<sys->f_contact_h.size(); i++) {
+//      cout << "f_contact_h[" << i << "] = " << sys->f_contact_h[i] << endl;
+//    }
+//
+//
+//    if(sys->time>.48) {
+//      sys->solver->verbose = true;
+//      cin.get();
+//    }
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -181,14 +192,14 @@ int main(int argc, char** argv)
   double t_end = 3.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
-  int precondType = 1;
+  int precondType = 0;
   int numElementsPerSide = 4;
-  int solverType = 2;
+  int solverType = 3;
   int numPartitions = 1;
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 4;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 10;
 
   if(argc > 1) {
@@ -211,7 +222,7 @@ int main(int argc, char** argv)
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);
 
-  int numElementsPerSideY = 10;
+  int numElementsPerSideY = 4;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);

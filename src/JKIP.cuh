@@ -32,12 +32,14 @@ typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
 class MySpmvJKIP : public cusp::linear_operator<double, cusp::device_memory>{
 public:
   typedef cusp::linear_operator<double, cusp::device_memory> super;
-  MySpmvJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mtemp_vel(temp_vel), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
+  MySpmvJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceView& Ty, DeviceView& invTx, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_vel2, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mTy(Ty), minvTx(invTx), mtemp_vel(temp_vel), mtemp_vel2(temp_vel2), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
   void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
     // Av = D*Minv*D'*v
-    cusp::multiply(mDT, v, mtemp_vel);
-    cusp::multiply(mMinv, mtemp_vel, mtemp_gamma);
-    cusp::multiply(mD, mtemp_gamma, Av);
+    cusp::multiply(minvTx,v,mtemp_gamma);
+    cusp::multiply(mDT, mtemp_gamma, mtemp_vel);
+    cusp::multiply(mMinv, mtemp_vel, mtemp_vel2);
+    cusp::multiply(mD, mtemp_vel2, mtemp_gamma);
+    cusp::multiply(mTy,mtemp_gamma,Av);
 
     // tmp = P(w)*v
     cusp::multiply(mPw, v, mtemp_gamma);
@@ -50,8 +52,11 @@ private:
   DeviceView& mD;
   DeviceView& mDT;
   DeviceView& mPw;
+  DeviceView& mTy;
+  DeviceView& minvTx;
 
   DeviceValueArrayView& mtemp_vel;
+  DeviceValueArrayView& mtemp_vel2;
   DeviceValueArrayView& mtemp_gamma;
 };
 
@@ -133,7 +138,7 @@ private:
 
   int initializeT();
   int initializePw();
-  int performSchurComplementProduct(DeviceValueArrayView src);
+  int performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
   double updateAlpha(double s);
 
 public:

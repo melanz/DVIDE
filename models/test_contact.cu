@@ -109,6 +109,7 @@ void renderSceneAll(){
     for(int i=0; i<sys->f_contact_h.size(); i++) {
       cout << "f_contact_h[" << i << "] = " << sys->f_contact_h[i] << endl;
     }
+
     cin.get();
 
 	}
@@ -185,9 +186,10 @@ int main(int argc, char** argv)
   sys->collisionDetector->setBinsPerAxis(make_uint3(10,10,10));
   sys->solver->tolerance = 1e-4;
   sys->solver->maxIterations = 100;
-  int precondType = 1;
-  int solverType = 2;
+  int precondType = 0;
+  int solverType = 3;
   int numPartitions = 1;
+  //sys->solver->verbose = true;
   if(solverTypeQOCC==3) {
     dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
@@ -206,23 +208,23 @@ int main(int argc, char** argv)
   groundPtr->setGeometry(make_double3(4,0.5,1));
   sys->add(groundPtr);
 
-  Body* ball1 = new Body(make_double3(3,1,0));
-  ball1->setGeometry(make_double3(1,0,0));
-  sys->add(ball1);
-  sys->applyForce(ball1,make_double3(20,0,0));
+//  Body* ball1 = new Body(make_double3(3,1,0));
+//  ball1->setGeometry(make_double3(1,0,0));
+//  sys->add(ball1);
+//  sys->applyForce(ball1,make_double3(20,0,0));
 
   Body* ball2 = new Body(make_double3(0,1,0));
   ball2->setGeometry(make_double3(1,0,0));
   sys->add(ball2);
   sys->applyForce(ball2,make_double3(1,0,0));
 
-  Body* ball3 = new Body(make_double3(-3,1,0));
-  ball3->setGeometry(make_double3(1,0,0));
-  sys->add(ball3);
-
-  Body* ball4 = new Body(make_double3(0,-2,0));
-  ball4->setGeometry(make_double3(1,0,0));
-  sys->add(ball4);
+//  Body* ball3 = new Body(make_double3(-3,1,0));
+//  ball3->setGeometry(make_double3(1,0,0));
+//  sys->add(ball3);
+//
+//  Body* ball4 = new Body(make_double3(0,-2,0));
+//  ball4->setGeometry(make_double3(1,0,0));
+//  sys->add(ball4);
 
 	sys->initializeSystem();
 	printf("System initialized!\n");
