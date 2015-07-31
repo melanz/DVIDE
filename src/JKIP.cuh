@@ -93,6 +93,7 @@ private:
   DeviceView invTx;
   DeviceView Ty;
   DeviceView Pw;
+  DeviceMatrix A;
 
   thrust::host_vector<double> x_h;
   thrust::host_vector<double> y_h;
@@ -140,6 +141,7 @@ private:
   int initializePw();
   int performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
   double updateAlpha(double s);
+  int buildSchurMatrix();
 
 public:
   bool careful;

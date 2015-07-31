@@ -451,6 +451,16 @@ int JKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArr
   return 0;
 }
 
+int JKIP::buildSchurMatrix() {
+  // build N
+  cusp::multiply(system->mass,system->DT,system->MinvDT);
+  cusp::multiply(system->D,system->MinvDT,system->N);
+  cusp::multiply(system->N,invTx,system->MinvDT);
+  cusp::multiply(Ty,system->MinvDT,system->N);
+
+  return 0;
+}
+
 int JKIP::solve() {
   solverOptions.relTol = std::min(0.01 * tolerance, 1e-6);
   solverOptions.absTol = 1e-10;
@@ -515,6 +525,7 @@ int JKIP::solve() {
   }
 
   initializePw();
+  buildSchurMatrix();
   cusp::multiply(Ty,system->r,r);
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
   performSchurComplementProduct(x,y); //NOTE: y is destroyed here
@@ -556,6 +567,7 @@ int JKIP::solve() {
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
     updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
+    cusp::add(system->N,Pw,A);
     if(verbose) {
       cusp::print(Pw);
       cin.get();
@@ -585,12 +597,12 @@ int JKIP::solve() {
 
     // solve system
     delete mySolver;
-    m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Ty, invTx, system->tmp, system->f_contact, tmp);
+    //m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Ty, invTx, system->tmp, system->f_contact, tmp);
     mySolver = new SpikeSolver(partitions, solverOptions);
-    mySolver->setup(Pw); //TODO: Use preconditioning here! Need to build full matrix...
+    mySolver->setup(A); //TODO: Use preconditioning here! Need to build full matrix...
 
     cusp::blas::fill(dx, 0.0);
-    bool success = mySolver->solve(*m_spmv, b, dx);
+    bool success = mySolver->solve(A, b, dx);
     spike::Stats stats = mySolver->getStats();
     if(verbose) {
       cusp::print(dx);

@@ -192,9 +192,9 @@ int main(int argc, char** argv)
   double t_end = 3.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
-  int precondType = 0;
+  int precondType = 1;
   int numElementsPerSide = 4;
-  int solverType = 3;
+  int solverType = 2;
   int numPartitions = 1;
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
@@ -222,7 +222,7 @@ int main(int argc, char** argv)
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);
 
-  int numElementsPerSideY = 4;
+  int numElementsPerSideY = 10;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
