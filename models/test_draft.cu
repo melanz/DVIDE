@@ -2,6 +2,7 @@
 #include "System.cuh"
 #include "Body.cuh"
 #include "PDIP.cuh"
+#include "JKIP.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -103,6 +104,10 @@ void renderSceneAll(){
 		//sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		//sys->exportSystem(filename);
 		sys->DoTimeStep();
+		if(sys->solver->iterations==1000) {
+		  sys->exportMatrices("../data");
+		  cin.get();
+		}
 
 //    // Determine contact force on the container
 //    sys->f_contact_h = sys->f_contact_d;
@@ -183,7 +188,7 @@ int main(int argc, char** argv)
   int numElementsPerSide = 4;
   int solverType = 2;
   int numPartitions = 1;
-  double mu_pdip = 150.0;
+  double mu_pdip = 0.2;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 2;
@@ -200,8 +205,8 @@ int main(int argc, char** argv)
   sys->gravity = make_double3(0,-981,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 1e-3;
-  sys->solver->maxIterations = 30;
+  sys->solver->tolerance = 5;
+  //sys->solver->maxIterations = 30;
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
@@ -209,6 +214,12 @@ int main(int argc, char** argv)
     dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
     dynamic_cast<PDIP*>(sys->solver)->beta = beta;
     dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
+  if(solverTypeQOCC==4) {
+    dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<JKIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
   double rMin = 0.8;
@@ -338,6 +349,7 @@ int main(int argc, char** argv)
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
 		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
 	}

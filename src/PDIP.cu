@@ -382,49 +382,49 @@ int PDIP::buildAMatrix() {
   return 0;
 }
 
-__global__ void project3(double* src, double* friction, uint numCollisions) {
-  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+//__global__ void project3(double* src, double* friction, uint numCollisions) {
+//  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+//
+//  double mu = friction[index];
+//  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
+//  double gamma_n = gamma.x;
+//  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
+//
+//  if(mu == 0) {
+//    gamma = make_double3(gamma_n,0,0);
+//    if (gamma_n < 0) gamma = make_double3(0,0,0);
+//  }
+//  else if(gamma_t < mu * gamma_n) {
+//    // Don't touch gamma!
+//  }
+//  else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
+//    gamma = make_double3(0,0,0);
+//  }
+//  else {
+//    double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
+//    double gamma_t_proj = gamma_n_proj * mu;
+//    double tproj_div_t = gamma_t_proj/gamma_t;
+//    double gamma_u_proj = tproj_div_t * gamma.y;
+//    double gamma_v_proj = tproj_div_t * gamma.z;
+//    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
+//  }
+//
+//  src[3*index  ] = gamma.x;
+//  src[3*index+1] = gamma.y;
+//  src[3*index+2] = gamma.z;
+//}
 
-  double mu = friction[index];
-  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
-  double gamma_n = gamma.x;
-  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
-
-  if(mu == 0) {
-    gamma = make_double3(gamma_n,0,0);
-    if (gamma_n < 0) gamma = make_double3(0,0,0);
-  }
-  else if(gamma_t < mu * gamma_n) {
-    // Don't touch gamma!
-  }
-  else if((gamma_t < -(1.0/mu)*gamma_n) || (abs(gamma_n) < 10e-15)) {
-    gamma = make_double3(0,0,0);
-  }
-  else {
-    double gamma_n_proj = (gamma_t * mu + gamma_n)/(pow(mu,2.0)+1.0);
-    double gamma_t_proj = gamma_n_proj * mu;
-    double tproj_div_t = gamma_t_proj/gamma_t;
-    double gamma_u_proj = tproj_div_t * gamma.y;
-    double gamma_v_proj = tproj_div_t * gamma.z;
-    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
-  }
-
-  src[3*index  ] = gamma.x;
-  src[3*index+1] = gamma.y;
-  src[3*index+2] = gamma.z;
-}
-
-double PDIP::getResidual(DeviceValueArrayView src) {
-  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
-  //performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
-  cusp::multiply(system->N,src,gammaTmp);
-  cusp::blas::axpy(system->r,gammaTmp,1.0);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-  project3<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
-
-  return cusp::blas::nrmmax(gammaTmp);
-}
+//double PDIP::getResidual(DeviceValueArrayView src) {
+//  double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
+//  //performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
+//  cusp::multiply(system->N,src,gammaTmp);
+//  cusp::blas::axpy(system->r,gammaTmp,1.0);
+//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
+//  project3<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+//  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
+//
+//  return cusp::blas::nrmmax(gammaTmp);
+//}
 
 int PDIP::solve() {
   solverOptions.relTol = std::min(0.01 * tolerance, 1e-6);
@@ -601,14 +601,14 @@ int PDIP::solve() {
 
     // (20) r = r(gamma_(k+1))
     //residual = cusp::blas::nrm2(r_g);///system->collisionDetector->numCollisions;
-    residual = cusp::blas::nrm2(r_g);
-    //cusp::multiply(system->N,system->gamma,gammaTmp);
-    //cusp::blas::axpy(system->r,gammaTmp,1.0);
-    //getResidual<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
-    //residual = cusp::blas::nrmmax(gammaTmp);///fmax(1.0,cusp::blas::nrmmax(gammaTmp));
+    //residual = cusp::blas::nrm2(r_g);
+    cusp::multiply(system->N,system->gamma,gammaTmp);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getResidual<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
+    residual = cusp::blas::nrmmax(gammaTmp);//fmax(1.0,cusp::blas::nrmmax(gammaTmp));
     //residual = getResidual(system->gamma);
-    if(k==0) residual0 = residual;
-    residual = residual/residual0;
+    //if(k==0) residual0 = residual;
+    //residual = residual/residual0;
     // (21) if r < tau
     if (residual < tolerance) {
       // (22) break
