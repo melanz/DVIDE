@@ -11,7 +11,7 @@ bool wireFrame = 1;
 System* sys;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(4,5,-500),camreal3(4,5,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(0.04,0.05,-5.00),camreal3(0.04,0.05,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -188,24 +188,24 @@ int main(int argc, char** argv)
   int numElementsPerSide = 4;
   int solverType = 2;
   int numPartitions = 1;
-  double mu_pdip = 0.2;
+  double mu_pdip = 10;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 2;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 10;
 
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	double hh = 1e-3;
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
-  sys->gravity = make_double3(0,-981,0);
+  sys->gravity = make_double3(0,-9.81,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 5;
+  sys->solver->tolerance = 1e-3;
   //sys->solver->maxIterations = 30;
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
@@ -222,18 +222,20 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  double rMin = 0.8;
-  double rMax = 1.6;
+  double rMin = 0.008;
+  double rMax = 0.016;
   double r = rMax;
-  double L = 20;//460;
-  double W = 60;
-  double H = 80;
-  double bL = 1;
-  double bH = 60;
-  double bW = 20;
-  double depth = 25;
-  double th = 1;
-  double density = 2.6;
+  double L = 1;//0.20;//460;
+  double W = 0.60;
+  double H = 0.80;
+  double bL = 0.01;
+  double bH = 0.60;
+  double bW = 0.20;
+  double depth = 0.25;
+  double th = 0.01;
+  double density = 2600;
+
+  //sys->importSystem("../data/data_150_APGD.dat");
 
   // Blade
   Body* bladePtr = new Body(make_double3(0.5*L+2*th,0.5*bH+depth,0));
@@ -272,7 +274,7 @@ int main(int argc, char** argv)
   sys->add(frontPtr);
 
   Body* bodyPtr;
-  double wiggle = .3;//0.1;
+  double wiggle = 0.003;//0.1;
   int numElementsPerSideX = (L+2*th)/(2*r+2*wiggle);
   int numElementsPerSideY = 2.5*H/(2*r+2*wiggle);
   int numElementsPerSideZ = (W+2*th)/(2*r+2*wiggle);
@@ -352,6 +354,10 @@ int main(int argc, char** argv)
 		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
 		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
+    if(sys->solver->iterations==1000) {
+      sys->exportMatrices("../data");
+      cin.get();
+    }
 	}
 
 	return 0;

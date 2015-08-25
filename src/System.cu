@@ -107,6 +107,10 @@ int System::add(Body* body) {
   r_h.push_back(0);
   r_h.push_back(0);
 
+  r_h.push_back(0);
+  r_h.push_back(0);
+  r_h.push_back(0);
+
   k_h.push_back(0);
   k_h.push_back(0);
   k_h.push_back(0);
@@ -137,6 +141,7 @@ int System::initializeDevice() {
   f_contact_d = f_contact_h;
   tmp_d = tmp_h;
   r_d = r_h;
+  b_d = b_h;
   k_d = k_h;
   gamma_d = a_h;
   friction_d = a_h;
@@ -157,6 +162,7 @@ int System::initializeDevice() {
   thrust::device_ptr<double> wrapped_device_fApplied(CASTD1(fApplied_d));
   thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+  thrust::device_ptr<double> wrapped_device_b(CASTD1(b_d));
   thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
 
@@ -168,6 +174,7 @@ int System::initializeDevice() {
   fApplied = DeviceValueArrayView(wrapped_device_fApplied, wrapped_device_fApplied + fApplied_d.size());
   tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+  b = DeviceValueArrayView(wrapped_device_b, wrapped_device_b + b_d.size());
   k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
   gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
 
@@ -237,7 +244,7 @@ int System::DoTimeStep() {
     // Apply sinusoidal motion
     v_h = v_d;
     for(int i=0;i<1;i++) {
-      v_h[3*i] = -20;//v_h[3*i]+4.0*sin((time-2)*3.0);
+      v_h[3*i] = -0.20;//v_h[3*i]+4.0*sin((time-2)*3.0);
       v_h[3*i+1] = 0;
       v_h[3*i+2] = 0;
     }
@@ -489,26 +496,32 @@ int System::buildAppliedImpulseVector() {
   return 0;
 }
 
-__global__ void applyStabilization(double* r, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
+__global__ void buildStabilization(double* b, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
-  if(penetration>0) penetration = 0;
+  if(penetration>0) penetration = 0; // TODO: is this correct?
 
-  r[3*index] += penetration/timeStep;
+  b[3*index] = penetration/timeStep;
+  b[3*index+1] = 0;
+  b[3*index+2] = 0;
 }
 
 int System::buildSchurVector() {
   // build r
   r_d.resize(3*collisionDetector->numCollisions);
+  b_d.resize(3*collisionDetector->numCollisions);
   // TODO: There's got to be a better way to do this...
   //r.resize(3*collisionDetector->numCollisions);
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+  thrust::device_ptr<double> wrapped_device_b(CASTD1(b_d));
+  b = DeviceValueArrayView(wrapped_device_b, wrapped_device_b + b_d.size());
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
 
-  applyStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(r_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+  buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+  cusp::blas::axpy(b,r,1.0);
 
   return 0;
 }
@@ -519,6 +532,61 @@ int System::buildSchurMatrix() {
   cusp::multiply(D,MinvDT,N);
 
   return 0;
+}
+
+__global__ void getNormalComponent(double* src, double* dst, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  dst[index] = src[3*index];
+}
+
+__global__ void calculateConeViolation(double* gamma, double* friction, double* dst, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double gamma_t = sqrt(pow(gamma[3*index+1],2.0)+pow(gamma[3*index+2],2.0));
+  double coneViolation = friction[index]*gamma[3*index] - gamma_t; // TODO: Keep the friction indexing in mind for bilaterals
+  if(coneViolation>0) coneViolation = 0;
+  dst[index] = coneViolation;
+}
+
+double4 System::getCCPViolation() {
+  double4 violationCCP = make_double4(0,0,0,0);
+
+  if(collisionDetector->numCollisions) {
+    // Build normal impulse vector, gamma_n
+    thrust::device_vector<double> gamma_n_d;
+    gamma_n_d.resize(collisionDetector->numCollisions);
+    thrust::device_ptr<double> wrapped_device_gamma_n(CASTD1(gamma_n_d));
+    DeviceValueArrayView gamma_n = DeviceValueArrayView(wrapped_device_gamma_n, wrapped_device_gamma_n + gamma_n_d.size());
+    getNormalComponent<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gamma_d), CASTD1(gamma_n_d), collisionDetector->numCollisions);
+    violationCCP.x = Thrust_Min(gamma_n_d);
+    if(violationCCP.x > 0) violationCCP.x = 0;
+
+    // Build normal velocity vector, v_n
+    thrust::device_vector<double> tmp_gamma_d;
+    tmp_gamma_d.resize(3*collisionDetector->numCollisions);
+    thrust::device_ptr<double> wrapped_device_tmp_gamma(CASTD1(tmp_gamma_d));
+    DeviceValueArrayView tmp_gamma = DeviceValueArrayView(wrapped_device_tmp_gamma, wrapped_device_tmp_gamma + tmp_gamma_d.size());
+
+    thrust::device_vector<double> v_n_d;
+    v_n_d.resize(collisionDetector->numCollisions);
+    thrust::device_ptr<double> wrapped_device_v_n(CASTD1(v_n_d));
+    DeviceValueArrayView v_n = DeviceValueArrayView(wrapped_device_v_n, wrapped_device_v_n + v_n_d.size());
+    cusp::multiply(D,v,tmp_gamma);
+    cusp::blas::axpy(b,tmp_gamma,1.0);
+    getNormalComponent<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(tmp_gamma_d), CASTD1(v_n_d), collisionDetector->numCollisions);
+    violationCCP.y = Thrust_Min(v_n_d);
+    if(violationCCP.y > 0) violationCCP.y = 0;
+
+    // Check complementarity condition
+    violationCCP.z = cusp::blas::dot(gamma_n,v_n);
+
+    // Check friction cone condition
+    calculateConeViolation<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(gamma_d), CASTD1(friction_d), CASTD1(v_n_d), collisionDetector->numCollisions);
+    violationCCP.w = cusp::blas::nrm2(v_n);
+  }
+
+  return violationCCP;
 }
 
 int System::exportSystem(string filename) {
@@ -609,6 +677,9 @@ int System::exportMatrices(string directory) {
 
   filename = directory + "/r.mtx";
   cusp::io::write_matrix_market_file(r, filename);
+
+  filename = directory + "/b.mtx";
+  cusp::io::write_matrix_market_file(b, filename);
 
   filename = directory + "/k.mtx";
   cusp::io::write_matrix_market_file(k, filename);

@@ -105,6 +105,8 @@ void renderSceneAll(){
 		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
 		sys->exportSystem(filename);
 		sys->DoTimeStep();
+		double4 violation = sys->getCCPViolation();
+		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
 		sys->exportMatrices("../data");
 //    sys->f_contact_h = sys->f_contact_d;
 //    for(int i=0; i<sys->f_contact_h.size(); i++) {
@@ -193,7 +195,7 @@ int main(int argc, char** argv)
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 4;
+  int numElementsPerSide = 10;
   int solverType = 2;
   int numPartitions = 1;
   double mu_pdip = 150.0;
@@ -217,7 +219,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);
@@ -377,6 +379,8 @@ int main(int argc, char** argv)
     sys->exportSystem(filename);
 
 		sys->DoTimeStep();
+		double4 violation = sys->getCCPViolation();
+
 		double maxVelNow = Thrust_Max(sys->v_d);
 		if(maxVelNow>maxVel) maxVel = maxVelNow;
 
@@ -387,12 +391,13 @@ int main(int argc, char** argv)
 		  weight += sys->f_contact_h[3*i+1];
 		}
 		cout << "  Weight: " << weight << endl;
+		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
 		if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
 		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
+		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << violation.x << ", " << violation.y << ", " << violation.z << ", " << violation.w << ", " << endl;
 
 	}
 	cout << "Maximum Velocity = " << maxVel << endl;

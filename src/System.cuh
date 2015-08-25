@@ -46,6 +46,7 @@ public:
   DeviceValueArrayView f_contact;
   DeviceValueArrayView tmp;
   DeviceValueArrayView r;
+  DeviceValueArrayView b;
   DeviceValueArrayView k;
   DeviceValueArrayView gamma;
 	DeviceView mass;
@@ -63,6 +64,7 @@ public:
   thrust::host_vector<double> f_contact_h;
   thrust::host_vector<double> tmp_h;
   thrust::host_vector<double> r_h;
+  thrust::host_vector<double> b_h;
   thrust::host_vector<double> k_h;
   thrust::host_vector<double> gamma_h;
   thrust::host_vector<double> friction_h;
@@ -84,6 +86,7 @@ public:
   thrust::device_vector<double> f_contact_d;
   thrust::device_vector<double> tmp_d;
   thrust::device_vector<double> r_d;
+  thrust::device_vector<double> b_d;
   thrust::device_vector<double> k_d;
   thrust::device_vector<double> gamma_d;
   thrust::device_vector<double> friction_d;
@@ -140,6 +143,7 @@ public:
 	int     exportSystem(string filename);
 	int     importSystem(string filename);
 	int     exportMatrices(string directory);
+	double4 getCCPViolation();
 };
 
 #endif /* SYSTEM_CUH_ */

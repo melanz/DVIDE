@@ -41,7 +41,7 @@ int APGD::setup()
 __global__ void project(double* src, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = friction[index];
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
   double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
@@ -91,6 +91,19 @@ double APGD::getResidual(DeviceValueArrayView src) {
   return cusp::blas::nrmmax(gammaTmp);
 }
 
+__global__ void updateAntiRelaxationVector(double* s, double* friction, double* antiRelaxation, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double s_v = s[3*index+1];
+  double s_w = s[3*index+2];
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  antiRelaxation[3*index] = sqrt(pow(s_v,2.0)+pow(s_w,2.0))*mu;
+  antiRelaxation[3*index+1] = 0;
+  antiRelaxation[3*index+2] = 0;
+}
+
+
 int APGD::solve() {
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
@@ -100,6 +113,7 @@ int APGD::solve() {
   y_d.resize(3*system->collisionDetector->numCollisions);
   yNew_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
+  antiRelaxation_d.resize(3*system->collisionDetector->numCollisions);
 
   // TODO: There's got to be a better way to do this...
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
@@ -109,6 +123,7 @@ int APGD::solve() {
   thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
   thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
+  thrust::device_ptr<double> wrapped_device_antiRelaxation(CASTD1(antiRelaxation_d));
   system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
   gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
   gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
@@ -116,8 +131,10 @@ int APGD::solve() {
   y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
   yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
+  antiRelaxation = DeviceValueArrayView(wrapped_device_antiRelaxation, wrapped_device_antiRelaxation + antiRelaxation_d.size());
 
   // (1) gamma_0 = zeros(nc,1)
+  cusp::blas::fill(antiRelaxation,0.0);
   //cusp::blas::fill(system->gamma,0);
 
   // (2) gamma_hat_0 = ones(nc,1)
@@ -237,6 +254,16 @@ int APGD::solve() {
     theta = thetaNew;
     cusp::blas::copy(gammaNew,system->gamma);
     cusp::blas::copy(yNew,y);
+
+//    // Apply anti-relaxation
+//    cusp::blas::axpy(antiRelaxation,system->r,-1.0);
+//    cusp::multiply(system->DT,system->gamma,system->f_contact);
+//    cusp::blas::axpby(system->k,system->f_contact,system->tmp,1.0,1.0);
+//    cusp::multiply(system->mass,system->tmp,system->v);
+//    cusp::multiply(system->D,system->v,gammaTmp);
+//    updateAntiRelaxationVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(system->friction_d), CASTD1(antiRelaxation), system->collisionDetector->numCollisions);
+//    cusp::blas::axpy(antiRelaxation,system->r,1.0);
+//    // End apply anti-relaxation
 
     // (32) endfor
     //cout << "  Iterations: " << k << " Residual: " << residual << endl;
