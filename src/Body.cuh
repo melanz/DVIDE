@@ -108,6 +108,10 @@ public:
   {
     this->contactGeometry = geometry;
   }
+  void setVelocity(double3 velocity)
+  {
+    this->vel = velocity;
+  }
 };
 
 #endif /* ELEMENT_CUH_ */
