@@ -634,11 +634,13 @@ int System::exportSystem(string filename) {
 int System::importSystem(string filename) {
   double3 pos;
   double3 vel;
-  double3 geometry;
-  double mass;
-  int fixed;
+  double3 geometry = make_double3(0,0,0);
+  int isFixed;
   string temp_data;
   int numBodies;
+  double blah;
+  int index;
+  int shape;
 
   ifstream ifile(filename.c_str());
   getline(ifile,temp_data);
@@ -646,7 +648,7 @@ int System::importSystem(string filename) {
     if(temp_data[i]==','){temp_data[i]=' ';}
   }
   stringstream ss1(temp_data);
-  ss1>>numBodies;
+  ss1>>blah>>numBodies>>blah;
 
   Body* bodyPtr;
   for(int i=0; i<numBodies; i++) {
@@ -655,13 +657,26 @@ int System::importSystem(string filename) {
       if(temp_data[i]==','){temp_data[i]=' ';}
     }
     stringstream ss(temp_data);
-    ss>>pos.x>>pos.y>>pos.z>>vel.x>>vel.y>>vel.z>>geometry.x>>geometry.y>>geometry.z>>fixed>>mass;
+    ss>>index>>isFixed>>pos.x>>pos.y>>pos.z>>blah>>blah>>blah>>blah>>vel.x>>vel.y>>vel.z>>shape;
+    if(shape == 0) {
+      ss>>geometry.x;
+      geometry.y = 0;
+      geometry.z = 0;
+    } else {
+      ss>>geometry.x>>geometry.y>>geometry.z;
+    }
 
     bodyPtr = new Body(pos);
-    bodyPtr->setBodyFixed(fixed);
+    bodyPtr->setBodyFixed(isFixed);
     bodyPtr->setGeometry(geometry);
-    bodyPtr->setMass(mass);
+    bodyPtr->setVelocity(vel);
+    if(shape == 0) {
+      bodyPtr->setMass(2600*4.0*3.14159*pow(geometry.x,3.0)/3.0);
+    } else {
+      bodyPtr->setMass(1.0);
+    }
     add(bodyPtr);
+    //cout << index << " " << isFixed << " " << pos.x << " " << pos.y << " " << pos.z << " " << "1 0 0 0 " << vel.x << " " << vel.y << " " << vel.z << " " << shape << " " << geometry.x << " " << geometry.y << " " << geometry.z << endl;
   }
 
   return 0;
