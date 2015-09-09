@@ -4,6 +4,7 @@
 #include "PDIP.cuh"
 #include "TPAS.cuh"
 #include "JKIP.cuh"
+#include "PGJ.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 1;
+  int solverTypeQOCC = 5;
   int binsPerAxis = 10;
 
   if(argc > 1) {
@@ -219,7 +220,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);

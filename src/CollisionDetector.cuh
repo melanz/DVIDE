@@ -72,8 +72,6 @@ private:
 
   // Data for parallel collision detection
   thrust::device_vector<uint> numCollisionsPerPair_d;
-  thrust::device_vector<uint> bodyIdentifierA_d;
-  thrust::device_vector<uint> bodyIdentifierB_d;
   thrust::device_vector<double4> normalsAndPenetrations_d;
   thrust::device_vector<uint> collisionStartIndex_d;
   uint lastActiveCollision;
@@ -87,6 +85,8 @@ private:
 
 public:
   uint numCollisions;
+  thrust::device_vector<uint> bodyIdentifierA_d;
+  thrust::device_vector<uint> bodyIdentifierB_d;
 
 	CollisionDetector(System* sys);
 	int detectPossibleCollisions_spatialSubdivision();
@@ -95,6 +95,7 @@ public:
   int generateAxisAlignedBoundingBoxes();
   void setBinsPerAxis(uint3 binsPerAxis);
   int detectCollisions_CPU(); // TODO: Get rid of this function
+
 };
 
 #endif /* COLLISIONDETECTOR_CUH_ */
