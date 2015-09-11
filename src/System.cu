@@ -8,6 +8,7 @@
 #include "TPAS.cuh"
 #include "JKIP.cuh"
 #include "PGJ.cuh"
+#include "PGS.cuh"
 
 System::System()
 {
@@ -48,6 +49,9 @@ System::System(int solverType)
     break;
   case 5:
     solver = new PGJ(this);
+    break;
+  case 6:
+    solver = new PGS(this);
     break;
   default:
     solver = new APGD(this);

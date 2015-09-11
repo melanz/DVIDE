@@ -4,7 +4,6 @@
 #include "PDIP.cuh"
 #include "TPAS.cuh"
 #include "JKIP.cuh"
-#include "PGJ.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
@@ -108,7 +107,7 @@ void renderSceneAll(){
 		sys->DoTimeStep();
 		double4 violation = sys->getCCPViolation();
 		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
-		sys->exportMatrices("../data");
+//		sys->exportMatrices("../data");
 //    sys->f_contact_h = sys->f_contact_d;
 //    for(int i=0; i<sys->f_contact_h.size(); i++) {
 //      cout << "f_contact_h[" << i << "] = " << sys->f_contact_h[i] << endl;
@@ -202,7 +201,7 @@ int main(int argc, char** argv)
   double mu_pdip = 150.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 5;
+  int solverTypeQOCC = 6;
   int binsPerAxis = 10;
 
   if(argc > 1) {
@@ -250,7 +249,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
   sys->solver->tolerance = 1e-4;
-  //sys->solver->maxIterations = 10;
+  sys->solver->maxIterations = 10;
 
   double radius = 0.4;
 

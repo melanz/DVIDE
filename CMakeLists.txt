@@ -104,6 +104,8 @@ SET(IBEAMS_SOURCES
 	src/JKIP.cu
 	src/PGJ.cuh
 	src/PGJ.cu
+	src/PGS.cuh
+	src/PGS.cu
 	)
 
 SOURCE_GROUP(src FILES ${IBEAMS_SOURCES})
