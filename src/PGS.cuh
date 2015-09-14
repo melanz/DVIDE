@@ -26,19 +26,21 @@ private:
   // End PGS Solver
 
   // PGS Solver
-  thrust::host_vector<double> v_h;
   thrust::host_vector<double> gammaTmp_h;
   thrust::host_vector<double> B_h;
   // End PGS Solver
 
   // PGS Solver
-  thrust::device_vector<double> v_d;
   thrust::device_vector<double> gammaTmp_d;
   thrust::device_vector<double> B_d;
   // End PGS Solver
 
+  thrust::host_vector<uint> bodyIdentifierA_h;
+  thrust::host_vector<uint> bodyIdentifierB_h;
+
   int performSchurComplementProduct(DeviceValueArrayView src);
   double getResidual(DeviceValueArrayView src);
+  int updateImpulseVector_CPU();
 
 public:
 

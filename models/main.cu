@@ -195,7 +195,7 @@ int main(int argc, char** argv)
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 10;
+  int numElementsPerSide = 1;
   int solverType = 2;
   int numPartitions = 1;
   double mu_pdip = 150.0;
@@ -249,7 +249,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
   sys->solver->tolerance = 1e-4;
-  sys->solver->maxIterations = 10;
+  //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
 

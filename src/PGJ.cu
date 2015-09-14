@@ -127,6 +127,7 @@ int PGJ::solve() {
   double residual;
   int k;
   for (k=0; k < maxIterations; k++) {
+//    cusp::print(system->gamma);
     // (2) gamma_hat = ProjectionOperator(gamma - omega * B * (N * gamma + r))
     performSchurComplementProduct(system->gamma);                    // gammaTmp = N * gamma
     cusp::blas::axpby(gammaTmp,system->r,gammaHat,1.0,1.0);          // gammaHat = gammaTmp+r
@@ -136,6 +137,8 @@ int PGJ::solve() {
 
     // (3) gamma = lambda * gammaHat + (1-lambda) * gamma
     cusp::blas::axpby(gammaHat,system->gamma,system->gamma,lambda,(1.0-lambda));
+//    cin.get();
+//    cusp::print(system->gamma);
 
     // (4) r = r(gamma)
     residual = getResidual(system->gamma);
