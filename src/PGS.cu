@@ -336,15 +336,6 @@ __global__ void getResidual_PGS(double* src, double* gamma, uint numCollisions) 
 }
 
 int PGS::solve() {
-
-//  thrust::copy(system->v_d.begin(),system->v_d.end(),v_d.begin()); // temporary velocity vector
-//  cusp::print(system->v);
-//  cin.get();
-//  for(int i=0;i<v_d.size();i++) {
-//    cout << "v[" << i << "] = " << v_d[i] << endl;
-//  }
-//  cin.get();
-
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
   B_d.resize(3*system->collisionDetector->numCollisions);
@@ -385,12 +376,6 @@ int PGS::solve() {
     // (2) gamma_hat = ProjectionOperator(gamma - omega * B * (N * gamma + r))
     //cusp::print(system->gamma);
     //updateImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->b_d), CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(system->v_d), CASTD1(system->friction_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), omega, lambda, system->collisionDetector->numCollisions);
-    //updateImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->b_d), CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(v_d), CASTD1(system->friction_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), omega, lambda, system->collisionDetector->numCollisions);
-    //cin.get();
-    //cusp::print(system->gamma);
-    // (3) gamma = lambda * gammaHat + (1-lambda) * gamma
-    //cusp::blas::axpby(gammaHat,system->gamma,system->gamma,lambda,(1.0-lambda));
-    //cusp::print(system->gamma);
     updateImpulseVector_CPU();
     //cin.get();
     //cusp::print(system->gamma);
@@ -399,8 +384,6 @@ int PGS::solve() {
     //residual = getResidual(system->gamma);
     performSchurComplementProduct(system->gamma);
     cusp::blas::axpy(system->r,gammaTmp,1.0);
-    //cusp::multiply(system->D,system->v,gammaTmp);
-    //cusp::blas::axpy(system->b,gammaTmp,1.0);
     getResidual_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->gamma), system->collisionDetector->numCollisions);
     residual = cusp::blas::nrmmax(gammaTmp);
 
