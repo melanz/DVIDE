@@ -316,7 +316,6 @@ int PGS::performSchurComplementProduct(DeviceValueArrayView src) {
   return 0;
 }
 
-
 double PGS::getResidual(DeviceValueArrayView src) {
   double gdiff = 1.0 / pow(system->collisionDetector->numCollisions,2.0);
   performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
@@ -384,8 +383,8 @@ int PGS::solve() {
   int k;
   for (k=0; k < maxIterations; k++) {
     // (2) gamma_hat = ProjectionOperator(gamma - omega * B * (N * gamma + r))
-    //updateImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->b_d), CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(v_d), CASTD1(system->friction_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), omega, lambda, system->collisionDetector->numCollisions);
     //cusp::print(system->gamma);
+    //updateImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->b_d), CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(system->v_d), CASTD1(system->friction_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), omega, lambda, system->collisionDetector->numCollisions);
     //updateImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(system->b_d), CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(v_d), CASTD1(system->friction_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), omega, lambda, system->collisionDetector->numCollisions);
     //cin.get();
     //cusp::print(system->gamma);
