@@ -191,29 +191,24 @@ int main(int argc, char** argv)
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 3.0;
+  double t_end = 5.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 1;
+  int numElementsPerSide = 10;
   int solverType = 2;
   int numPartitions = 1;
-  double mu_pdip = 150.0;
+  double mu_pdip = 10.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 6;
   int binsPerAxis = 10;
+  double tolerance = 1e-3;
 
   if(argc > 1) {
-    numPartitions = atoi(argv[1]);
-    numElementsPerSide = atoi(argv[2]);
-    solverType = atoi(argv[3]);
-    precondType = atoi(argv[4]);
-    mu_pdip = atof(argv[5]);
-    alpha = atof(argv[6]);
-    beta = atof(argv[7]);
-    solverTypeQOCC = atoi(argv[8]);
-    binsPerAxis = atoi(argv[9]);
+    numElementsPerSide = atoi(argv[1]);
+    solverTypeQOCC = atoi(argv[2]);
+    tolerance = atof(argv[3]);
   }
 
 #ifdef WITH_GLUT
@@ -248,7 +243,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
-  sys->solver->tolerance = 1e-4;
+  sys->solver->tolerance = tolerance;
   //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
@@ -318,7 +313,7 @@ int main(int argc, char** argv)
 //  bodyPtr = new Body(make_double3(0,0,0));
 //  bodyPtr->setGeometry(make_double3(1,0,0));
 //  bodyPtr->setBodyFixed(true);
-//  sys->add(bodyPtr);
+//  sys->add(bodyPtr);10
 //
 //  bodyPtr = new Body(make_double3(0,2,0));
 //  bodyPtr->setGeometry(make_double3(1,0,0));
@@ -360,16 +355,10 @@ int main(int argc, char** argv)
 	
 	// if you don't want to visualize, then output the data
   char filename[100];
-  sprintf(filename, "../data/stats_%d_%d_%d_%d_%.3f_%.3f_%.3f_%d_%d.dat",
-      numPartitions,
+  sprintf(filename, "../data/stats_B%d_ST%d_tol%.5f.dat",
       numElementsPerSide,
-      solverType,
-      precondType,
-      mu_pdip,
-      alpha,
-      beta,
       solverTypeQOCC,
-      binsPerAxis);
+      tolerance);
 	ofstream statStream(filename);
 	double maxVel = 0;
 	while(sys->time < t_end)

@@ -8,7 +8,7 @@ PGJ::PGJ(System* sys)
   system = sys;
 
   tolerance = 1e-4;
-  maxIterations = 10000;
+  maxIterations = 1000000;
   iterations = 0;
 
   omega = 0.3;
@@ -102,6 +102,21 @@ double PGJ::getResidual(DeviceValueArrayView src) {
   return cusp::blas::nrmmax(gammaTmp);
 }
 
+__global__ void initializeImpulseVector_PGJ(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index  ] = 1.0;
+  src[3*index+1] = 0.0;
+  src[3*index+2] = 0.0;
+}
+
+__global__ void getResidual_PGJ(double* src, double* gamma, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index] = src[3*index]*gamma[3*index]+src[3*index+1]*gamma[3*index+1]+src[3*index+2]*gamma[3*index+2];
+  src[3*index+1] = 0;
+  src[3*index+2] = 0;
+}
 
 int PGJ::solve() {
 
@@ -119,6 +134,9 @@ int PGJ::solve() {
   gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   B = DeviceValueArrayView(wrapped_device_B, wrapped_device_B + B_d.size());
+
+  // Provide an initial guess for gamma
+  initializeImpulseVector_PGJ<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // Initialize B matrix (vector in this case, since it's diagonal)
   buildB<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), system->collisionDetector->numCollisions);
@@ -141,7 +159,11 @@ int PGJ::solve() {
 //    cusp::print(system->gamma);
 
     // (4) r = r(gamma)
-    residual = getResidual(system->gamma);
+    //residual = getResidual(system->gamma);
+    performSchurComplementProduct(system->gamma);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getResidual_PGJ<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->gamma), system->collisionDetector->numCollisions);
+    residual = cusp::blas::nrmmax(gammaTmp);
 
     // (5) if r < Tau
     if (residual < tolerance) {

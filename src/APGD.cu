@@ -103,6 +103,21 @@ __global__ void updateAntiRelaxationVector(double* s, double* friction, double* 
   antiRelaxation[3*index+2] = 0;
 }
 
+__global__ void initializeImpulseVector_APGD(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index  ] = 1.0;
+  src[3*index+1] = 0.0;
+  src[3*index+2] = 0.0;
+}
+
+__global__ void getResidual_APGD(double* src, double* gamma, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index] = src[3*index]*gamma[3*index]+src[3*index+1]*gamma[3*index+1]+src[3*index+2]*gamma[3*index+2];
+  src[3*index+1] = 0;
+  src[3*index+2] = 0;
+}
 
 int APGD::solve() {
 
@@ -136,6 +151,9 @@ int APGD::solve() {
   // (1) gamma_0 = zeros(nc,1)
   cusp::blas::fill(antiRelaxation,0.0);
   //cusp::blas::fill(system->gamma,0);
+
+  // Provide an initial guess for gamma
+  initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -211,7 +229,11 @@ int APGD::solve() {
     cusp::blas::axpby(gammaNew,system->gamma,yNew,(1.0+Beta),-Beta);
 
     // (18) r = r(gamma_(k+1))
-    double res = getResidual(gammaNew);
+    //double res = getResidual(gammaNew);
+    performSchurComplementProduct(gammaNew);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
+    double res = cusp::blas::nrmmax(gammaTmp);
 
     // (19) if r < epsilon_min
     if (res < residual) {

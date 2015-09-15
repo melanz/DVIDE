@@ -8,7 +8,7 @@ PGS::PGS(System* sys)
   system = sys;
 
   tolerance = 1e-4;
-  maxIterations = 10000;
+  maxIterations = 1000000;
   iterations = 0;
 
   omega = 0.3;
@@ -335,6 +335,14 @@ __global__ void getResidual_PGS(double* src, double* gamma, uint numCollisions) 
   src[3*index+2] = 0;
 }
 
+__global__ void initializeImpulseVector_PGS(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index  ] = 1.0;
+  src[3*index+1] = 0.0;
+  src[3*index+2] = 0.0;
+}
+
 int PGS::solve() {
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
   gammaTmp_d.resize(3*system->collisionDetector->numCollisions);
@@ -347,6 +355,9 @@ int PGS::solve() {
   system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   B = DeviceValueArrayView(wrapped_device_B, wrapped_device_B + B_d.size());
+
+  // Provide an initial guess for gamma
+  initializeImpulseVector_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // initialize speeds
   cusp::multiply(system->DT,system->gamma,system->f_contact);

@@ -121,10 +121,10 @@ __global__ void updateConstraintVector(double* src, double* friction, double* ds
   dst[index + numCollisions] = -src[3*index];
 }
 
-__global__ void getResidual(double* src, uint numCollisions) {
+__global__ void getResidual_PDIP(double* src, double* gamma, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  if(src[3*index]>0) src[3*index] = 0;
+  src[3*index] = src[3*index]*gamma[3*index]+src[3*index+1]*gamma[3*index+1]+src[3*index+2]*gamma[3*index+2];
   src[3*index+1] = 0;
   src[3*index+2] = 0;
 }
@@ -604,8 +604,9 @@ int PDIP::solve() {
     //residual = cusp::blas::nrm2(r_g);
     cusp::multiply(system->N,system->gamma,gammaTmp);
     cusp::blas::axpy(system->r,gammaTmp,1.0);
-    getResidual<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), system->collisionDetector->numCollisions);
-    residual = cusp::blas::nrmmax(gammaTmp);//fmax(1.0,cusp::blas::nrmmax(gammaTmp));
+    getResidual_PDIP<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->gamma), system->collisionDetector->numCollisions);
+    residual = cusp::blas::nrmmax(gammaTmp);
+
     //residual = getResidual(system->gamma);
     //if(k==0) residual0 = residual;
     //residual = residual/residual0;

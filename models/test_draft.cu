@@ -15,66 +15,66 @@ OpenGLCamera oglcamera(camreal3(0.04,0.05,-5.00),camreal3(0.04,0.05,0),camreal3(
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
-	if(h == 0) {h = 1;}
-	float ratio = 1.0* w / h;
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glViewport(0, 0, w, h);
-	gluPerspective(45,ratio,.1,1000);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	gluLookAt(0.0,0.0,0.0,		0.0,0.0,-7,		0.0f,1.0f,0.0f);
+  if(h == 0) {h = 1;}
+  float ratio = 1.0* w / h;
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glViewport(0, 0, w, h);
+  gluPerspective(45,ratio,.1,1000);
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  gluLookAt(0.0,0.0,0.0,    0.0,0.0,-7,   0.0f,1.0f,0.0f);
 }
 
 void initScene(){
-	GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
-	glClearColor (1.0, 1.0, 1.0, 0.0);
-	glShadeModel (GL_SMOOTH);
-	glEnable(GL_COLOR_MATERIAL);
-	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-	glEnable (GL_POINT_SMOOTH);
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glHint (GL_POINT_SMOOTH_HINT, GL_DONT_CARE);
+  GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
+  glClearColor (1.0, 1.0, 1.0, 0.0);
+  glShadeModel (GL_SMOOTH);
+  glEnable(GL_COLOR_MATERIAL);
+  glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+  glEnable(GL_LIGHTING);
+  glEnable(GL_LIGHT0);
+  glEnable (GL_POINT_SMOOTH);
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glHint (GL_POINT_SMOOTH_HINT, GL_DONT_CARE);
 }
 
 void drawAll()
 {
-	if(updateDraw){
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_DEPTH_TEST);
-		glFrontFace(GL_CCW);
-		glCullFace(GL_BACK);
-		glEnable(GL_CULL_FACE);
-		glDepthFunc(GL_LEQUAL);
-		glClearDepth(1.0);
+  if(updateDraw){
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glDepthFunc(GL_LEQUAL);
+    glClearDepth(1.0);
 
-		glPointSize(2);
-		glLoadIdentity();
+    glPointSize(2);
+    glLoadIdentity();
 
-		oglcamera.Update();
+    oglcamera.Update();
 
-		for(int i=0;i<sys->bodies.size();i++)
-		{
-			if(wireFrame) {
-			  glPushMatrix();
-			  double3 position = sys->bodies[i]->getPosition();
-			  glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
-			  double3 geometry = sys->bodies[i]->getGeometry();
-			  if(geometry.y) {
-			    glColor3f(0.0f,1.0f,0.0f);
-			    glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
-			    glutWireCube(1.0);
-			  }
-			  else {
-			    glColor3f(0.0f,0.0f,1.0f);
-			    glutWireSphere(geometry.x,30,30);
-			  }
-			  glPopMatrix();
-			}
-			else {
+    for(int i=0;i<sys->bodies.size();i++)
+    {
+      if(wireFrame) {
+        glPushMatrix();
+        double3 position = sys->bodies[i]->getPosition();
+        glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
+        double3 geometry = sys->bodies[i]->getGeometry();
+        if(geometry.y) {
+          glColor3f(0.0f,1.0f,0.0f);
+          glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
+          glutWireCube(1.0);
+        }
+        else {
+          glColor3f(0.0f,0.0f,1.0f);
+          glutWireSphere(geometry.x,30,30);
+        }
+        glPopMatrix();
+      }
+      else {
         glPushMatrix();
         double3 position = sys->bodies[i]->getPosition();
         glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
@@ -90,24 +90,24 @@ void drawAll()
         }
         glPopMatrix();
       }
-		}
+    }
 
-		glutSwapBuffers();
-	}
+    glutSwapBuffers();
+  }
 }
 
 void renderSceneAll(){
-	if(OGL){
-		//if(sys->timeIndex%10==0)
-		drawAll();
-		//char filename[100];
-		//sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
-		//sys->exportSystem(filename);
-		sys->DoTimeStep();
-		if(sys->solver->iterations==1000) {
-		  sys->exportMatrices("../data");
-		  cin.get();
-		}
+  if(OGL){
+    //if(sys->timeIndex%10==0)
+    drawAll();
+    //char filename[100];
+    //sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
+    //sys->exportSystem(filename);
+    sys->DoTimeStep();
+    if(sys->solver->iterations==1000) {
+      sys->exportMatrices("../data");
+      cin.get();
+    }
 
 //    // Determine contact force on the container
 //    sys->f_contact_h = sys->f_contact_d;
@@ -116,50 +116,50 @@ void renderSceneAll(){
 //      weight += sys->f_contact_h[3*i+1];
 //    }
 //    cout << "  Weight: " << weight << endl;
-	}
+  }
 }
 
 void CallBackKeyboardFunc(unsigned char key, int x, int y) {
-	switch (key) {
-	case 'w':
-		oglcamera.Forward();
-		break;
+  switch (key) {
+  case 'w':
+    oglcamera.Forward();
+    break;
 
-	case 's':
-		oglcamera.Back();
-		break;
+  case 's':
+    oglcamera.Back();
+    break;
 
-	case 'd':
-		oglcamera.Right();
-		break;
+  case 'd':
+    oglcamera.Right();
+    break;
 
-	case 'a':
-		oglcamera.Left();
-		break;
+  case 'a':
+    oglcamera.Left();
+    break;
 
-	case 'q':
-		oglcamera.Up();
-		break;
+  case 'q':
+    oglcamera.Up();
+    break;
 
-	case 'e':
-		oglcamera.Down();
-		break;
+  case 'e':
+    oglcamera.Down();
+    break;
 
-	case 'i':
-	  if(wireFrame) {
-	    wireFrame = 0;
-	  }
-	  else {
-	    wireFrame = 1;
-	  }
-	}
+  case 'i':
+    if(wireFrame) {
+      wireFrame = 0;
+    }
+    else {
+      wireFrame = 1;
+    }
+  }
 }
 
 void CallBackMouseFunc(int button, int state, int x, int y) {
-	oglcamera.SetPos(button, state, x, y);
+  oglcamera.SetPos(button, state, x, y);
 }
 void CallBackMotionFunc(int x, int y) {
-	oglcamera.Move2D(x, y);
+  oglcamera.Move2D(x, y);
 }
 #endif
 // END OPENGL RENDERING CODE //
@@ -177,9 +177,9 @@ double getRandomNumber(double min, double max)
 
 int main(int argc, char** argv)
 {
-	// command line arguments
-	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
-	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
+  // command line arguments
+  // FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
+  // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
   double t_end = 10;
   int    precUpdateInterval = -1;
@@ -191,21 +191,28 @@ int main(int argc, char** argv)
   double mu_pdip = 10;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 1;
+  int solverTypeQOCC = 2;
   int binsPerAxis = 10;
+  double tolerance = 1e-3;
+  if(argc==4) {
+    mu_pdip = atof(argv[1]);
+    tolerance = atof(argv[2]);
+    solverTypeQOCC = atoi(argv[3]);
+    cout << "mu_pdip = " << mu_pdip << ", tol = " << tolerance << endl;
+  }
 
 #ifdef WITH_GLUT
-	bool visualize = true;
+  bool visualize = true;
 #endif
-	visualize = false;
+  visualize = false;
 
-	double hh = 1e-3;
-	sys = new System(solverTypeQOCC);
+  double hh = 1e-3;
+  sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
   sys->gravity = make_double3(0,-9.81,0);
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
-  sys->solver->tolerance = 1e-3;
+  sys->solver->tolerance = tolerance;
   //sys->solver->maxIterations = 30;
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
@@ -235,7 +242,7 @@ int main(int argc, char** argv)
   double th = 0.01;
   double density = 2600;
 
-  //sys->importSystem("../data/data_150_APGD.dat");
+  //sys->importSystem("../data_draft20K/data_129_overwrite.dat");
 
   // Blade
   Body* bladePtr = new Body(make_double3(0.5*L+2*th,0.5*bH+depth,0));
@@ -299,67 +306,66 @@ int main(int argc, char** argv)
     }
   }
 
-	sys->initializeSystem();
-	printf("System initialized!\n");
-	//sys->printSolverParams();
+  sys->initializeSystem();
+  printf("System initialized!\n");
+  //sys->printSolverParams();
 
 #ifdef WITH_GLUT
-	if(visualize)
-	{
-		glutInit(&argc, argv);
-		glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
-		glutInitWindowPosition(0,0);
-		glutInitWindowSize(1024	,512);
-		glutCreateWindow("MAIN");
-		glutDisplayFunc(renderSceneAll);
-		glutIdleFunc(renderSceneAll);
-		glutReshapeFunc(changeSize);
-		glutIgnoreKeyRepeat(0);
-		glutKeyboardFunc(CallBackKeyboardFunc);
-		glutMouseFunc(CallBackMouseFunc);
-		glutMotionFunc(CallBackMotionFunc);
-		initScene();
-		glutMainLoop();
-	}
+  if(visualize)
+  {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
+    glutInitWindowPosition(0,0);
+    glutInitWindowSize(1024 ,512);
+    glutCreateWindow("MAIN");
+    glutDisplayFunc(renderSceneAll);
+    glutIdleFunc(renderSceneAll);
+    glutReshapeFunc(changeSize);
+    glutIgnoreKeyRepeat(0);
+    glutKeyboardFunc(CallBackKeyboardFunc);
+    glutMouseFunc(CallBackMouseFunc);
+    glutMotionFunc(CallBackMotionFunc);
+    initScene();
+    glutMainLoop();
+  }
 #endif
-	
-	// if you don't want to visualize, then output the data
+
+  // if you don't want to visualize, then output the data
   char filename[100];
-  sprintf(filename, "../data/stats_tol%f_h%f.dat",
-      sys->solver->tolerance,
-      hh);
-	ofstream statStream(filename);
-	int fileIndex = 0;
-	while(sys->time < t_end)
-	{
-	  if(sys->timeIndex%20==0) {
+  sprintf(filename, "../data/stats_tol%f_h%f_solver%d.dat",
+      sys->solver->tolerance, hh, solverTypeQOCC);
+  ofstream statStream(filename);
+  int fileIndex = 0;
+  while(sys->time < t_end)
+  {
+    if(sys->timeIndex%20==0) {
       char filename[100];
       sprintf(filename, "../data/data_%03d.dat", fileIndex);
       sys->exportSystem(filename);
       fileIndex++;
-	  }
+    }
 
-		sys->DoTimeStep();
+    sys->DoTimeStep();
 
-		// Determine contact force on the container
-		sys->f_contact_h = sys->f_contact_d;
-		double weight = 0;
-		for(int i=0; i<1; i++) {
-		  weight += sys->f_contact_h[3*i];
-		}
-		cout << "  Draft force: " << weight << endl;
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    double weight = 0;
+    for(int i=0; i<1; i++) {
+      weight += sys->f_contact_h[3*i];
+    }
+    cout << "  Draft force: " << weight << endl;
 
-		int numKrylovIter = 0;
-		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
-		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-		if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
+    int numKrylovIter = 0;
+    if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+    if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
+    if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
     if(sys->solver->iterations==1000) {
+      sys->exportSystem("../data/data_FAIL.dat");
       sys->exportMatrices("../data");
       cin.get();
     }
-	}
+  }
 
-	return 0;
+  return 0;
 }
-
