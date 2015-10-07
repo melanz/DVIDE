@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <vector>
 #include "include.cuh"
-#include "JKIP.cuh"
+#include "PJKIP.cuh"
 
-JKIP::JKIP(System* sys)
+PJKIP::PJKIP(System* sys)
 {
   system = sys;
 
@@ -26,7 +26,7 @@ JKIP::JKIP(System* sys)
   // end spike stuff
 }
 
-int JKIP::setup()
+int PJKIP::setup()
 {
   // vectors:  x, y, dx, dy, d, b
   x_d = system->a_h;
@@ -59,7 +59,7 @@ int JKIP::setup()
   return 0;
 }
 
-void JKIP::setSolverType(int solverType)
+void PJKIP::setSolverType(int solverType)
 {
   switch(solverType) {
   case 0:
@@ -83,12 +83,12 @@ void JKIP::setSolverType(int solverType)
   }
 }
 
-void JKIP::setPrecondType(int useSpike)
+void PJKIP::setPrecondType(int useSpike)
 {
   solverOptions.precondType = useSpike ? spike::Spike : spike::None;
 }
 
-void JKIP::printSolverParams()
+void PJKIP::printSolverParams()
 {
   //  printf("Step size: %e\n", h);
   //  printf("Newton tolerance: %e\n", tol);
@@ -97,7 +97,7 @@ void JKIP::printSolverParams()
   printf("----------------------------\n");
 }
 
-__global__ void initialize_d(double* x, double* y, double* d, double s, uint numCollisions) {
+__global__ void initialize_d2(double* x, double* y, double* d, double s, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double xn = x[3*index];
@@ -117,7 +117,7 @@ __global__ void initialize_d(double* x, double* y, double* d, double s, uint num
   d[3*index+2] = (yBar2-y2)/s;
 }
 
-__global__ void getInverse(double* src, double* dst, uint numCollisions) {
+__global__ void getInverse2(double* src, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double xn = src[3*index];
@@ -131,7 +131,7 @@ __global__ void getInverse(double* src, double* dst, uint numCollisions) {
   dst[3*index+2] = -xt2/d;
 }
 
-__global__ void getFeasible(double* src, double* dst, uint numCollisions) {
+__global__ void getFeasible2(double* src, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double xn = src[3*index];
@@ -145,7 +145,7 @@ __global__ void getFeasible(double* src, double* dst, uint numCollisions) {
   dst[3*index+2] = -10e30;
 }
 
-__global__ void getStepLength(double* x, double* dx, double* y, double* dy, double* dst, uint numCollisions) {
+__global__ void getStepLength2(double* x, double* dx, double* y, double* dy, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double tx;
@@ -201,7 +201,7 @@ __global__ void getStepLength(double* x, double* dx, double* y, double* dy, doub
   dst[3*index+2] = 1.0;
 }
 
-__global__ void getDeterminant(double* src, double* dst, uint numCollisions) {
+__global__ void getDeterminant2(double* src, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double xn = src[3*index];
@@ -215,7 +215,7 @@ __global__ void getDeterminant(double* src, double* dst, uint numCollisions) {
   dst[3*index+2] = 0.0;
 }
 
-__global__ void constructPw(int* PwI, int* PwJ, double* Pw, double* x, double* y, uint numCollisions) {
+__global__ void constructPw2(int* PwI, int* PwJ, double* Pw, double* x, double* y, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double x0 = x[3*index];
@@ -268,7 +268,7 @@ __global__ void constructPw(int* PwI, int* PwJ, double* Pw, double* x, double* y
   Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
 }
 
-__global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
+__global__ void updatePw2(double* Pw, double* x, double* y, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double x0 = x[3*index];
@@ -295,8 +295,8 @@ __global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
   Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
 }
 
-int JKIP::initializePw() {
-  constructPw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(PwI_d), CASTI1(PwJ_d), CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
+int PJKIP::initializePw() {
+  constructPw2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(PwI_d), CASTI1(PwJ_d), CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
 
   // create Pw using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(PwI_d));
@@ -314,7 +314,7 @@ int JKIP::initializePw() {
   return 0;
 }
 
-__global__ void initializeImpulseVector(double* src, double* friction, uint numCollisions) {
+__global__ void initializeImpulseVector2(double* src, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = friction[index];
@@ -324,7 +324,7 @@ __global__ void initializeImpulseVector(double* src, double* friction, uint numC
   src[3*index+2] = 0.0;
 }
 
-__global__ void constructT(int* invTxI, int* invTxJ, double* invTx, int* TyI, int* TyJ, double* Ty, double* friction, uint numCollisions) {
+__global__ void constructT2(int* invTxI, int* invTxJ, double* invTx, int* TyI, int* TyJ, double* Ty, double* friction, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = friction[index];
@@ -354,8 +354,8 @@ __global__ void constructT(int* invTxI, int* invTxJ, double* invTx, int* TyI, in
   Ty[3*index+2] = mu;
 }
 
-int JKIP::initializeT() {
-  constructT<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(invTxI_d), CASTI1(invTxJ_d), CASTD1(invTx_d), CASTI1(TyI_d), CASTI1(TyJ_d), CASTD1(Ty_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+int PJKIP::initializeT() {
+  constructT2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(invTxI_d), CASTI1(invTxJ_d), CASTD1(invTx_d), CASTI1(TyI_d), CASTI1(TyJ_d), CASTD1(Ty_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
 
   {
     // create invTx using cusp library
@@ -390,7 +390,7 @@ int JKIP::initializeT() {
   return 0;
 }
 
-double JKIP::updateAlpha(double s) {
+double PJKIP::updateAlpha(double s) {
   double alphaCen = 0.1;
   double alpha1 = 10;
   double betaCen;
@@ -421,9 +421,9 @@ double JKIP::updateAlpha(double s) {
     barrier = 0.0;
   }
 
-  getDeterminant<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
+  getDeterminant2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
   barrier+= Thrust_Total(tmp_d);
-  getDeterminant<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(y_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
+  getDeterminant2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(y_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
   barrier+= Thrust_Total(tmp_d);
 
   fcentering = fcentering - barrier;
@@ -441,7 +441,7 @@ double JKIP::updateAlpha(double s) {
   return 0.5*beta*dotprod/(n+1.0);
 }
 
-int JKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2) {
+int PJKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2) {
   cusp::multiply(invTx,src,tmp);
   cusp::multiply(system->DT,tmp,system->f_contact);
   cusp::multiply(system->mass,system->f_contact,system->tmp);
@@ -451,17 +451,7 @@ int JKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArr
   return 0;
 }
 
-int JKIP::performMatrixFreeSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2) {
-  cusp::multiply(invTx,src,tmp);
-  cusp::multiply(system->DT,tmp,system->f_contact);
-  cusp::multiply(system->mass,system->f_contact,system->tmp);
-  cusp::multiply(system->D,system->tmp,tmp2);
-  cusp::multiply(Ty,tmp2,tmp);
-
-  return 0;
-}
-
-int JKIP::buildSchurMatrix() {
+int PJKIP::buildSchurMatrix() {
   // build N
   cusp::multiply(system->mass,system->DT,system->MinvDT);
   cusp::multiply(system->D,system->MinvDT,system->N);
@@ -471,7 +461,7 @@ int JKIP::buildSchurMatrix() {
   return 0;
 }
 
-int JKIP::solve() {
+int PJKIP::solve() {
   solverOptions.relTol = std::min(0.01 * tolerance, 1e-6);
   solverOptions.absTol = 1e-10;
 
@@ -536,16 +526,8 @@ int JKIP::solve() {
 
   initializePw();
   buildSchurMatrix();
-  cusp::print(x);
-  cusp::multiply(system->N,x,r);
-  cusp::print(r);
-  cin.get();
-  performMatrixFreeSchurComplementProduct(x,y); //NOTE: y is destroyed here
-  cusp::print(y);
-  cin.get();
-
   cusp::multiply(Ty,system->r,r);
-  initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+  initializeImpulseVector2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
   performSchurComplementProduct(x,y); //NOTE: y is destroyed here
   cusp::blas::axpby(tmp,r,y,1.0,1.0);
 
@@ -566,7 +548,7 @@ int JKIP::solve() {
 
   // determine d vector
   double s = 2*alpha;
-  initialize_d<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(y_d), CASTD1(d_d), s, system->collisionDetector->numCollisions);
+  initialize_d2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(y_d), CASTD1(d_d), s, system->collisionDetector->numCollisions);
   cusp::blas::axpy(d,y,s);
 
   bool feasible = false;
@@ -584,7 +566,7 @@ int JKIP::solve() {
   int k;
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
-    updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
+    updatePw2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
     cusp::add(system->N,Pw,A);
     if(verbose) {
       cusp::print(Pw);
@@ -601,7 +583,7 @@ int JKIP::solve() {
       cin.get();
     }
 
-    getInverse<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(b_d), system->collisionDetector->numCollisions);
+    getInverse2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(b_d), system->collisionDetector->numCollisions);
     cusp::blas::axpbypcz(b,y,d,b,alpha,-1.0,-ds);
 
     if(verbose) {
@@ -634,7 +616,7 @@ int JKIP::solve() {
       cin.get();
     }
 
-    getStepLength<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(dx_d), CASTD1(y_d), CASTD1(dy_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
+    getStepLength2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(dx_d), CASTD1(y_d), CASTD1(dy_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double theta = fmin(Thrust_Min(tmp_d),1.0);
 
     if(verbose) {
@@ -650,11 +632,11 @@ int JKIP::solve() {
     s+=theta*ds;
 
     // check feasible and optimal
-    getFeasible<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
+    getFeasible2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double feasibleX = Thrust_Max(tmp_d);
     cusp::blas::axpby(y,d,tmp,1.0,-s);
     double optim = abs(cusp::blas::dot(x,tmp))/((double) system->collisionDetector->numCollisions);
-    getFeasible<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(tmp_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
+    getFeasible2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(tmp_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double feasibleY = Thrust_Max(tmp_d);
     if(feasible==false && feasibleY == 0) {
       cusp::blas::axpy(d,y,-s);

@@ -102,6 +102,8 @@ SET(IBEAMS_SOURCES
 	src/TPAS.cu
 	src/JKIP.cuh
 	src/JKIP.cu
+	src/PJKIP.cuh
+	src/PJKIP.cu
 	src/PGJ.cuh
 	src/PGJ.cu
 	src/PGS.cuh

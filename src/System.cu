@@ -7,6 +7,7 @@
 #include "PDIP.cuh"
 #include "TPAS.cuh"
 #include "JKIP.cuh"
+#include "PJKIP.cuh"
 #include "PGJ.cuh"
 #include "PGS.cuh"
 
@@ -52,6 +53,9 @@ System::System(int solverType)
     break;
   case 6:
     solver = new PGS(this);
+    break;
+  case 7:
+    solver = new PJKIP(this);
     break;
   default:
     solver = new APGD(this);

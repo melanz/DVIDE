@@ -5,8 +5,8 @@
  *      Author: melanz
  */
 
-#ifndef JKIP_CUH_
-#define JKIP_CUH_
+#ifndef PJKIP_CUH_
+#define PJKIP_CUH_
 
 #include "include.cuh"
 #include "System.cuh"
@@ -29,10 +29,10 @@ typedef typename cusp::coo_matrix<int, double, cusp::device_memory> DeviceMatrix
 typedef typename spike::Solver<DeviceValueArrayView, PREC_REAL> SpikeSolver;
 typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
 
-class MySpmvJKIP : public cusp::linear_operator<double, cusp::device_memory>{
+class MySpmvPJKIP : public cusp::linear_operator<double, cusp::device_memory>{
 public:
   typedef cusp::linear_operator<double, cusp::device_memory> super;
-  MySpmvJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceView& Ty, DeviceView& invTx, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_vel2, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mTy(Ty), minvTx(invTx), mtemp_vel(temp_vel), mtemp_vel2(temp_vel2), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
+  MySpmvPJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceView& Ty, DeviceView& invTx, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_vel2, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mTy(Ty), minvTx(invTx), mtemp_vel(temp_vel), mtemp_vel2(temp_vel2), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
   void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
     // Av = D*Minv*D'*v
     cusp::multiply(minvTx,v,mtemp_gamma);
@@ -61,7 +61,7 @@ private:
 };
 
 class System;
-class JKIP :public Solver {
+class PJKIP :public Solver {
   friend class System;
 private:
   System* system;
@@ -69,7 +69,7 @@ private:
   // spike stuff
   int partitions;
   SpikeSolver* mySolver;
-  MySpmvJKIP* m_spmv;
+  MySpmvPJKIP* m_spmv;
   spike::Options  solverOptions;
   int preconditionerUpdateModulus;
   float preconditionerMaxKrylovIterations;
@@ -140,7 +140,6 @@ private:
   int initializeT();
   int initializePw();
   int performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
-  int performMatrixFreeSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
   double updateAlpha(double s);
   int buildSchurMatrix();
 
@@ -148,7 +147,7 @@ public:
   bool careful;
   double totalKrylovIterations;
 
-	JKIP(System* sys);
+	PJKIP(System* sys);
 	int setup();
 	int solve();
 
@@ -159,4 +158,4 @@ public:
   void    printSolverParams();
 };
 
-#endif /* JKIP_CUH_ */
+#endif /* PJKIP_CUH_ */
