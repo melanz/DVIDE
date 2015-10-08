@@ -138,7 +138,6 @@ void renderSceneAll(){
     sys->v_d = sys->v_h;
     cusp::blas::axpy(sys->v, sys->p, sys->h);
     sys->p_h = sys->p_d;
-    cin.get();
   }
 }
 
@@ -261,7 +260,7 @@ int main(int argc, char** argv)
   // Top
   Body* topPtr = new Body(make_double3(0,H+HTOP+0.5*TH,0));
   //topPtr->setBodyFixed(true);
-  topPtr->setMass(normalPressure*L*W/gravity);
+  //topPtr->setMass(normalPressure*L*W/gravity);
   topPtr->setGeometry(make_double3(0.5*L,0.5*TH,0.5*W));
   sys->add(topPtr);
 
@@ -291,7 +290,7 @@ int main(int argc, char** argv)
 
 
   Body* bodyPtr;
-  double wiggle = 0.1;
+  double wiggle = 0.2;
   int numElementsPerSideX = L/(2*r+2*wiggle);
   int numElementsPerSideY = (H+HTOP)/(2*r+2*wiggle);
   int numElementsPerSideZ = W/(2*r+2*wiggle);
