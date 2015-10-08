@@ -304,7 +304,7 @@ int main(int argc, char** argv)
         double xWig = getRandomNumber(-wiggle, wiggle);
         double yWig = 0;//getRandomNumber(-.1, .1);
         double zWig = getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W+r+zWig));
+        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+(r+wiggle)+xWig,2*(r+wiggle)*j+(r+wiggle)+yWig,2*(r+wiggle)*k-0.5*W+(r+wiggle)+zWig));
         bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*particleDensity);
         bodyPtr->setGeometry(make_double3(r,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
