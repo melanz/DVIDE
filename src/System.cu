@@ -252,16 +252,16 @@ int System::DoTimeStep() {
     cusp::blas::fill(f_contact,0.0);
   }
 
-  if(time>1.5) {
-    // Apply sinusoidal motion
-    v_h = v_d;
-    for(int i=0;i<1;i++) {
-      v_h[3*i] = -0.20;//v_h[3*i]+4.0*sin((time-2)*3.0);
-      v_h[3*i+1] = 0;
-      v_h[3*i+2] = 0;
-    }
-    v_d = v_h;
-  }
+//  if(time>1.5) {
+//    // Apply sinusoidal motion
+//    v_h = v_d;
+//    for(int i=0;i<1;i++) {
+//      v_h[3*i] = -0.20;//v_h[3*i]+4.0*sin((time-2)*3.0);
+//      v_h[3*i+1] = 0;
+//      v_h[3*i+2] = 0;
+//    }
+//    v_d = v_h;
+//  }
 
   cusp::blas::axpy(v, p, h);
 
@@ -512,7 +512,7 @@ __global__ void buildStabilization(double* b, double4* normalsAndPenetrations, d
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
-  if(penetration>0) penetration = 0; // TODO: is this correct?
+  //if(penetration>0) penetration = 0; // TODO: is this correct? NO, look at the rolling ball demo
 
   b[3*index] = penetration/timeStep;
   b[3*index+1] = 0;

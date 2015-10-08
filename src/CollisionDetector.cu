@@ -420,6 +420,15 @@ int CollisionDetector::detectCollisions()
       // Step 3: Store the actual collisions
       storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifierA_d), CASTU1(bodyIdentifierB_d), numPossibleCollisions, numCollisions);
       // End Step 3
+
+      //Print the collision information
+      bodyIdentifierA_h = bodyIdentifierA_d;
+      bodyIdentifierB_h = bodyIdentifierB_d;
+      normalsAndPenetrations_h = normalsAndPenetrations_d;
+
+      for(int i=0; i<bodyIdentifierA_h.size();i++) {
+        printf("Collision #%d: %d - %d, (%f, %f, %f), Penetration: %f\n", i, bodyIdentifierA_h[i], bodyIdentifierB_h[i], normalsAndPenetrations_h[i].x, normalsAndPenetrations_h[i].y, normalsAndPenetrations_h[i].z, normalsAndPenetrations_h[i].w);
+      }
     }
   }
 
