@@ -95,6 +95,7 @@ public:
   int generateAxisAlignedBoundingBoxes();
   void setBinsPerAxis(uint3 binsPerAxis);
   int detectCollisions_CPU(); // TODO: Get rid of this function
+  int exportSystem(string filename);
 
 };
 

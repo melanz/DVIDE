@@ -207,7 +207,7 @@ int main(int argc, char** argv)
   double L = 6;
   double W = 6;
   double H = 3;
-  double HTOP = 12;
+  double HTOP = 24;
   double TH = 3;
   double normalPressure = 168881; // 16,888.1 Pa // 44,127.0 Pa// 71,365.9 Pa
   double particleDensity = 2.6;
@@ -217,7 +217,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -260,7 +260,7 @@ int main(int argc, char** argv)
   // Top
   Body* topPtr = new Body(make_double3(0,H+HTOP+0.5*TH,0));
   //topPtr->setBodyFixed(true);
-  //topPtr->setMass(normalPressure*L*W/gravity);
+  topPtr->setMass(normalPressure*L*W/gravity);
   topPtr->setGeometry(make_double3(0.5*L,0.5*TH,0.5*W));
   sys->add(topPtr);
 
@@ -290,7 +290,7 @@ int main(int argc, char** argv)
 
 
   Body* bodyPtr;
-  double wiggle = 0.2;
+  double wiggle = 0.4;
   int numElementsPerSideX = L/(2*r+2*wiggle);
   int numElementsPerSideY = (H+HTOP)/(2*r+2*wiggle);
   int numElementsPerSideZ = W/(2*r+2*wiggle);
@@ -301,7 +301,7 @@ int main(int argc, char** argv)
       for (int k = 0; k < numElementsPerSideZ; k++) {
 
         double xWig = getRandomNumber(-wiggle, wiggle);
-        double yWig = 0;//getRandomNumber(-.1, .1);
+        double yWig = getRandomNumber(-wiggle, wiggle); //0;//
         double zWig = getRandomNumber(-wiggle, wiggle);
         bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+(r+wiggle)+xWig,2*(r+wiggle)*j+(r+wiggle)+yWig,2*(r+wiggle)*k-0.5*W+(r+wiggle)+zWig));
         bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*particleDensity);
@@ -337,14 +337,14 @@ int main(int argc, char** argv)
     glutMainLoop();
   }
 #endif
-/*
+
   // if you don't want to visualize, then output the data
   char filename[100];
-  sprintf(filename, "../data/stats_tol%f_h%f_solver%d.dat",
-      sys->solver->tolerance, hh, solverTypeQOCC);
+  sprintf(filename, "../data/statsShear_tol%f_h%f_solver%d.dat", sys->solver->tolerance, hh, solverTypeQOCC);
   ofstream statStream(filename);
+
   int fileIndex = 0;
-  while(sys->time < t_end)
+  while(sys->p_h[0] < lengthToRun)
   {
     if(sys->timeIndex%20==0) {
       char filename[100];
@@ -353,27 +353,47 @@ int main(int argc, char** argv)
       fileIndex++;
     }
 
+    p0_h = sys->p_d;
     sys->DoTimeStep();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
-    double weight = 0;
-    for(int i=0; i<1; i++) {
-      weight += sys->f_contact_h[3*i];
+    double shearForce = 0;
+    for(int i=0; i<5; i++) {
+      shearForce += sys->f_contact_h[3*i];
     }
-    cout << "  Draft force: " << weight << endl;
+    cout << "  Shear force: " << shearForce << endl;
+
+    // TODO: This is a big no-no, need to enforce motion via constraints
+    // Apply motion
+    sys->v_h = sys->v_d;
+    if(sys->time>1.5) {
+      for(int i=0;i<5;i++) {
+        sys->v_h[3*i] = desiredVelocity;
+        sys->v_h[3*i+1] = 0;
+        sys->v_h[3*i+2] = 0;
+      }
+    }
+    // Constrain top body in x and z direction
+    int i=5;
+    sys->v_h[3*i] = 0;
+    sys->v_h[3*i+2] = 0;
+    sys->p_d = p0_h;
+    sys->v_d = sys->v_h;
+    cusp::blas::axpy(sys->v, sys->p, sys->h);
+    sys->p_h = sys->p_d;
 
     int numKrylovIter = 0;
     if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
     if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-    if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
+    if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << shearForce << ", " << sys->p_h[0] << ", " << numKrylovIter << ", " << endl;
 
-    if(sys->solver->iterations==1000) {
-      sys->exportSystem("../data/data_FAIL.dat");
-      sys->exportMatrices("../data");
-      cin.get();
-    }
+//    if(sys->solver->iterations==1000) {
+//      sys->exportSystem("../data/data_FAIL.dat");
+//      sys->exportMatrices("../data");
+//      cin.get();
+//    }
   }
-*/
+
   return 0;
 }

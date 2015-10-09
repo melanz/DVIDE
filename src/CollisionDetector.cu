@@ -426,6 +426,52 @@ int CollisionDetector::detectCollisions()
   return 0;
 }
 
+int CollisionDetector::exportSystem(string filename) {
+
+  ofstream filestream;
+  filestream.open(filename.c_str());
+
+  //Print the collision information
+  // collisionIndex bodyIdentifierA bodyIdentifierB normalX normalY normalZ penetration posA_x posA_y posA_z velA_x velA_y velA_z geomA_x geomA_y geomA_z posB_x posB_y posB_z velB_x velB_y velB_z geomB_x geomB_y geomB_z
+  bodyIdentifierA_h = bodyIdentifierA_d;
+  bodyIdentifierB_h = bodyIdentifierB_d;
+  normalsAndPenetrations_h = normalsAndPenetrations_d;
+  system->p_h = system->p_d;
+  system->v_h = system->v_d;
+  for(int i=0; i<bodyIdentifierA_h.size();i++) {
+    filestream
+    << i << ", "
+    << bodyIdentifierA_h[i] << ", "
+    << bodyIdentifierB_h[i] << ", "
+    << normalsAndPenetrations_h[i].x << ", "
+    << normalsAndPenetrations_h[i].y << ", "
+    << normalsAndPenetrations_h[i].z << ", "
+    << normalsAndPenetrations_h[i].w << ", "
+    << system->p_h[3*bodyIdentifierA_h[i]] << ", "
+    << system->p_h[3*bodyIdentifierA_h[i]+1] << ", "
+    << system->p_h[3*bodyIdentifierA_h[i]+2] << ", "
+    << system->v_h[3*bodyIdentifierA_h[i]] << ", "
+    << system->v_h[3*bodyIdentifierA_h[i]+1] << ", "
+    << system->v_h[3*bodyIdentifierA_h[i]+2] << ", "
+    << system->contactGeometry_h[bodyIdentifierA_h[i]].x << ", "
+    << system->contactGeometry_h[bodyIdentifierA_h[i]].y << ", "
+    << system->contactGeometry_h[bodyIdentifierA_h[i]].z << ", "
+    << system->p_h[3*bodyIdentifierB_h[i]] << ", "
+    << system->p_h[3*bodyIdentifierB_h[i]+1] << ", "
+    << system->p_h[3*bodyIdentifierB_h[i]+2] << ", "
+    << system->v_h[3*bodyIdentifierB_h[i]] << ", "
+    << system->v_h[3*bodyIdentifierB_h[i]+1] << ", "
+    << system->v_h[3*bodyIdentifierB_h[i]+2] << ", "
+    << system->contactGeometry_h[bodyIdentifierB_h[i]].x << ", "
+    << system->contactGeometry_h[bodyIdentifierB_h[i]].y << ", "
+    << system->contactGeometry_h[bodyIdentifierB_h[i]].z << ", "
+    << "\n";
+  }
+  filestream.close();
+
+  return 0;
+}
+
 int CollisionDetector::detectCollisions_CPU()
 {
   thrust::host_vector<uint2> possibleCollisionPairs_h = possibleCollisionPairs_d;
