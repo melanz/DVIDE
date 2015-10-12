@@ -21,7 +21,7 @@ inline uint __device__ getHashIndex(const uint3 &A, const uint3 &binsPerAxis) {
   return A.x+A.y*binsPerAxis.x+A.z*binsPerAxis.x*binsPerAxis.y;
 }
 
-__global__ void generateAabbData(double3* aabbData, int* indices, double* position, double3* geometries, uint numAABB) {
+__global__ void generateAabbData(double3* aabbData, int* indices, double* position, double3* geometries, double envelope, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numAABB);
 
   double3 pos = make_double3(position[indices[index]],position[indices[index]+1],position[indices[index]+2]);
@@ -30,8 +30,9 @@ __global__ void generateAabbData(double3* aabbData, int* indices, double* positi
     // sphere case
     geometry = make_double3(geometry.x,geometry.x,geometry.x);
   }
-  aabbData[index] = pos-1.01*geometry;
-  aabbData[index + numAABB] = pos+1.01*geometry;
+  geometry += make_double3(envelope,envelope,envelope);
+  aabbData[index] = pos-geometry;
+  aabbData[index + numAABB] = pos+geometry;
 }
 
 __global__ void countAabbBinIntersections(double3* aabbData, uint* numBinsIntersected, double3 binSizeInverse, uint numAABB) {
@@ -128,7 +129,7 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
   possibleCollisionPairs[index].y = int(potentialCollisions[index] & 0xffffffff);
 }
 
-__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, uint numPossibleCollisions) {
+__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double envelope, uint numPossibleCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   double penetration = 0;
@@ -142,8 +143,6 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
 
   double3 geometryA = geometries[bodyA];
   double3 geometryB = geometries[bodyB];
-
-  double envelope = 0.001; //TODO: INCORPORATE A COLLISION ENVELOPE IN MATERIAL LIBRARY
 
   if(geometryA.y == 0 && geometryB.y == 0) {
     // sphere-sphere case
@@ -283,6 +282,7 @@ CollisionDetector::CollisionDetector(System* sys)
   possibleCollisionPairs_d.clear();
   numCollisions = 0;
   lastActiveCollision = 0;
+  envelope = 0.001;
 
   cudaFuncSetCacheConfig(countAabbBinIntersections, cudaFuncCachePreferL1);
   cudaFuncSetCacheConfig(storeAabbBinIntersections, cudaFuncCachePreferL1);
@@ -291,6 +291,13 @@ CollisionDetector::CollisionDetector(System* sys)
 
   cudaFuncSetCacheConfig(countActualCollisions, cudaFuncCachePreferL1);
   cudaFuncSetCacheConfig(storeActualCollisions, cudaFuncCachePreferL1);
+}
+
+int CollisionDetector::setEnvelope(double envelope)
+{
+  this->envelope = envelope;
+
+  return 0;
 }
 
 int CollisionDetector::detectPossibleCollisions_nSquared()
@@ -311,7 +318,7 @@ int CollisionDetector::detectPossibleCollisions_nSquared()
 int CollisionDetector::generateAxisAlignedBoundingBoxes()
 {
   aabbData_d.resize(2*system->bodies.size());
-  generateAabbData<<<BLOCKS(system->bodies.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), system->bodies.size());
+  generateAabbData<<<BLOCKS(system->bodies.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), envelope, system->bodies.size());
 
   return 0;
 }
@@ -406,7 +413,7 @@ int CollisionDetector::detectCollisions()
   if(numPossibleCollisions) {
     // Step 1: Detect how many collisions actually occur between each pair
     numCollisionsPerPair_d.resize(numPossibleCollisions);
-    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), numPossibleCollisions);
+    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), envelope, numPossibleCollisions);
     // End Step 1
 
     // Step 2: Figure out where each thread needs to start and end for each collision

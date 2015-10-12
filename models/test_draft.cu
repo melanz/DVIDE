@@ -9,6 +9,8 @@ bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
+double desiredVelocity = -0.2; // Needs to be global so that renderer can access it
+thrust::host_vector<double> p0_h;
 
 #ifdef WITH_GLUT
 OpenGLCamera oglcamera(camreal3(0.04,0.05,-5.00),camreal3(0.04,0.05,0),camreal3(0,1,0),.01);
@@ -103,19 +105,44 @@ void renderSceneAll(){
     //char filename[100];
     //sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
     //sys->exportSystem(filename);
+    p0_h = sys->p_d;
     sys->DoTimeStep();
-    if(sys->solver->iterations==1000) {
-      sys->exportMatrices("../data");
-      cin.get();
+//    if(sys->solver->iterations==1000) {
+//      sys->exportMatrices("../data");
+//      cin.get();
+//    }
+
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    double force = 0;
+    for(int i=0; i<1; i++) {
+      force += sys->f_contact_h[3*i];
+    }
+    cout << "  Draft force: " << force << endl;
+
+    // TODO: This is a big no-no, need to enforce motion via constraints
+    // Apply motion
+    sys->v_h = sys->v_d;
+    if(sys->time>1.5) {
+      for(int i=0;i<1;i++) {
+        sys->v_h[3*i] = desiredVelocity;
+        sys->v_h[3*i+1] = 0;
+        sys->v_h[3*i+2] = 0;
+      }
+    }
+    else {
+      for(int i=0;i<1;i++) {
+        sys->v_h[3*i] = 0;
+        sys->v_h[3*i+1] = 0;
+        sys->v_h[3*i+2] = 0;
+      }
     }
 
-//    // Determine contact force on the container
-//    sys->f_contact_h = sys->f_contact_d;
-//    double weight = 0;
-//    for(int i=0; i<6; i++) {
-//      weight += sys->f_contact_h[3*i+1];
-//    }
-//    cout << "  Weight: " << weight << endl;
+    sys->p_d = p0_h;
+    sys->v_d = sys->v_h;
+    cusp::blas::axpy(sys->v, sys->p, sys->h);
+    sys->p_h = sys->p_d;
+    // End apply motion
   }
 }
 
@@ -191,9 +218,9 @@ int main(int argc, char** argv)
   double mu_pdip = 10;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 2;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 10;
-  double tolerance = 1e-3;
+  double tolerance = 1e-4;
   if(argc==4) {
     mu_pdip = atof(argv[1]);
     tolerance = atof(argv[2]);
@@ -211,7 +238,7 @@ int main(int argc, char** argv)
   sys->setTimeStep(hh);
   sys->gravity = make_double3(0,-9.81,0);
 
-  sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
+  sys->collisionDetector->setBinsPerAxis(make_uint3(12,8,8));
   sys->solver->tolerance = tolerance;
   //sys->solver->maxIterations = 30;
   if(solverTypeQOCC==2) {
@@ -231,8 +258,7 @@ int main(int argc, char** argv)
 
   double rMin = 0.008;
   double rMax = 0.016;
-  double r = rMax;
-  double L = 1;//0.20;//460;
+  double L = 1.0;
   double W = 0.60;
   double H = 0.80;
   double bL = 0.01;
@@ -241,6 +267,7 @@ int main(int argc, char** argv)
   double depth = 0.25;
   double th = 0.01;
   double density = 2600;
+  sys->collisionDetector->setEnvelope(rMin*.05);
 
   //sys->importSystem("../data_draft20K/data_129_overwrite.dat");
 
@@ -281,20 +308,20 @@ int main(int argc, char** argv)
   sys->add(frontPtr);
 
   Body* bodyPtr;
-  double wiggle = 0.003;//0.1;
-  int numElementsPerSideX = (L+2*th)/(2*r+2*wiggle);
-  int numElementsPerSideY = 2.5*H/(2*r+2*wiggle);
-  int numElementsPerSideZ = (W+2*th)/(2*r+2*wiggle);
+  double wiggle = 0.003;//0.003;//0.1;
+  double numElementsPerSideX = L/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideY = 2.5*H/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
   int numBodies = 0;
   // Add elements in x-direction
-  for (int i = 0; i < numElementsPerSideX; i++) {
-    for (int j = 0; j < numElementsPerSideY; j++) {
-      for (int k = 0; k < numElementsPerSideZ; k++) {
+  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
 
-        double xWig = getRandomNumber(-wiggle, wiggle);
-        double yWig = 0;//getRandomNumber(-.1, .1);
-        double zWig = getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L-th+r+xWig,2*(r+wiggle)*j+r+yWig,2*(r+wiggle)*k-0.5*W-th+r+zWig));
+        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        bodyPtr = new Body(make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
         double rRand = getRandomNumber(rMin, rMax);
         bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
         bodyPtr->setGeometry(make_double3(rRand,0,0));
@@ -331,10 +358,10 @@ int main(int argc, char** argv)
 #endif
 
   // if you don't want to visualize, then output the data
-  char filename[100];
-  sprintf(filename, "../data/stats_tol%f_h%f_solver%d.dat",
+  char statFileName[100];
+  sprintf(statFileName, "../data/stats_tol%f_h%f_solver%d.dat",
       sys->solver->tolerance, hh, solverTypeQOCC);
-  ofstream statStream(filename);
+  ofstream statStream(statFileName);
   int fileIndex = 0;
   while(sys->time < t_end)
   {
@@ -345,7 +372,11 @@ int main(int argc, char** argv)
       fileIndex++;
     }
 
+    p0_h = sys->p_d;
     sys->DoTimeStep();
+//    char collisionFileName[100];
+//    sprintf(collisionFileName, "../data/collisionData_%03d.dat", sys->timeIndex);
+//    sys->collisionDetector->exportSystem(collisionFileName);
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -360,11 +391,35 @@ int main(int argc, char** argv)
     if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
     if(sys->timeIndex%10==0) statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << endl;
 
-    if(sys->solver->iterations==1000) {
-      sys->exportSystem("../data/data_FAIL.dat");
-      sys->exportMatrices("../data");
-      cin.get();
+//    if(sys->solver->iterations==1000) {
+//      sys->exportSystem("../data/data_FAIL.dat");
+//      sys->exportMatrices("../data");
+//      cin.get();
+//    }
+
+    // TODO: This is a big no-no, need to enforce motion via constraints
+    // Apply motion
+    sys->v_h = sys->v_d;
+    if(sys->time>1.5) {
+      for(int i=0;i<1;i++) {
+        sys->v_h[3*i] = desiredVelocity;
+        sys->v_h[3*i+1] = 0;
+        sys->v_h[3*i+2] = 0;
+      }
     }
+    else {
+      for(int i=0;i<1;i++) {
+        sys->v_h[3*i] = 0;
+        sys->v_h[3*i+1] = 0;
+        sys->v_h[3*i+2] = 0;
+      }
+    }
+
+    sys->p_d = p0_h;
+    sys->v_d = sys->v_h;
+    cusp::blas::axpy(sys->v, sys->p, sys->h);
+    sys->p_h = sys->p_d;
+    // End apply motion
   }
 
   return 0;

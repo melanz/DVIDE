@@ -134,10 +134,12 @@ void renderSceneAll(){
     int i=5;
     sys->v_h[3*i] = 0;
     sys->v_h[3*i+2] = 0;
+
     sys->p_d = p0_h;
     sys->v_d = sys->v_h;
     cusp::blas::axpy(sys->v, sys->p, sys->h);
     sys->p_h = sys->p_d;
+    // End apply motion
   }
 }
 
@@ -217,14 +219,14 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  visualize = false;
+  //visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
   sys->gravity = make_double3(0,-gravity,0);
   sys->collisionDetector->setBinsPerAxis(make_uint3(30,10,10));
   sys->solver->tolerance = tolerance;
-  sys->solver->maxIterations = 1000;
+  sys->solver->maxIterations = 10000;
   //sys->importSystem("../data_draft20K/data_129_overwrite.dat");
 
   // Bottom
@@ -301,9 +303,9 @@ int main(int argc, char** argv)
       for (int k = 0; k < numElementsPerSideZ; k++) {
 
         double xWig = getRandomNumber(-wiggle, wiggle);
-        double yWig = getRandomNumber(-wiggle, wiggle); //0;//
+        double yWig = getRandomNumber(-wiggle, wiggle);
         double zWig = getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(make_double3(2*(r+wiggle)*i-0.5*L+(r+wiggle)+xWig,2*(r+wiggle)*j+(r+wiggle)+yWig,2*(r+wiggle)*k-0.5*W+(r+wiggle)+zWig));
+        bodyPtr = new Body(make_double3((r+wiggle)*(2.0*i+1.0)-0.5*L+xWig,(r+wiggle)*(2.0*j+1.0)+yWig,(r+wiggle)*(2.0*k+1.0)-0.5*W+zWig));
         bodyPtr->setMass(4.0*r*r*r*3.1415/3.0*particleDensity);
         bodyPtr->setGeometry(make_double3(r,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
@@ -378,10 +380,12 @@ int main(int argc, char** argv)
     int i=5;
     sys->v_h[3*i] = 0;
     sys->v_h[3*i+2] = 0;
+
     sys->p_d = p0_h;
     sys->v_d = sys->v_h;
     cusp::blas::axpy(sys->v, sys->p, sys->h);
     sys->p_h = sys->p_d;
+    // End apply motion
 
     int numKrylovIter = 0;
     if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;

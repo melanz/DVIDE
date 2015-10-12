@@ -50,6 +50,8 @@ class CollisionDetector {
 private:
   System* system;
 
+  double envelope;
+
   // Data for spatial subdivision
   uint numAABB;
   thrust::device_vector<double3> aabbData_d;
@@ -96,6 +98,7 @@ public:
   void setBinsPerAxis(uint3 binsPerAxis);
   int detectCollisions_CPU(); // TODO: Get rid of this function
   int exportSystem(string filename);
+  int setEnvelope(double envelope);
 
 };
 
