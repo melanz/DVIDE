@@ -270,10 +270,8 @@ __global__ void constructPw(int* PwI, int* PwJ, double* Pw, double* x, double* y
   Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
 }
 
-__global__ void updatePw(double* Pw, double* x, double* y, double* friction, double h, uint numCollisions) {
+__global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
-
-  double mu = friction[index]; // TODO: Keep an eye on friction indexing
 
   double x0 = x[3*index];
   double x1 = x[3*index+1];
@@ -283,28 +281,20 @@ __global__ void updatePw(double* Pw, double* x, double* y, double* friction, dou
   double y1 = y[3*index+1];
   double y2 = y[3*index+2];
 
-  // TODO: Use geometry and make E and nu part of the solver
-  double E = 2.0e7;
-  double nu = 0.25;
-  double r_A = 0.4;
-  double r_B = 0.4;
-  double k_n = 0.25*3.14159*E*(r_A+r_B);
-  double k_t = k_n*2.0*(1.0-nu*nu)/((2.0-nu)*(1.0+nu));
-
   double sqrtDetx = sqrt(abs(0.5*(pow(x0,2.0) - (pow(x1,2.0)+pow(x2,2.0)))));
   double sqrtDety = sqrt(abs(0.5*(pow(y0,2.0) - (pow(y1,2.0)+pow(y2,2.0)))));
   //if(sqrtDetx!=sqrtDetx) sqrtDetx = 1e-4;//0.0;
   //if(sqrtDety!=sqrtDety) sqrtDety = 0.0;
 
-  Pw[9*index] =   pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx  + 1.0/(mu*h*h*k_n);
+  Pw[9*index] =   pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx;
   Pw[9*index+1] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+2] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+3] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
-  Pw[9*index+4] = pow(y1 - (sqrtDety*x1)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx + mu/(h*h*k_t);
+  Pw[9*index+4] = pow(y1 - (sqrtDety*x1)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
   Pw[9*index+5] = ((y1 - (sqrtDety*x1)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+6] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+7] = ((y1 - (sqrtDety*x1)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
-  Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx + mu/(h*h*k_t);;
+  Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
 }
 
 int JKIP::initializePw() {
@@ -386,10 +376,8 @@ int JKIP::initializePinv() {
   return 0;
 }
 
-__global__ void updatePinv(double* Pinv, double* Pw, uint* bodyIdentifiersA, uint* bodyIdentifiersB, double* D, double* mass, double* friction, double h, uint numCollisions) {
+__global__ void updatePinv(double* Pinv, double* Pw, uint* bodyIdentifiersA, uint* bodyIdentifiersB, double* D, double* mass, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
-
-  double mu = friction[index]; // TODO: Keep an eye on friction indexing
 
   int indexA = bodyIdentifiersA[index];
   int indexB = bodyIdentifiersB[index];
@@ -400,23 +388,15 @@ __global__ void updatePinv(double* Pinv, double* Pw, uint* bodyIdentifiersA, uin
 
   double Minv = mass[3*indexA]+mass[3*indexB];
 
-  // TODO: Use geometry and make E and nu part of the solver
-  double E = 2.0e7;
-  double nu = 0.25;
-  double r_A = 0.4;
-  double r_B = 0.4;
-  double k_n = 0.25*3.14159*E*(r_A+r_B);
-  double k_t = k_n*2.0*(1.0-nu*nu)/((2.0-nu)*(1.0+nu));
-
-  double P0 = Minv*D_n.x*D_n.x + Minv*D_n.y*D_n.y + Minv*D_n.z*D_n.z + Pw[9*index] + 1.0/(mu*h*h*k_n);
+  double P0 = Minv*D_n.x*D_n.x + Minv*D_n.y*D_n.y + Minv*D_n.z*D_n.z + Pw[9*index];
   double P1 = Pw[9*index+1] + D_n.x*D_u.x*Minv + D_n.y*D_u.y*Minv + D_n.z*D_u.z*Minv;
   double P2 = Pw[9*index+2] + D_n.x*D_v.x*Minv + D_n.y*D_v.y*Minv + D_n.z*D_v.z*Minv;
   double P3 = Pw[9*index+3] + D_n.x*D_u.x*Minv + D_n.y*D_u.y*Minv + D_n.z*D_u.z*Minv;
-  double P4 = Minv*D_u.x*D_u.x + Minv*D_u.y*D_u.y + Minv*D_u.z*D_u.z + Pw[9*index+4] + mu/(h*h*k_t);
+  double P4 = Minv*D_u.x*D_u.x + Minv*D_u.y*D_u.y + Minv*D_u.z*D_u.z + Pw[9*index+4];
   double P5 = Pw[9*index+5] + D_u.x*D_v.x*Minv + D_u.y*D_v.y*Minv + D_u.z*D_v.z*Minv;
   double P6 = Pw[9*index+6] + D_n.x*D_v.x*Minv + D_n.y*D_v.y*Minv + D_n.z*D_v.z*Minv;
   double P7 = Pw[9*index+7] + D_u.x*D_v.x*Minv + D_u.y*D_v.y*Minv + D_u.z*D_v.z*Minv;
-  double P8 = Minv*D_v.x*D_v.x + Minv*D_v.y*D_v.y + Minv*D_v.z*D_v.z + Pw[9*index+8] + mu/(h*h*k_t);
+  double P8 = Minv*D_v.x*D_v.x + Minv*D_v.y*D_v.y + Minv*D_v.z*D_v.z + Pw[9*index+8];
 
   double detP = (P0*P4*P8 - P0*P5*P7 - P1*P3*P8 + P1*P5*P6 + P2*P3*P7 - P2*P4*P6);
 
@@ -689,8 +669,8 @@ int JKIP::solve() {
   int k;
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
-    updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), CASTD1(system->friction_d), system->h, system->collisionDetector->numCollisions);
-    updatePinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pinv_d), CASTD1(Pw_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(system->friction_d), system->h, system->collisionDetector->numCollisions);
+    updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
+    updatePinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pinv_d), CASTD1(Pw_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), CASTD1(system->D_d), CASTD1(system->mass_d), system->collisionDetector->numCollisions);
 
     if(verbose) {
       cusp::print(Pw);
