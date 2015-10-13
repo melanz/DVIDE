@@ -196,7 +196,7 @@ int main(int argc, char** argv)
   float  precMaxKrylov = -1;
   int precondType = 1;
   int numElementsPerSide = 10;
-  int solverType = 2;
+  int solverType = 4;
   int numPartitions = 1;
   double mu_pdip = 10.0;
   double alpha = 0.01; // should be [0.01, 0.1]
@@ -214,7 +214,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(1e-2);

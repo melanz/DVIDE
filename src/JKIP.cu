@@ -17,9 +17,11 @@ JKIP::JKIP(System* sys)
   solverOptions.safeFactorization = true;
   solverOptions.trackReordering = true;
   solverOptions.maxNumIterations = 5000;
+  solverOptions.precondType = spike::None;
   preconditionerUpdateModulus = -1; // the preconditioner updates every ___ time steps
   preconditionerMaxKrylovIterations = -1; // the preconditioner updates if Krylov iterations are greater than ____ iterations
   mySolver = new SpikeSolver(partitions, solverOptions);
+  m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Pinv, Ty, invTx, system->tmp, system->f_contact, tmp);
   //m_spmv = new MySpmv(grad_f, grad_f_T, system->D, system->DT, system->mass, lambda, lambdaTmp, Dinv, M_hat, gammaTmp, system->f_contact, system->tmp);
   stepKrylovIterations = 0;
   precUpdated = 0;
@@ -268,8 +270,10 @@ __global__ void constructPw(int* PwI, int* PwJ, double* Pw, double* x, double* y
   Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
 }
 
-__global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
+__global__ void updatePw(double* Pw, double* x, double* y, double* friction, double h, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
 
   double x0 = x[3*index];
   double x1 = x[3*index+1];
@@ -279,20 +283,28 @@ __global__ void updatePw(double* Pw, double* x, double* y, uint numCollisions) {
   double y1 = y[3*index+1];
   double y2 = y[3*index+2];
 
+  // TODO: Use geometry and make E and nu part of the solver
+  double E = 2.0e7;
+  double nu = 0.25;
+  double r_A = 0.4;
+  double r_B = 0.4;
+  double k_n = 0.25*3.14159*E*(r_A+r_B);
+  double k_t = k_n*2.0*(1.0-nu*nu)/((2.0-nu)*(1.0+nu));
+
   double sqrtDetx = sqrt(abs(0.5*(pow(x0,2.0) - (pow(x1,2.0)+pow(x2,2.0)))));
   double sqrtDety = sqrt(abs(0.5*(pow(y0,2.0) - (pow(y1,2.0)+pow(y2,2.0)))));
   //if(sqrtDetx!=sqrtDetx) sqrtDetx = 1e-4;//0.0;
   //if(sqrtDety!=sqrtDety) sqrtDety = 0.0;
 
-  Pw[9*index] =   pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx;
+  Pw[9*index] =   pow(y0 + (sqrtDety*x0)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) - sqrtDety/sqrtDetx  + 1.0/(mu*h*h*k_n);
   Pw[9*index+1] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+2] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+3] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y1 - (sqrtDety*x1)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
-  Pw[9*index+4] = pow(y1 - (sqrtDety*x1)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
+  Pw[9*index+4] = pow(y1 - (sqrtDety*x1)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx + mu/(h*h*k_t);
   Pw[9*index+5] = ((y1 - (sqrtDety*x1)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+6] = ((y0 + (sqrtDety*x0)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
   Pw[9*index+7] = ((y1 - (sqrtDety*x1)/sqrtDetx)*(y2 - (sqrtDety*x2)/sqrtDetx))/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety);
-  Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx;
+  Pw[9*index+8] = pow(y2 - (sqrtDety*x2)/sqrtDetx,2.0)/(x0*y0 + x1*y1 + x2*y2 + 2*sqrtDetx*sqrtDety) + sqrtDety/sqrtDetx + mu/(h*h*k_t);;
 }
 
 int JKIP::initializePw() {
@@ -312,6 +324,111 @@ int JKIP::initializePw() {
   // end create Pw
 
   return 0;
+}
+
+__global__ void constructPinv(int* PinvI, int* PinvJ, double* Pinv, double* x, double* y, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  PinvI[9*index] = 3*index;
+  PinvJ[9*index] = 3*index;
+  Pinv[9*index] = 0;
+
+  PinvI[9*index+1] = 3*index;
+  PinvJ[9*index+1] = 3*index+1;
+  Pinv[9*index+1] = 0;
+
+  PinvI[9*index+2] = 3*index;
+  PinvJ[9*index+2] = 3*index+2;
+  Pinv[9*index+2] = 0;
+
+  PinvI[9*index+3] = 3*index+1;
+  PinvJ[9*index+3] = 3*index;
+  Pinv[9*index+3] = 0;
+
+  PinvI[9*index+4] = 3*index+1;
+  PinvJ[9*index+4] = 3*index+1;
+  Pinv[9*index+4] = 0;
+
+  PinvI[9*index+5] = 3*index+1;
+  PinvJ[9*index+5] = 3*index+2;
+  Pinv[9*index+5] = 0;
+
+  PinvI[9*index+6] = 3*index+2;
+  PinvJ[9*index+6] = 3*index;
+  Pinv[9*index+6] = 0;
+
+  PinvI[9*index+7] = 3*index+2;
+  PinvJ[9*index+7] = 3*index+1;
+  Pinv[9*index+7] = 0;
+
+  PinvI[9*index+8] = 3*index+2;
+  PinvJ[9*index+8] = 3*index+2;
+  Pinv[9*index+8] = 0;
+}
+
+int JKIP::initializePinv() {
+  constructPinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(PinvI_d), CASTI1(PinvJ_d), CASTD1(Pinv_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
+  Pinv_h = Pinv_d; // save on host for reset at each iteration TODO: reset on the GPU (might be faster to just recompute)
+
+  // create Pinv using cusp library
+  thrust::device_ptr<int> wrapped_device_I(CASTI1(PinvI_d));
+  DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + PinvI_d.size());
+
+  thrust::device_ptr<int> wrapped_device_J(CASTI1(PinvJ_d));
+  DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + PinvJ_d.size());
+
+  thrust::device_ptr<double> wrapped_device_V(CASTD1(Pinv_d));
+  DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + Pinv_d.size());
+
+  Pinv = DeviceView(3*system->collisionDetector->numCollisions, 3*system->collisionDetector->numCollisions, Pinv_d.size(), row_indices, column_indices, values);
+  // end create Pinv
+
+  return 0;
+}
+
+__global__ void updatePinv(double* Pinv, double* Pw, uint* bodyIdentifiersA, uint* bodyIdentifiersB, double* D, double* mass, double* friction, double h, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  int indexA = bodyIdentifiersA[index];
+  int indexB = bodyIdentifiersB[index];
+
+  double3 D_n = make_double3(D[18*index+0], D[18*index+1], D[18*index+2]);
+  double3 D_u = make_double3(D[18*index+6], D[18*index+7], D[18*index+8]);
+  double3 D_v = make_double3(D[18*index+12],D[18*index+13],D[18*index+14]);
+
+  double Minv = mass[3*indexA]+mass[3*indexB];
+
+  // TODO: Use geometry and make E and nu part of the solver
+  double E = 2.0e7;
+  double nu = 0.25;
+  double r_A = 0.4;
+  double r_B = 0.4;
+  double k_n = 0.25*3.14159*E*(r_A+r_B);
+  double k_t = k_n*2.0*(1.0-nu*nu)/((2.0-nu)*(1.0+nu));
+
+  double P0 = Minv*D_n.x*D_n.x + Minv*D_n.y*D_n.y + Minv*D_n.z*D_n.z + Pw[9*index] + 1.0/(mu*h*h*k_n);
+  double P1 = Pw[9*index+1] + D_n.x*D_u.x*Minv + D_n.y*D_u.y*Minv + D_n.z*D_u.z*Minv;
+  double P2 = Pw[9*index+2] + D_n.x*D_v.x*Minv + D_n.y*D_v.y*Minv + D_n.z*D_v.z*Minv;
+  double P3 = Pw[9*index+3] + D_n.x*D_u.x*Minv + D_n.y*D_u.y*Minv + D_n.z*D_u.z*Minv;
+  double P4 = Minv*D_u.x*D_u.x + Minv*D_u.y*D_u.y + Minv*D_u.z*D_u.z + Pw[9*index+4] + mu/(h*h*k_t);
+  double P5 = Pw[9*index+5] + D_u.x*D_v.x*Minv + D_u.y*D_v.y*Minv + D_u.z*D_v.z*Minv;
+  double P6 = Pw[9*index+6] + D_n.x*D_v.x*Minv + D_n.y*D_v.y*Minv + D_n.z*D_v.z*Minv;
+  double P7 = Pw[9*index+7] + D_u.x*D_v.x*Minv + D_u.y*D_v.y*Minv + D_u.z*D_v.z*Minv;
+  double P8 = Minv*D_v.x*D_v.x + Minv*D_v.y*D_v.y + Minv*D_v.z*D_v.z + Pw[9*index+8] + mu/(h*h*k_t);
+
+  double detP = (P0*P4*P8 - P0*P5*P7 - P1*P3*P8 + P1*P5*P6 + P2*P3*P7 - P2*P4*P6);
+
+  Pinv[9*index] =   (P4*P8 - P5*P7)/detP;
+  Pinv[9*index+1] = -(P1*P8 - P2*P7)/detP;
+  Pinv[9*index+2] = (P1*P5 - P2*P4)/detP;
+  Pinv[9*index+3] = -(P3*P8 - P5*P6)/detP;
+  Pinv[9*index+4] = (P0*P8 - P2*P6)/detP;
+  Pinv[9*index+5] = -(P0*P5 - P2*P3)/detP;
+  Pinv[9*index+6] = (P3*P7 - P4*P6)/detP;
+  Pinv[9*index+7] = -(P0*P7 - P1*P6)/detP;
+  Pinv[9*index+8] = (P0*P4 - P1*P3)/detP;
 }
 
 __global__ void initializeImpulseVector(double* src, double* friction, uint numCollisions) {
@@ -451,16 +568,6 @@ int JKIP::performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArr
   return 0;
 }
 
-int JKIP::performMatrixFreeSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2) {
-  cusp::multiply(invTx,src,tmp);
-  cusp::multiply(system->DT,tmp,system->f_contact);
-  cusp::multiply(system->mass,system->f_contact,system->tmp);
-  cusp::multiply(system->D,system->tmp,tmp2);
-  cusp::multiply(Ty,tmp2,tmp);
-
-  return 0;
-}
-
 int JKIP::buildSchurMatrix() {
   // build N
   cusp::multiply(system->mass,system->DT,system->MinvDT);
@@ -502,6 +609,10 @@ int JKIP::solve() {
   PwJ_d.resize(9*system->collisionDetector->numCollisions);
   Pw_d.resize(9*system->collisionDetector->numCollisions);
 
+  PinvI_d.resize(9*system->collisionDetector->numCollisions);
+  PinvJ_d.resize(9*system->collisionDetector->numCollisions);
+  Pinv_d.resize(9*system->collisionDetector->numCollisions);
+
   // TODO: There's got to be a better way to do this...
   // vectors:  x, y, dx, dy, d, b
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
@@ -535,14 +646,8 @@ int JKIP::solve() {
   }
 
   initializePw();
-  buildSchurMatrix();
-  cusp::print(x);
-  cusp::multiply(system->N,x,r);
-  cusp::print(r);
-  cin.get();
-  performMatrixFreeSchurComplementProduct(x,y); //NOTE: y is destroyed here
-  cusp::print(y);
-  cin.get();
+  initializePinv();
+  //buildSchurMatrix();
 
   cusp::multiply(Ty,system->r,r);
   initializeImpulseVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
@@ -584,10 +689,12 @@ int JKIP::solve() {
   int k;
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
-    updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
-    cusp::add(system->N,Pw,A);
+    updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), CASTD1(system->friction_d), system->h, system->collisionDetector->numCollisions);
+    updatePinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pinv_d), CASTD1(Pw_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTD1(system->friction_d), system->h, system->collisionDetector->numCollisions);
+
     if(verbose) {
       cusp::print(Pw);
+      cusp::print(Pinv);
       cin.get();
     }
 
@@ -602,7 +709,8 @@ int JKIP::solve() {
     }
 
     getInverse<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(b_d), system->collisionDetector->numCollisions);
-    cusp::blas::axpbypcz(b,y,d,b,alpha,-1.0,-ds);
+    cusp::blas::axpbypcz(b,y,d,dx,alpha,-1.0,-ds); //b is in dx (dx is temporary here)
+    cusp::multiply(Pinv,dx,b); // multiply by preconditioner!
 
     if(verbose) {
       cusp::print(b);
@@ -614,13 +722,13 @@ int JKIP::solve() {
     }
 
     // solve system
-    delete mySolver;
-    //m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Ty, invTx, system->tmp, system->f_contact, tmp);
-    mySolver = new SpikeSolver(partitions, solverOptions);
-    mySolver->setup(A); //TODO: Use preconditioning here! Need to build full matrix...
+    //delete mySolver;
+    //m_spmv = new MySpmvJKIP(system->mass, system->D, system->DT, Pw, Pinv, Ty, invTx, system->tmp, system->f_contact, tmp);
+    //mySolver = new SpikeSolver(partitions, solverOptions);
+    mySolver->setup(Pw); // This should do nothing (minor setup, isn't building any preconditioner)
 
     cusp::blas::fill(dx, 0.0);
-    bool success = mySolver->solve(A, b, dx);
+    bool success = mySolver->solve(*m_spmv, b, dx);
     spike::Stats stats = mySolver->getStats();
     if(verbose) {
       cusp::print(dx);

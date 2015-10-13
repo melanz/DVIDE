@@ -32,7 +32,7 @@ typedef typename cusp::array1d<double, cusp::device_memory> DeviceValueArray;
 class MySpmvJKIP : public cusp::linear_operator<double, cusp::device_memory>{
 public:
   typedef cusp::linear_operator<double, cusp::device_memory> super;
-  MySpmvJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceView& Ty, DeviceView& invTx, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_vel2, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mTy(Ty), minvTx(invTx), mtemp_vel(temp_vel), mtemp_vel2(temp_vel2), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
+  MySpmvJKIP(DeviceView& Minv, DeviceView& D, DeviceView& DT, DeviceView& Pw, DeviceView& Pinv, DeviceView& Ty, DeviceView& invTx, DeviceValueArrayView& temp_vel, DeviceValueArrayView& temp_vel2, DeviceValueArrayView& temp_gamma) : mMinv(Minv), mD(D), mDT(DT), mPw(Pw), mPinv(Pinv), mTy(Ty), minvTx(invTx), mtemp_vel(temp_vel), mtemp_vel2(temp_vel2), mtemp_gamma(temp_gamma), super(temp_gamma.size(), temp_gamma.size()) {}
   void operator()(const DeviceValueArray& v, DeviceValueArray& Av) {
     // Av = D*Minv*D'*v
     cusp::multiply(minvTx,v,mtemp_gamma);
@@ -44,14 +44,18 @@ public:
     // tmp = P(w)*v
     cusp::multiply(mPw, v, mtemp_gamma);
 
-    // Av = tmp + Av
-    cusp::blas::axpy(mtemp_gamma, Av, 1.0);
+    // tmp = tmp + Av
+    cusp::blas::axpy(Av, mtemp_gamma, 1.0);
+
+    // Av = Pinv*tmp;
+    cusp::multiply(mPinv, mtemp_gamma, Av);
   }
 private:
   DeviceView& mMinv;
   DeviceView& mD;
   DeviceView& mDT;
   DeviceView& mPw;
+  DeviceView& mPinv;
   DeviceView& mTy;
   DeviceView& minvTx;
 
@@ -93,6 +97,7 @@ private:
   DeviceView invTx;
   DeviceView Ty;
   DeviceView Pw;
+  DeviceView Pinv;
   DeviceMatrix A;
 
   thrust::host_vector<double> x_h;
@@ -116,6 +121,10 @@ private:
   thrust::host_vector<int> PwJ_h;
   thrust::host_vector<double> Pw_h;
 
+  thrust::host_vector<int> PinvI_h;
+  thrust::host_vector<int> PinvJ_h;
+  thrust::host_vector<double> Pinv_h;
+
   thrust::device_vector<double> x_d;
   thrust::device_vector<double> y_d;
   thrust::device_vector<double> dx_d;
@@ -137,10 +146,14 @@ private:
   thrust::device_vector<int> PwJ_d;
   thrust::device_vector<double> Pw_d;
 
+  thrust::device_vector<int> PinvI_d;
+  thrust::device_vector<int> PinvJ_d;
+  thrust::device_vector<double> Pinv_d;
+
   int initializeT();
   int initializePw();
+  int initializePinv();
   int performSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
-  int performMatrixFreeSchurComplementProduct(DeviceValueArrayView src, DeviceValueArrayView tmp2);
   double updateAlpha(double s);
   int buildSchurMatrix();
 
