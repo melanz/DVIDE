@@ -229,11 +229,11 @@ int APGD::solve() {
     cusp::blas::axpby(gammaNew,system->gamma,yNew,(1.0+Beta),-Beta);
 
     // (18) r = r(gamma_(k+1))
-    //double res = getResidual(gammaNew);
-    performSchurComplementProduct(gammaNew);
-    cusp::blas::axpy(system->r,gammaTmp,1.0);
-    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
-    double res = cusp::blas::nrmmax(gammaTmp);
+    double res = getResidual(gammaNew);
+    //performSchurComplementProduct(gammaNew);
+    //cusp::blas::axpy(system->r,gammaTmp,1.0);
+    //getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
+    //double res = cusp::blas::nrmmax(gammaTmp);
 
     // (19) if r < epsilon_min
     if (res < residual) {

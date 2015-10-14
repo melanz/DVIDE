@@ -1,4 +1,6 @@
 #include "include.cuh"
+#include <sys/stat.h>
+#include <errno.h>
 #include "System.cuh"
 #include "Body.cuh"
 #include "PDIP.cuh"
@@ -9,6 +11,8 @@ bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
+std::string outDir = "../TEST_SHEAR/";
+std::string povrayDir = outDir + "POVRAY/";
 double desiredVelocity = 0.166; // Needs to be global so that renderer can access it
 thrust::host_vector<double> p0_h;
 
@@ -102,15 +106,9 @@ void renderSceneAll(){
   if(OGL){
     //if(sys->timeIndex%10==0)
     drawAll();
-    //char filename[100];
-    //sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
-    //sys->exportSystem(filename);
+
     p0_h = sys->p_d;
     sys->DoTimeStep();
-//    if(sys->solver->iterations==1000) {
-//      sys->exportMatrices("../data");
-//      cin.get();
-//    }
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -229,6 +227,28 @@ int main(int argc, char** argv)
   sys->solver->maxIterations = 10000;
   //sys->importSystem("../data_draft20K/data_129_overwrite.dat");
 
+  // Create output directories
+  std::stringstream outDirStream;
+  outDirStream << "../TEST_SHEAR_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDir = outDirStream.str();
+  povrayDir = outDir + "POVRAY/";
+  if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+  {
+    if(errno != EEXIST)
+    {
+      printf("Error creating directory!n");
+      exit(1);
+    }
+  }
+  if(mkdir(povrayDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+  {
+    if(errno != EEXIST)
+    {
+      printf("Error creating directory!n");
+      exit(1);
+    }
+  }
+
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-0.5*TH,0));
   groundPtr->setBodyFixed(true);
@@ -341,17 +361,17 @@ int main(int argc, char** argv)
 #endif
 
   // if you don't want to visualize, then output the data
-  char filename[100];
-  sprintf(filename, "../data/statsShear_tol%f_h%f_solver%d.dat", sys->solver->tolerance, hh, solverTypeQOCC);
-  ofstream statStream(filename);
+  std::stringstream statsFileStream;
+  statsFileStream << outDir << "statsShear_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  ofstream statStream(statsFileStream.str().c_str());
 
   int fileIndex = 0;
   while(sys->p_h[0] < lengthToRun)
   {
     if(sys->timeIndex%20==0) {
-      char filename[100];
-      sprintf(filename, "../data/data_%03d.dat", fileIndex);
-      sys->exportSystem(filename);
+      std::stringstream dataFileStream;
+      dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
+      sys->exportSystem(dataFileStream.str());
       fileIndex++;
     }
 

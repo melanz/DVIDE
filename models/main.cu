@@ -1,4 +1,6 @@
 #include "include.cuh"
+#include <sys/stat.h>
+#include <errno.h>
 #include "System.cuh"
 #include "Body.cuh"
 #include "PDIP.cuh"
@@ -10,6 +12,8 @@ bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
+std::string outDir = "../TEST_FILL/";
+std::string povrayDir = outDir + "POVRAY/";
 
 #ifdef WITH_GLUT
 OpenGLCamera oglcamera(camreal3(4,5,-14),camreal3(4,5,0),camreal3(0,1,0),.01);
@@ -101,23 +105,12 @@ void renderSceneAll(){
 	if(OGL){
 		//if(sys->timeIndex%10==0)
 		drawAll();
-		char filename[100];
-		sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
-		sys->exportSystem(filename);
+    std::stringstream dataFileStream;
+    dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
+    sys->exportSystem(dataFileStream.str());
 		sys->DoTimeStep();
 		double4 violation = sys->getCCPViolation();
 		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
-//		sys->exportMatrices("../data");
-//    sys->f_contact_h = sys->f_contact_d;
-//    for(int i=0; i<sys->f_contact_h.size(); i++) {
-//      cout << "f_contact_h[" << i << "] = " << sys->f_contact_h[i] << endl;
-//    }
-//
-//
-//    if(sys->time>.48) {
-//      sys->solver->verbose = true;
-//      cin.get();
-//    }
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -204,6 +197,7 @@ int main(int argc, char** argv)
   int solverTypeQOCC = 6;
   int binsPerAxis = 10;
   double tolerance = 1e-3;
+  double hh = 1e-2;
 
   if(argc > 1) {
     numElementsPerSide = atoi(argv[1]);
@@ -214,10 +208,33 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
-  sys->setTimeStep(1e-2);
+  sys->setTimeStep(hh);
+  sys->solver->tolerance = tolerance;
+
+  // Create output directories
+  std::stringstream outDirStream;
+  outDirStream << "../TEST_FILL_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDir = outDirStream.str();
+  povrayDir = outDir + "POVRAY/";
+  if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+  {
+    if(errno != EEXIST)
+    {
+      printf("Error creating directory!n");
+      exit(1);
+    }
+  }
+  if(mkdir(povrayDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+  {
+    if(errno != EEXIST)
+    {
+      printf("Error creating directory!n");
+      exit(1);
+    }
+  }
 
   int numElementsPerSideY = 10;
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,numElementsPerSideY,binsPerAxis));
@@ -243,7 +260,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
-  sys->solver->tolerance = tolerance;
+
   //sys->solver->maxIterations = 10;
 
   double radius = 0.4;
@@ -354,18 +371,16 @@ int main(int argc, char** argv)
 #endif
 	
 	// if you don't want to visualize, then output the data
-  char filename[100];
-  sprintf(filename, "../data/stats_B%d_ST%d_tol%.5f.dat",
-      numElementsPerSide,
-      solverTypeQOCC,
-      tolerance);
-	ofstream statStream(filename);
+  std::stringstream statsFileStream;
+  statsFileStream << outDir << "statsFill_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+	ofstream statStream(statsFileStream.str().c_str());
+
 	double maxVel = 0;
 	while(sys->time < t_end)
 	{
-    char filename[100];
-    sprintf(filename, "../data/data_%03d.dat", sys->timeIndex);
-    sys->exportSystem(filename);
+    std::stringstream dataFileStream;
+    dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
+    sys->exportSystem(dataFileStream.str());
 
 		sys->DoTimeStep();
 		double4 violation = sys->getCCPViolation();
@@ -389,6 +404,10 @@ int main(int argc, char** argv)
 		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << violation.x << ", " << violation.y << ", " << violation.z << ", " << violation.w << ", " << endl;
 
 	}
+	sys->exportMatrices(outDir.c_str());
+  std::stringstream collisionFileStream;
+  collisionFileStream << outDir << "collisionData.dat";
+	sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
 	cout << "Maximum Velocity = " << maxVel << endl;
 
 	return 0;
