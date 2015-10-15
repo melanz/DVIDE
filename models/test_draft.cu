@@ -278,7 +278,7 @@ int main(int argc, char** argv)
   double rMax = 0.016;
   double L = 1.0;
   double W = 0.60;
-  double H = 0.80;
+  double H = 0.80*2.5;
   double bL = 0.01;
   double bH = 0.60;
   double bW = 0.20;
@@ -325,10 +325,16 @@ int main(int argc, char** argv)
   frontPtr->setGeometry(make_double3(0.5*L+th,0.5*H+th,th));
   sys->add(frontPtr);
 
+  // Top
+  Body* topPtr = new Body(make_double3(0,H+3*th,0));
+  topPtr->setBodyFixed(true);
+  topPtr->setGeometry(make_double3(0.5*L+th,th,0.5*W+th));
+  sys->add(topPtr);
+
   Body* bodyPtr;
   double wiggle = 0.003;//0.003;//0.1;
   double numElementsPerSideX = L/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideY = 2.5*H/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
   double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
   int numBodies = 0;
   // Add elements in x-direction
