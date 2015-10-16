@@ -119,6 +119,38 @@ __global__ void getResidual_APGD(double* src, double* gamma, uint numCollisions)
   src[3*index+2] = 0;
 }
 
+__global__ void getFeasibleX_APGD(double* src, double* dst, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  double xn = src[3*index];
+  double xt1 = src[3*index+1];
+  double xt2 = src[3*index+2];
+
+  xn = mu*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
+  dst[3*index+1] = -10e30;
+  dst[3*index+2] = -10e30;
+}
+
+__global__ void getFeasibleY_APGD(double* src, double* dst, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  double xn = src[3*index];
+  double xt1 = src[3*index+1];
+  double xt2 = src[3*index+2];
+
+  xn = (1.0/mu)*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
+  dst[3*index+1] = -10e30;
+  dst[3*index+2] = -10e30;
+}
+
 int APGD::solve() {
 
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
@@ -153,7 +185,7 @@ int APGD::solve() {
   //cusp::blas::fill(system->gamma,0);
 
   // Provide an initial guess for gamma
-  //initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -229,11 +261,22 @@ int APGD::solve() {
     cusp::blas::axpby(gammaNew,system->gamma,yNew,(1.0+Beta),-Beta);
 
     // (18) r = r(gamma_(k+1))
-    double res = getResidual(gammaNew);
-    //performSchurComplementProduct(gammaNew);
-    //cusp::blas::axpy(system->r,gammaTmp,1.0);
-    //getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
-    //double res = cusp::blas::nrmmax(gammaTmp);
+    //double res = getResidual(gammaNew);
+    getFeasibleX_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+    double feasibleX = Thrust_Max(gammaTmp_d);
+
+    performSchurComplementProduct(gammaNew);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
+    double res3 = cusp::blas::nrmmax(gammaTmp);
+
+    performSchurComplementProduct(gammaNew);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getFeasibleY_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+    double feasibleY = Thrust_Max(gammaTmp_d);
+
+    double res = fmax(feasibleX,feasibleY);
+    res = fmax(res,res3);
 
     // (19) if r < epsilon_min
     if (res < residual) {
