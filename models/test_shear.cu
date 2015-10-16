@@ -370,7 +370,7 @@ int main(int argc, char** argv)
   {
     if(sys->timeIndex%20==0) {
       std::stringstream dataFileStream;
-      dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
+      dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());
       fileIndex++;
     }
