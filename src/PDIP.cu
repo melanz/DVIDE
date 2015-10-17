@@ -647,14 +647,14 @@ int PDIP::solve() {
     getFeasibleY_PDIP<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
     double feasibleY = Thrust_Max(gammaTmp_d);
 
-    double res = fmax(feasibleX,feasibleY);
-    res = fmax(res,res3);
+    residual = fmax(feasibleX,feasibleY);
+    residual = fmax(residual,res3);
 
     //residual = getResidual(system->gamma);
     //if(k==0) residual0 = residual;
     //residual = residual/residual0;
     // (21) if r < tau
-    if (res < tolerance) {
+    if (residual < tolerance) {
       // (22) break
       break;
 

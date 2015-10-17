@@ -372,7 +372,7 @@ int main(int argc, char** argv)
 	
 	// if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsFillFeas_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsFill_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
 	ofstream statStream(statsFileStream.str().c_str());
 
 	double maxVel = 0;

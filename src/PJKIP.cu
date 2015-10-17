@@ -145,6 +145,14 @@ __global__ void getFeasible2(double* src, double* dst, uint numCollisions) {
   dst[3*index+2] = -10e30;
 }
 
+__global__ void getResidual_PJKIP(double* src, double* gamma, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  src[3*index] = src[3*index]*gamma[3*index]+src[3*index+1]*gamma[3*index+1]+src[3*index+2]*gamma[3*index+2];
+  src[3*index+1] = 0;
+  src[3*index+2] = 0;
+}
+
 __global__ void getStepLength2(double* x, double* dx, double* y, double* dy, double* dst, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
@@ -635,7 +643,12 @@ int PJKIP::solve() {
     getFeasible2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double feasibleX = Thrust_Max(tmp_d);
     cusp::blas::axpby(y,d,tmp,1.0,-s);
-    double optim = abs(cusp::blas::dot(x,tmp))/((double) system->collisionDetector->numCollisions);
+
+    //double optim = abs(cusp::blas::dot(x,tmp))/((double) system->collisionDetector->numCollisions);
+    getResidual_PJKIP<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(tmp_d), CASTD1(x_d), system->collisionDetector->numCollisions);
+    double optim = cusp::blas::nrmmax(tmp);
+
+    cusp::blas::axpby(y,d,tmp,1.0,-s);
     getFeasible2<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(tmp_d), CASTD1(tmp_d), system->collisionDetector->numCollisions);
     double feasibleY = Thrust_Max(tmp_d);
     if(feasible==false && feasibleY == 0) {

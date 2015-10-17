@@ -335,6 +335,38 @@ __global__ void getResidual_PGS(double* src, double* gamma, uint numCollisions) 
   src[3*index+2] = 0;
 }
 
+__global__ void getFeasibleX_PGS(double* src, double* dst, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  double xn = src[3*index];
+  double xt1 = src[3*index+1];
+  double xt2 = src[3*index+2];
+
+  xn = mu*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
+  dst[3*index+1] = -10e30;
+  dst[3*index+2] = -10e30;
+}
+
+__global__ void getFeasibleY_PGS(double* src, double* dst, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index]; // TODO: Keep an eye on friction indexing
+
+  double xn = src[3*index];
+  double xt1 = src[3*index+1];
+  double xt2 = src[3*index+2];
+
+  xn = (1.0/mu)*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
+  dst[3*index+1] = -10e30;
+  dst[3*index+2] = -10e30;
+}
+
 __global__ void initializeImpulseVector_PGS(double* src, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
@@ -392,11 +424,22 @@ int PGS::solve() {
     //cusp::print(system->gamma);
 
     // (4) r = r(gamma)
+    getFeasibleX_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+    double feasibleX = Thrust_Max(gammaTmp_d);
+
     //residual = getResidual(system->gamma);
     performSchurComplementProduct(system->gamma);
     cusp::blas::axpy(system->r,gammaTmp,1.0);
     getResidual_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->gamma), system->collisionDetector->numCollisions);
-    residual = cusp::blas::nrmmax(gammaTmp);
+    double res3 = cusp::blas::nrmmax(gammaTmp);
+
+    performSchurComplementProduct(system->gamma);
+    cusp::blas::axpy(system->r,gammaTmp,1.0);
+    getFeasibleY_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+    double feasibleY = Thrust_Max(gammaTmp_d);
+
+    residual = fmax(feasibleX,feasibleY);
+    residual = fmax(residual,res3);
 
     // (5) if r < Tau
     if (residual < tolerance) {

@@ -205,7 +205,7 @@ int main(int argc, char** argv)
   // FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
   // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 10;
+  double t_end = 4;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;

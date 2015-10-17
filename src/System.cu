@@ -251,18 +251,6 @@ int System::DoTimeStep() {
 
     cusp::blas::fill(f_contact,0.0);
   }
-
-//  if(time>1.5) {
-//    // Apply sinusoidal motion
-//    v_h = v_d;
-//    for(int i=0;i<1;i++) {
-//      v_h[3*i] = -0.20;//v_h[3*i]+4.0*sin((time-2)*3.0);
-//      v_h[3*i+1] = 0;
-//      v_h[3*i+2] = 0;
-//    }
-//    v_d = v_h;
-//  }
-
   cusp::blas::axpy(v, p, h);
 
   time += h;

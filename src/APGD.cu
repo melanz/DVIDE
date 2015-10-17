@@ -8,7 +8,7 @@ APGD::APGD(System* sys)
   system = sys;
 
   tolerance = 1e-4;
-  maxIterations = 10000;
+  maxIterations = 100000;
   iterations = 0;
 }
 
