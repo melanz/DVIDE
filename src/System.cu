@@ -19,6 +19,7 @@ System::System()
   timeIndex = 0;
   time = 0;
   elapsedTime = 0;
+  totalGPUMemoryUsed = 0;
 
   collisionDetector = new CollisionDetector(this);
   solver = new APGD(this);
@@ -32,6 +33,7 @@ System::System(int solverType)
   timeIndex = 0;
   time = 0;
   elapsedTime = 0;
+  totalGPUMemoryUsed = 0;
 
   collisionDetector = new CollisionDetector(this);
 
@@ -68,83 +70,21 @@ void System::setTimeStep(double step_size)
 }
 
 int System::add(Body* body) {
-  // TODO: make this function general for any Body
-  //add the element
-  body->setIndex(p_h.size()); // Indicates the Body's location in the position array
-  indices_h.push_back(p_h.size()); // Push Body's location to global library
-  body->setIdentifier(bodies.size()); // Indicates the number that the Body was added
+  //add the body
   bodies.push_back(body);
-
-  // update p
-  p_h.push_back(body->pos.x);
-  p_h.push_back(body->pos.y);
-  p_h.push_back(body->pos.z);
-
-  // update v
-  v_h.push_back(body->vel.x);
-  v_h.push_back(body->vel.y);
-  v_h.push_back(body->vel.z);
-
-  // update a
-  a_h.push_back(body->acc.x);
-  a_h.push_back(body->acc.y);
-  a_h.push_back(body->acc.z);
-
-  // update external force vector (gravity)
-  if(body->isFixed()) {
-    f_h.push_back(0);
-    f_h.push_back(0);
-    f_h.push_back(0);
-  }
-  else {
-    f_h.push_back(body->mass * this->gravity.x);
-    f_h.push_back(body->mass * this->gravity.y);
-    f_h.push_back(body->mass * this->gravity.z);
-  }
-
-  f_contact_h.push_back(0);
-  f_contact_h.push_back(0);
-  f_contact_h.push_back(0);
-
-  fApplied_h.push_back(0);
-  fApplied_h.push_back(0);
-  fApplied_h.push_back(0);
-  fApplied_d = fApplied_h;
-
-  tmp_h.push_back(0);
-  tmp_h.push_back(0);
-  tmp_h.push_back(0);
-
-  r_h.push_back(0);
-  r_h.push_back(0);
-  r_h.push_back(0);
-
-  r_h.push_back(0);
-  r_h.push_back(0);
-  r_h.push_back(0);
-
-  k_h.push_back(0);
-  k_h.push_back(0);
-  k_h.push_back(0);
-
-  // update the mass matrix
-  for (int i = 0; i < body->numDOF; i++) {
-    massI_h.push_back(i + body->numDOF * (bodies.size() - 1));
-    massJ_h.push_back(i + body->numDOF * (bodies.size() - 1));
-    if(body->isFixed()) {
-      mass_h.push_back(0);
-    }
-    else {
-      mass_h.push_back(1.0/body->mass);
-    }
-  }
-
-  contactGeometry_h.push_back(body->contactGeometry);
 
   return bodies.size();
 }
 
+int System::add(Beam* beam) {
+  //add the beam
+  beams.push_back(beam);
+
+  return beams.size();
+}
+
 int System::initializeDevice() {
+
   indices_d = indices_h;
   p_d = p_h;
   v_d = v_h;
@@ -208,11 +148,358 @@ int System::initializeDevice() {
 
 int System::initializeSystem() {
 
-  // update the contact geometry and fixed bodies
-  for(int i=0; i<bodies.size(); i++) {
-    contactGeometry_h[i] = bodies[i]->contactGeometry;
-    if(bodies[i]->isFixed()) fixedBodies_h.push_back(i);
+  for(int j=0; j<bodies.size(); j++) {
+    Body* body = bodies[j];
+    body->setIdentifier(j); // Indicates the number that the Body was added
+    body->setIndex(p_h.size()); // Indicates the Body's location in the position array
+
+    // Push Body's location to global library
+    indices_h.push_back(p_h.size());
+
+    // update p
+    p_h.push_back(body->pos.x);
+    p_h.push_back(body->pos.y);
+    p_h.push_back(body->pos.z);
+
+    // update v
+    v_h.push_back(body->vel.x);
+    v_h.push_back(body->vel.y);
+    v_h.push_back(body->vel.z);
+
+    // update a
+    a_h.push_back(body->acc.x);
+    a_h.push_back(body->acc.y);
+    a_h.push_back(body->acc.z);
+
+    // update external force vector (gravity)
+    if(body->isFixed()) {
+      f_h.push_back(0);
+      f_h.push_back(0);
+      f_h.push_back(0);
+    }
+    else {
+      f_h.push_back(body->mass * this->gravity.x);
+      f_h.push_back(body->mass * this->gravity.y);
+      f_h.push_back(body->mass * this->gravity.z);
+    }
+
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+
+    // update the mass matrix
+    for(int i = 0; i < body->numDOF; i++) {
+      massI_h.push_back(i + body->numDOF * j);
+      massJ_h.push_back(i + body->numDOF * j);
+      if(body->isFixed()) {
+        mass_h.push_back(0);
+      }
+      else {
+        mass_h.push_back(1.0/body->mass);
+      }
+    }
+
+    contactGeometry_h.push_back(body->contactGeometry);
+
+    if(body->isFixed()) fixedBodies_h.push_back(j);
   }
+
+  for(int j=0; j<beams.size(); j++) {
+    Beam* beam = beams[j];
+    beam->setIdentifier(bodies.size()+j); // Indicates the number that the Beam was added
+    beam->setIndex(p_h.size()); // Indicates the Beam's location in the position array
+
+    // Push Beam's location to global library
+    indices_h.push_back(p_h.size());
+
+    // update p
+    p_h.push_back(beam->p_n0.x);
+    p_h.push_back(beam->p_n0.y);
+    p_h.push_back(beam->p_n0.z);
+    p_h.push_back(beam->p_dn0.x);
+    p_h.push_back(beam->p_dn0.y);
+    p_h.push_back(beam->p_dn0.z);
+    p_h.push_back(beam->p_n1.x);
+    p_h.push_back(beam->p_n1.y);
+    p_h.push_back(beam->p_n1.z);
+    p_h.push_back(beam->p_dn1.x);
+    p_h.push_back(beam->p_dn1.y);
+    p_h.push_back(beam->p_dn1.z);
+
+    // update v
+    v_h.push_back(beam->v_n0.x);
+    v_h.push_back(beam->v_n0.y);
+    v_h.push_back(beam->v_n0.z);
+    v_h.push_back(beam->v_dn0.x);
+    v_h.push_back(beam->v_dn0.y);
+    v_h.push_back(beam->v_dn0.z);
+    v_h.push_back(beam->v_n1.x);
+    v_h.push_back(beam->v_n1.y);
+    v_h.push_back(beam->v_n1.z);
+    v_h.push_back(beam->v_dn1.x);
+    v_h.push_back(beam->v_dn1.y);
+    v_h.push_back(beam->v_dn1.z);
+
+    // update a
+    a_h.push_back(beam->a_n0.x);
+    a_h.push_back(beam->a_n0.y);
+    a_h.push_back(beam->a_n0.z);
+    a_h.push_back(beam->a_dn0.x);
+    a_h.push_back(beam->a_dn0.y);
+    a_h.push_back(beam->a_dn0.z);
+    a_h.push_back(beam->a_n1.x);
+    a_h.push_back(beam->a_n1.y);
+    a_h.push_back(beam->a_n1.z);
+    a_h.push_back(beam->a_dn1.x);
+    a_h.push_back(beam->a_dn1.y);
+    a_h.push_back(beam->a_dn1.z);
+
+    // update external force vector (gravity)
+    double rho = beam->getDensity();
+    double r = beam->contactGeometry.x;
+    double A = PI*r*r;
+    double l = beam->contactGeometry.y;
+    f_h.push_back(rho * A * l * gravity.x / 0.2e1);
+    f_h.push_back(rho * A * l * gravity.y / 0.2e1);
+    f_h.push_back(rho * A * l * gravity.z / 0.2e1);
+    f_h.push_back(rho * A * l * l * gravity.x / 0.12e2);
+    f_h.push_back(rho * A * l * l * gravity.y / 0.12e2);
+    f_h.push_back(rho * A * l * l * gravity.z / 0.12e2);
+    f_h.push_back(rho * A * l * gravity.x / 0.2e1);
+    f_h.push_back(rho * A * l * gravity.y / 0.2e1);
+    f_h.push_back(rho * A * l * gravity.z / 0.2e1);
+    f_h.push_back(-rho * A * l * l * gravity.x / 0.12e2);
+    f_h.push_back(-rho * A * l * l * gravity.y / 0.12e2);
+    f_h.push_back(-rho * A * l * l * gravity.z / 0.12e2);
+
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+    f_contact_h.push_back(0);
+
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+    fApplied_h.push_back(0);
+
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+    tmp_h.push_back(0);
+
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+    r_h.push_back(0);
+
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+    k_h.push_back(0);
+
+    // update the mass matrix
+    massI_h.push_back(0+j*12);
+    massJ_h.push_back(0+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(0+j*12);
+    massJ_h.push_back(3+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(0+j*12);
+    massJ_h.push_back(6+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(0+j*12);
+    massJ_h.push_back(9+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(1+j*12);
+    massJ_h.push_back(1+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(1+j*12);
+    massJ_h.push_back(4+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(1+j*12);
+    massJ_h.push_back(7+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(1+j*12);
+    massJ_h.push_back(10+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(2+j*12);
+    massJ_h.push_back(2+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(2+j*12);
+    massJ_h.push_back(5+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(2+j*12);
+    massJ_h.push_back(8+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(2.0+j*12);
+    massJ_h.push_back(11+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(3+j*12);
+    massJ_h.push_back(0+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(3+j*12);
+    massJ_h.push_back(3+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+    massI_h.push_back(3+j*12);
+    massJ_h.push_back(6+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(3+j*12);
+    massJ_h.push_back(9+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(4+j*12);
+    massJ_h.push_back(1+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(4+j*12);
+    massJ_h.push_back(4+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+    massI_h.push_back(4+j*12);
+    massJ_h.push_back(7+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(4+j*12);
+    massJ_h.push_back(10+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(5+j*12);
+    massJ_h.push_back(2+j*12);
+    mass_h.push_back(-120.0/(A*l*rho));
+    massI_h.push_back(5+j*12);
+    massJ_h.push_back(5+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+    massI_h.push_back(5+j*12);
+    massJ_h.push_back(8+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(5+j*12);
+    massJ_h.push_back(11+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(6+j*12);
+    massJ_h.push_back(0+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(6+j*12);
+    massJ_h.push_back(3+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(6+j*12);
+    massJ_h.push_back(6+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(6+j*12);
+    massJ_h.push_back(9+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(7+j*12);
+    massJ_h.push_back(1+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(7+j*12);
+    massJ_h.push_back(4+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(7+j*12);
+    massJ_h.push_back(7+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(7+j*12);
+    massJ_h.push_back(10+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(8+j*12);
+    massJ_h.push_back(2+j*12);
+    mass_h.push_back(-4.0/(A*rho));
+    massI_h.push_back(8+j*12);
+    massJ_h.push_back(5+j*12);
+    mass_h.push_back(60.0/(A*l*rho));
+    massI_h.push_back(8+j*12);
+    massJ_h.push_back(8+j*12);
+    mass_h.push_back(16.0/(A*rho));
+    massI_h.push_back(8+j*12);
+    massJ_h.push_back(11+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(9+j*12);
+    massJ_h.push_back(0+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(9+j*12);
+    massJ_h.push_back(3+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(9+j*12);
+    massJ_h.push_back(6+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(9+j*12);
+    massJ_h.push_back(9+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+    massI_h.push_back(10+j*12);
+    massJ_h.push_back(1+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(10+j*12);
+    massJ_h.push_back(4+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(10+j*12);
+    massJ_h.push_back(7+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(10+j*12);
+    massJ_h.push_back(10+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+    massI_h.push_back(11+j*12);
+    massJ_h.push_back(2+j*12);
+    mass_h.push_back(-60.0/(A*l*rho));
+    massI_h.push_back(11+j*12);
+    massJ_h.push_back(5+j*12);
+    mass_h.push_back(840.0/(A*l*l*rho));
+    massI_h.push_back(11+j*12);
+    massJ_h.push_back(8+j*12);
+    mass_h.push_back(120.0/(A*l*rho));
+    massI_h.push_back(11+j*12);
+    massJ_h.push_back(11+j*12);
+    mass_h.push_back(1200.0/(A*l*l*rho));
+
+    contactGeometry_h.push_back(beam->contactGeometry);
+  }
+
   initializeDevice();
   solver->setup();
 
@@ -226,9 +513,9 @@ int System::DoTimeStep() {
   cudaEventRecord(start, 0);
 
   // Perform collision detection
-  collisionDetector->generateAxisAlignedBoundingBoxes();
-  collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  collisionDetector->detectCollisions();
+  //collisionDetector->generateAxisAlignedBoundingBoxes();
+  //collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  //collisionDetector->detectCollisions();
 
   buildAppliedImpulseVector();
   if(collisionDetector->numCollisions) {
@@ -255,7 +542,7 @@ int System::DoTimeStep() {
 
   time += h;
   timeIndex++;
-  p_h = p_d;
+  //p_h = p_d;
 
   cudaEventRecord(stop, 0);
   cudaEventSynchronize(stop);
@@ -317,19 +604,18 @@ int System::applyContactForces_CPU() {
 
 int System::applyForce(Body* body, double3 force) {
   int index = body->getIndex();
-  cout << index << endl;
+  //cout << index << endl;
 
-  fApplied_h = fApplied_d;
   fApplied_h[index]+=force.x;
   fApplied_h[index+1]+=force.y;
   fApplied_h[index+2]+=force.z;
-  fApplied_d = fApplied_h;
 
   return 0;
 }
 
 int System::clearAppliedForces() {
   Thrust_Fill(fApplied_d,0.0);
+  fApplied_h = fApplied_d;
 
   return 0;
 }
@@ -488,9 +774,33 @@ __global__ void multiplyByMass(double* massInv, double* src, double* dst, uint n
   dst[index] = mass*src[index];
 }
 
+__global__ void multiplyByBeamMass(double3* geometries, double* src, double* dst, uint numBodies, uint numBeams) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
+
+  double3 geometry = geometries[numBodies+index];
+  double A = PI*geometry.x*geometry.x;
+  double l = geometry.y;
+  double rho = geometry.z;
+
+  uint offset = 3*numBodies+12*index;
+  dst[offset+0 ] = (13.0*A*rho*src[0+offset])/35.0 + (9.0*A*rho*src[6+offset])/70.0 + (11.0*A*l*rho*src[3+offset])/210.0 - (13.0*A*l*rho*src[9 +offset])/420.0;
+  dst[offset+1 ] = (13.0*A*rho*src[1+offset])/35.0 + (9.0*A*rho*src[7+offset])/70.0 + (11.0*A*l*rho*src[4+offset])/210.0 - (13.0*A*l*rho*src[10+offset])/420.0;
+  dst[offset+2 ] = (13.0*A*rho*src[2+offset])/35.0 + (9.0*A*rho*src[8+offset])/70.0 + (11.0*A*l*rho*src[5+offset])/210.0 - (13.0*A*l*rho*src[11+offset])/420.0;
+  dst[offset+3 ] = (A*l*l*rho*src[3+offset])/105.0 - (A*l*l*rho*src[9 +offset])/140.0 + (11.0*A*l*rho*src[0+offset])/210.0 + (13.0*A*l*rho*src[6+offset])/420.0;
+  dst[offset+4 ] = (A*l*l*rho*src[4+offset])/105.0 - (A*l*l*rho*src[10+offset])/140.0 + (11.0*A*l*rho*src[1+offset])/210.0 + (13.0*A*l*rho*src[7+offset])/420.0;
+  dst[offset+5 ] = (A*l*l*rho*src[5+offset])/105.0 - (A*l*l*rho*src[11+offset])/140.0 + (11.0*A*l*rho*src[2+offset])/210.0 + (13.0*A*l*rho*src[8+offset])/420.0;
+  dst[offset+6 ] = (9.0*A*rho*src[0+offset])/70.0 + (13.0*A*rho*src[6+offset])/35.0 + (13.0*A*l*rho*src[3+offset])/420.0 - (11.0*A*l*rho*src[9 +offset])/210.0;
+  dst[offset+7 ] = (9.0*A*rho*src[1+offset])/70.0 + (13.0*A*rho*src[7+offset])/35.0 + (13.0*A*l*rho*src[4+offset])/420.0 - (11.0*A*l*rho*src[10+offset])/210.0;
+  dst[offset+8 ] = (9.0*A*rho*src[2+offset])/70.0 + (13.0*A*rho*src[8+offset])/35.0 + (13.0*A*l*rho*src[5+offset])/420.0 - (11.0*A*l*rho*src[11+offset])/210.0;
+  dst[offset+9 ] = (A*l*l*rho*src[9 +offset])/105.0 - (A*l*l*rho*src[3+offset])/140.0 - (13.0*A*l*rho*src[0+offset])/420.0 - (11.0*A*l*rho*src[6+offset])/210.0;
+  dst[offset+10] = (A*l*l*rho*src[10+offset])/105.0 - (A*l*l*rho*src[4+offset])/140.0 - (13.0*A*l*rho*src[1+offset])/420.0 - (11.0*A*l*rho*src[7+offset])/210.0;
+  dst[offset+11] = (A*l*l*rho*src[11+offset])/105.0 - (A*l*l*rho*src[5+offset])/140.0 - (13.0*A*l*rho*src[2+offset])/420.0 - (11.0*A*l*rho*src[8+offset])/210.0;
+}
+
 int System::buildAppliedImpulseVector() {
   // build k
-  multiplyByMass<<<BLOCKS(v_d.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), v_d.size());
+  multiplyByMass<<<BLOCKS(3*bodies.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), 3*bodies.size());
+  multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size());
   cusp::blas::axpbypcz(f,fApplied,k,k,h,h,1);
 
   return 0;

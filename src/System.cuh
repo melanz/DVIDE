@@ -10,6 +10,7 @@
 
 #include "include.cuh"
 #include "Body.cuh"
+#include "Beam.cuh"
 #include "CollisionDetector.cuh"
 #include "Solver.cuh"
 
@@ -121,6 +122,7 @@ public:
 	System();
 	System(int solverType);
 	vector<Body*> bodies;
+	vector<Beam*> beams;
 	Solver* solver;
 	double  getCurrentTime() const    {return time;}
 	double  getTimeStep() const       {return h;}
@@ -128,6 +130,7 @@ public:
 	int     getTimeIndex() const      {return timeIndex;}
 	void    setTimeStep(double step_size);
 	int     add(Body* body);
+	int     add(Beam* beam);
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();

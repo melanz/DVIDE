@@ -48,6 +48,7 @@ void initScene(){
 void drawAll()
 {
 	if(updateDraw){
+	  sys->p_h = sys->p_d;
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_DEPTH_TEST);
 		glFrontFace(GL_CCW);
@@ -208,7 +209,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -372,7 +373,7 @@ int main(int argc, char** argv)
 	
 	// if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsFill_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsFillR2_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
 	ofstream statStream(statsFileStream.str().c_str());
 
 	double maxVel = 0;

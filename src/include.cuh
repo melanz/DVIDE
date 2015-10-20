@@ -286,8 +286,8 @@ public:
 	}
 	void Move2D(int x, int y) {
 		camreal3 mouse_delta = mouse_pos - camreal3(x, y, 0);
-		ChangeHeading(.02 * mouse_delta.x);
-		ChangePitch(.02 * mouse_delta.y);
+		ChangeHeading(.002 * mouse_delta.x);
+		ChangePitch(.002 * mouse_delta.y);
 		mouse_pos = camreal3(x, y, 0);
 	}
 	void SetPos(int button, int state, int x, int y) {
