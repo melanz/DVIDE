@@ -147,6 +147,7 @@ public:
   thrust::host_vector<double> pt3;
 
   CollisionDetector* collisionDetector;
+  thrust::device_vector<int> nonzerosPerContact_d;
 
 public:
 	System();

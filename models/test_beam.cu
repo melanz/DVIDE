@@ -213,7 +213,7 @@ int main(int argc, char** argv)
   double mu_pdip = 10.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 6;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 10;
   double tolerance = 1e-3;
   double hh = 1e-3;
@@ -285,10 +285,10 @@ int main(int argc, char** argv)
   double radius = 0.4;
 
   // Beam
-  Beam* beamPtr = new Beam();
+  Beam* beamPtr = new Beam(make_double3(0,6,0),make_double3(1,6,0));
   sys->add(beamPtr);
 
-  Body* ballPtr = new Body(make_double3(-2,0,0));
+  Body* ballPtr = new Body(make_double3(1,3,0));
   sys->add(ballPtr);
 
   // Top

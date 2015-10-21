@@ -366,16 +366,33 @@ int System::clearAppliedForces() {
   return 0;
 }
 
-__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, uint numCollisions) {
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
+  int offsetA = (!index) ? 0 : nonzerosPerContact_d[index - 1];
+  DI = &DI[offsetA];
+  DJ = &DJ[offsetA];
+  D = &D[offsetA];
+
+  int bodyIdentifierA = collisionMap[collisionIdentifierA[index]].x;
+  int bodyIdentifierB = collisionMap[collisionIdentifierB[index]].x;
+
+  int endA = (bodyIdentifierA<numBodies) ? 3 : 12;
+  int endB = (bodyIdentifierB<numBodies) ? 3 : 12;
+
+  int indexA = indices[bodyIdentifierA];
+  int indexB = indices[bodyIdentifierB];
+
+  double xiA = static_cast<double>(collisionMap[collisionIdentifierA[index]].y)/(static_cast<double>(geometries[bodyIdentifierA].z-1));
+  double lA = geometries[bodyIdentifierA].y;
+
+  double xiB = static_cast<double>(collisionMap[collisionIdentifierB[index]].y)/(static_cast<double>(geometries[bodyIdentifierB].z-1));
+  double lB = geometries[bodyIdentifierB].y;
+
   double4 nAndP;
   double3 n, u, v;
-  uint bodyA, bodyB;
-  bodyA = collisionIdentifierA[index]; //TODO: THIS IS INCORRECT
-  bodyB = collisionIdentifierB[index]; //TODO: THIS IS INCORRECT
   nAndP = normalsAndPenetrations[index];
   n = make_double3(nAndP.x,nAndP.y,nAndP.z);
 
@@ -391,85 +408,219 @@ __global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* fr
   v = normalize(cross(n,u));
 
   // Add n, i indices
-  DI[18*index+0 ] = 3*index+0;
-  DI[18*index+1 ] = 3*index+0;
-  DI[18*index+2 ] = 3*index+0;
-  DI[18*index+3 ] = 3*index+0;
-  DI[18*index+4 ] = 3*index+0;
-  DI[18*index+5 ] = 3*index+0;
+  int i;
+  int end = endA;
+  int j = 0;
+  for(i=0;i<end;i++) {
+    DI[i] = 3*index+0;
+    DJ[i] = indexA+j;
+    j++;
+  }
+  end+=endB;
+  j = 0;
+  for(;i<end;i++) {
+    DI[i] = 3*index+0;
+    DJ[i] = indexB+j;
+    j++;
+  }
 
   // Add u, i indices
-  DI[18*index+6 ] = 3*index+1;
-  DI[18*index+7 ] = 3*index+1;
-  DI[18*index+8 ] = 3*index+1;
-  DI[18*index+9 ] = 3*index+1;
-  DI[18*index+10] = 3*index+1;
-  DI[18*index+11] = 3*index+1;
+  end+=endA;
+  j = 0;
+  for(;i<end;i++) {
+    DI[i] = 3*index+1;
+    DJ[i] = indexA+j;
+    j++;
+  }
+  end+=endB;
+  j = 0;
+  for(;i<end;i++) {
+    DI[i] = 3*index+1;
+    DJ[i] = indexB+j;
+    j++;
+  }
 
   // Add v, i indices
-  DI[18*index+12] = 3*index+2;
-  DI[18*index+13] = 3*index+2;
-  DI[18*index+14] = 3*index+2;
-  DI[18*index+15] = 3*index+2;
-  DI[18*index+16] = 3*index+2;
-  DI[18*index+17] = 3*index+2;
-
-  // Add n, j indices
-  DJ[18*index+0 ] = indices[bodyA]+0;
-  DJ[18*index+1 ] = indices[bodyA]+1;
-  DJ[18*index+2 ] = indices[bodyA]+2;
-  DJ[18*index+3 ] = indices[bodyB]+0;
-  DJ[18*index+4 ] = indices[bodyB]+1;
-  DJ[18*index+5 ] = indices[bodyB]+2;
-
-  // Add u, j indices
-  DJ[18*index+6 ] = indices[bodyA]+0;
-  DJ[18*index+7 ] = indices[bodyA]+1;
-  DJ[18*index+8 ] = indices[bodyA]+2;
-  DJ[18*index+9 ] = indices[bodyB]+0;
-  DJ[18*index+10] = indices[bodyB]+1;
-  DJ[18*index+11] = indices[bodyB]+2;
-
-  // Add v, j indices
-  DJ[18*index+12] = indices[bodyA]+0;
-  DJ[18*index+13] = indices[bodyA]+1;
-  DJ[18*index+14] = indices[bodyA]+2;
-  DJ[18*index+15] = indices[bodyB]+0;
-  DJ[18*index+16] = indices[bodyB]+1;
-  DJ[18*index+17] = indices[bodyB]+2;
+  end+=endA;
+  j = 0;
+  for(;i<end;i++) {
+    DI[i] = 3*index+2;
+    DJ[i] = indexA+j;
+    j++;
+  }
+  end+=endB;
+  j = 0;
+  for(;i<end;i++) {
+    DI[i] = 3*index+2;
+    DJ[i] = indexB+j;
+    j++;
+  }
 
   // Add n, values
-  D[18*index+0 ] = n.x;
-  D[18*index+1 ] = n.y;
-  D[18*index+2 ] = n.z;
-  D[18*index+3 ] = -n.x;
-  D[18*index+4 ] = -n.y;
-  D[18*index+5 ] = -n.z;
+  int startIndex = 0;
+  if(bodyIdentifierA<numBodies) {
+    D[startIndex+0] = n.x;
+    D[startIndex+1] = n.y;
+    D[startIndex+2] = n.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = n.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+1 ] = n.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+2 ] = n.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+3 ] = lA*n.x*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+4 ] = lA*n.y*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+5 ] = lA*n.z*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+6 ] = n.x*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+7 ] = n.y*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+8 ] = n.z*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+9 ] = -lA*n.x*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+10] = -lA*n.y*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+11] = -lA*n.z*(-xiA*xiA*xiA+xiA*xiA);
+    startIndex+=12;
+  }
+  if(bodyIdentifierB<numBodies) {
+    D[startIndex+0] = -n.x;
+    D[startIndex+1] = -n.y;
+    D[startIndex+2] = -n.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = -n.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+1 ] = -n.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+2 ] = -n.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+3 ] = -lB*n.x*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+4 ] = -lB*n.y*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+5 ] = -lB*n.z*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+6 ] = -n.x*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+7 ] = -n.y*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+8 ] = -n.z*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+9 ] = lB*n.x*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+10] = lB*n.y*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+11] = lB*n.z*(-xiB*xiB*xiB+xiB*xiB);
+    startIndex+=12;
+  }
 
   // Add u, values
-  D[18*index+6 ] = u.x;
-  D[18*index+7 ] = u.y;
-  D[18*index+8 ] = u.z;
-  D[18*index+9 ] = -u.x;
-  D[18*index+10] = -u.y;
-  D[18*index+11] = -u.z;
+  if(bodyIdentifierA<numBodies) {
+    D[startIndex+0] = u.x;
+    D[startIndex+1] = u.y;
+    D[startIndex+2] = u.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = u.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+1 ] = u.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+2 ] = u.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+3 ] = lA*u.x*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+4 ] = lA*u.y*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+5 ] = lA*u.z*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+6 ] = u.x*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+7 ] = u.y*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+8 ] = u.z*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+9 ] = -lA*u.x*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+10] = -lA*u.y*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+11] = -lA*u.z*(-xiA*xiA*xiA+xiA*xiA);
+    startIndex+=12;
+  }
+  if(bodyIdentifierB<numBodies) {
+    D[startIndex+0] = -u.x;
+    D[startIndex+1] = -u.y;
+    D[startIndex+2] = -u.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = -u.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+1 ] = -u.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+2 ] = -u.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+3 ] = -lB*u.x*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+4 ] = -lB*u.y*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+5 ] = -lB*u.z*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+6 ] = -u.x*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+7 ] = -u.y*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+8 ] = -u.z*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+9 ] = lB*u.x*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+10] = lB*u.y*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+11] = lB*u.z*(-xiB*xiB*xiB+xiB*xiB);
+    startIndex+=12;
+  }
 
   // Add v, values
-  D[18*index+12] = v.x;
-  D[18*index+13] = v.y;
-  D[18*index+14] = v.z;
-  D[18*index+15] = -v.x;
-  D[18*index+16] = -v.y;
-  D[18*index+17] = -v.z;
+  if(bodyIdentifierA<numBodies) {
+    D[startIndex+0] = v.x;
+    D[startIndex+1] = v.y;
+    D[startIndex+2] = v.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = v.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+1 ] = v.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+2 ] = v.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
+    D[startIndex+3 ] = lA*v.x*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+4 ] = lA*v.y*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+5 ] = lA*v.z*(xiA*xiA*xiA-2.0*xiA*xiA+xiA);
+    D[startIndex+6 ] = v.x*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+7 ] = v.y*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+8 ] = v.z*(-2.0*xiA*xiA*xiA+3.0*xiA*xiA);
+    D[startIndex+9 ] = -lA*v.x*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+10] = -lA*v.y*(-xiA*xiA*xiA+xiA*xiA);
+    D[startIndex+11] = -lA*v.z*(-xiA*xiA*xiA+xiA*xiA);
+    startIndex+=12;
+  }
+  if(bodyIdentifierB<numBodies) {
+    D[startIndex+0] = -v.x;
+    D[startIndex+1] = -v.y;
+    D[startIndex+2] = -v.z;
+    startIndex+=3;
+  } else {
+    D[startIndex+0 ] = -v.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+1 ] = -v.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+2 ] = -v.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
+    D[startIndex+3 ] = -lB*v.x*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+4 ] = -lB*v.y*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+5 ] = -lB*v.z*(xiB*xiB*xiB-2.0*xiB*xiB+xiB);
+    D[startIndex+6 ] = -v.x*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+7 ] = -v.y*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+8 ] = -v.z*(-2.0*xiB*xiB*xiB+3.0*xiB*xiB);
+    D[startIndex+9 ] = lB*v.x*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+10] = lB*v.y*(-xiB*xiB*xiB+xiB*xiB);
+    D[startIndex+11] = lB*v.z*(-xiB*xiB*xiB+xiB*xiB);
+    startIndex+=12;
+  }
+}
+
+__global__ void updateNonzerosPerContact(int* nonzerosPerContact, int3* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB, int numBodies, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  int numNonzeros = 0;
+  int bodyIdentifierA = collisionMap[collisionIdentifierA[index]].x;
+  int bodyIdentifierB = collisionMap[collisionIdentifierB[index]].x;
+
+  if(bodyIdentifierA<numBodies) {
+    numNonzeros+=9;
+  }
+  else {
+    numNonzeros+=36;
+  }
+
+  if(bodyIdentifierB<numBodies) {
+    numNonzeros+=9;
+  }
+  else {
+    numNonzeros+=36;
+  }
+
+  nonzerosPerContact[index] = numNonzeros;
 }
 
 int System::buildContactJacobian() {
-  DI_d.resize(18*collisionDetector->numCollisions);
-  DJ_d.resize(18*collisionDetector->numCollisions);
-  D_d.resize(18*collisionDetector->numCollisions);
+  // update nonzeros per contact
+  int totalNonzeros = 0;
+  nonzerosPerContact_d.resize(collisionDetector->numCollisions);
+  updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), collisionDetector->numCollisions);
+  Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
+
+  DI_d.resize(totalNonzeros);
+  DJ_d.resize(totalNonzeros);
+  D_d.resize(totalNonzeros);
   friction_d.resize(collisionDetector->numCollisions);
 
-  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
+  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -481,7 +632,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size()+12*beams.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -504,7 +655,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size(), 3*collisionDetector->numCollisions, DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size(), 3*collisionDetector->numCollisions, DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
