@@ -21,18 +21,31 @@ inline uint __device__ getHashIndex(const uint3 &A, const uint3 &binsPerAxis) {
   return A.x+A.y*binsPerAxis.x+A.z*binsPerAxis.x*binsPerAxis.y;
 }
 
-__global__ void generateAabbData(double3* aabbData, int* indices, double* position, double3* geometries, double envelope, uint numAABB) {
+__global__ void generateAabbData(double3* aabbData, int* indices, double* pos, double3* geometries, double3* collisionGeometries, int3* map, double envelope, int numBodies, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numAABB);
 
-  double3 pos = make_double3(position[indices[index]],position[indices[index]+1],position[indices[index]+2]);
-  double3 geometry = geometries[index];
+  int identifier = map[index].x;
+  double3 position; // the position of the collision geometry must be calculated differently for different physics items
+  if(identifier<numBodies) {
+    position = make_double3(pos[indices[identifier]],pos[indices[identifier]+1],pos[indices[identifier]+2]);
+  }
+  else {
+    double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometries[identifier].z-1));
+    double l = geometries[identifier].y;
+    int offset = indices[identifier];
+    position.x = pos[offset]*(2*xi*xi*xi - 3*xi*xi + 1) + pos[6+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*pos[3+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*pos[9+offset]*(- xi*xi*xi + xi*xi);
+    position.y = pos[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + pos[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*pos[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*pos[10+offset]*(- xi*xi*xi + xi*xi);
+    position.z = pos[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + pos[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*pos[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*pos[11+offset]*(- xi*xi*xi + xi*xi);
+  }
+
+  double3 geometry = collisionGeometries[index];
   if(geometry.y == 0) {
     // sphere case
     geometry = make_double3(geometry.x,geometry.x,geometry.x);
   }
   geometry += make_double3(envelope,envelope,envelope);
-  aabbData[index] = pos-geometry;
-  aabbData[index + numAABB] = pos+geometry;
+  aabbData[index] = position-geometry;
+  aabbData[index + numAABB] = position+geometry;
 }
 
 __global__ void countAabbBinIntersections(double3* aabbData, uint* numBinsIntersected, double3 binSizeInverse, uint numAABB) {
@@ -129,20 +142,45 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
   possibleCollisionPairs[index].y = int(potentialCollisions[index] & 0xffffffff);
 }
 
-__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double envelope, uint numPossibleCollisions) {
+__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double3* collisionGeometries, int3* map, double envelope, int numBodies, uint numPossibleCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   double penetration = 0;
   int numCollisions = 0;
 
-  int bodyA = possibleCollisionPairs[index].x;
-  int bodyB = possibleCollisionPairs[index].y;
+  int collGeomA = possibleCollisionPairs[index].x;
+  int collGeomB = possibleCollisionPairs[index].y;
 
-  double3 posA = make_double3(p[indices[bodyA]],p[indices[bodyA]+1],p[indices[bodyA]+2]);
-  double3 posB = make_double3(p[indices[bodyB]],p[indices[bodyB]+1],p[indices[bodyB]+2]);
+  int identifierA = map[collGeomA].x;
+  double3 posA; // the position of the collision geometry must be calculated differently for different physics items
+  if(identifierA<numBodies) {
+    posA = make_double3(p[indices[identifierA]],p[indices[identifierA]+1],p[indices[identifierA]+2]);
+  }
+  else {
+    double xi = static_cast<double>(map[collGeomA].y)/(static_cast<double>(geometries[identifierA].z-1));
+    double l = geometries[identifierA].y;
+    int offset = indices[identifierA];
+    posA.x = p[offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[6+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[3+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[9+offset]*(- xi*xi*xi + xi*xi);
+    posA.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
+    posA.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
+  }
 
-  double3 geometryA = geometries[bodyA];
-  double3 geometryB = geometries[bodyB];
+  int identifierB = map[collGeomB].x;
+  double3 posB; // the position of the collision geometry must be calculated differently for different physics items
+  if(identifierB<numBodies) {
+    posB = make_double3(p[indices[identifierB]],p[indices[identifierB]+1],p[indices[identifierB]+2]);
+  }
+  else {
+    double xi = static_cast<double>(map[collGeomB].y)/(static_cast<double>(geometries[identifierB].z-1));
+    double l = geometries[identifierB].y;
+    int offset = indices[identifierB];
+    posB.x = p[offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[6+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[3+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[9+offset]*(- xi*xi*xi + xi*xi);
+    posB.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
+    posB.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
+  }
+
+  double3 geometryA = collisionGeometries[collGeomA];
+  double3 geometryB = collisionGeometries[collGeomB];
 
   if(geometryA.y == 0 && geometryB.y == 0) {
     // sphere-sphere case
@@ -190,7 +228,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   numCollisionsPerPair[index] = numCollisions;
 }
 
-__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* normalsAndPenetrations, uint* bodyIdentifiersA, uint* bodyIdentifiersB, uint numPossibleCollisions, uint numCollisions) {
+__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double3* collisionGeometries, int3* map, double4* normalsAndPenetrations, uint* collisionIdentifiersA, uint* collisionIdentifiersB, uint numPossibleCollisions, int numBodies, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   uint startIndex = (index == 0) ? 0 : numCollisionsPerPair[index - 1];
@@ -198,14 +236,39 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
 
   int count = 0;
   for (int i = startIndex; i < endIndex; i++) {
-    int bodyA = possibleCollisionPairs[index+count].x;
-    int bodyB = possibleCollisionPairs[index+count].y;
+    int collGeomA = possibleCollisionPairs[index].x;
+    int collGeomB = possibleCollisionPairs[index].y;
 
-    double3 posA = make_double3(p[indices[bodyA]],p[indices[bodyA]+1],p[indices[bodyA]+2]);
-    double3 posB = make_double3(p[indices[bodyB]],p[indices[bodyB]+1],p[indices[bodyB]+2]);
+    int identifierA = map[collGeomA].x;
+    double3 posA; // the position of the collision geometry must be calculated differently for different physics items
+    if(identifierA<numBodies) {
+      posA = make_double3(p[indices[identifierA]],p[indices[identifierA]+1],p[indices[identifierA]+2]);
+    }
+    else {
+      double xi = static_cast<double>(map[collGeomA].y)/(static_cast<double>(geometries[identifierA].z-1));
+      double l = geometries[identifierA].y;
+      int offset = indices[identifierA];
+      posA.x = p[offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[6+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[3+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[9+offset]*(- xi*xi*xi + xi*xi);
+      posA.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
+      posA.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
+    }
 
-    double3 geometryA = geometries[bodyA];
-    double3 geometryB = geometries[bodyB];
+    int identifierB = map[collGeomB].x;
+    double3 posB; // the position of the collision geometry must be calculated differently for different physics items
+    if(identifierB<numBodies) {
+      posB = make_double3(p[indices[identifierB]],p[indices[identifierB]+1],p[indices[identifierB]+2]);
+    }
+    else {
+      double xi = static_cast<double>(map[collGeomB].y)/(static_cast<double>(geometries[identifierB].z-1));
+      double l = geometries[identifierB].y;
+      int offset = indices[identifierB];
+      posB.x = p[offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[6+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[3+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[9+offset]*(- xi*xi*xi + xi*xi);
+      posB.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
+      posB.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
+    }
+
+    double3 geometryA = collisionGeometries[collGeomA];
+    double3 geometryB = collisionGeometries[collGeomB];
 
     double3 normal;
     normal.x = 1;
@@ -264,8 +327,8 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       penetration = r-sqrt(dmin);
     }
 
-    bodyIdentifiersA[i] = bodyA;
-    bodyIdentifiersB[i] = bodyB;
+    collisionIdentifiersA[i] = collGeomA;
+    collisionIdentifiersB[i] = collGeomB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,-penetration); // from B to A!
     count++;
   }
@@ -317,8 +380,8 @@ int CollisionDetector::detectPossibleCollisions_nSquared()
 
 int CollisionDetector::generateAxisAlignedBoundingBoxes()
 {
-  aabbData_d.resize(2*system->bodies.size());
-  generateAabbData<<<BLOCKS(system->bodies.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), envelope, system->bodies.size());
+  aabbData_d.resize(2*system->collisionGeometry_d.size());
+  generateAabbData<<<BLOCKS(system->collisionGeometry_d.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI3(system->collisionMap_d), envelope, system->bodies.size(), system->collisionGeometry_d.size());
 
   return 0;
 }
@@ -405,27 +468,27 @@ int CollisionDetector::detectCollisions()
 {
   numCollisions = 0;
   numCollisionsPerPair_d.clear();
-  bodyIdentifierA_d.clear();
-  bodyIdentifierB_d.clear();
+  collisionIdentifierA_d.clear();
+  collisionIdentifierB_d.clear();
   normalsAndPenetrations_d.clear();
   collisionStartIndex_d.clear();
 
   if(numPossibleCollisions) {
     // Step 1: Detect how many collisions actually occur between each pair
     numCollisionsPerPair_d.resize(numPossibleCollisions);
-    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), envelope, numPossibleCollisions);
+    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI3(system->collisionMap_d), envelope, system->bodies.size(), numPossibleCollisions);
     // End Step 1
 
     // Step 2: Figure out where each thread needs to start and end for each collision
     Thrust_Inclusive_Scan_Sum(numCollisionsPerPair_d, numCollisions);
     normalsAndPenetrations_d.resize(numCollisions);
-    bodyIdentifierA_d.resize(numCollisions);
-    bodyIdentifierB_d.resize(numCollisions);
+    collisionIdentifierA_d.resize(numCollisions);
+    collisionIdentifierB_d.resize(numCollisions);
     // End Step 2
 
     if(numCollisions) {
       // Step 3: Store the actual collisions
-      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(normalsAndPenetrations_d), CASTU1(bodyIdentifierA_d), CASTU1(bodyIdentifierB_d), numPossibleCollisions, numCollisions);
+      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI3(system->collisionMap_d), CASTD4(normalsAndPenetrations_d), CASTU1(collisionIdentifierA_d), CASTU1(collisionIdentifierB_d), numPossibleCollisions, system->bodies.size(), numCollisions);
       // End Step 3
     }
   }
@@ -440,132 +503,41 @@ int CollisionDetector::exportSystem(string filename) {
 
   //Print the collision information
   // collisionIndex bodyIdentifierA bodyIdentifierB normalX normalY normalZ penetration posA_x posA_y posA_z velA_x velA_y velA_z geomA_x geomA_y geomA_z posB_x posB_y posB_z velB_x velB_y velB_z geomB_x geomB_y geomB_z
-  bodyIdentifierA_h = bodyIdentifierA_d;
-  bodyIdentifierB_h = bodyIdentifierB_d;
+  collisionIdentifierA_h = collisionIdentifierA_d;
+  collisionIdentifierB_h = collisionIdentifierB_d;
   normalsAndPenetrations_h = normalsAndPenetrations_d;
   system->p_h = system->p_d;
   system->v_h = system->v_d;
-  for(int i=0; i<bodyIdentifierA_h.size();i++) {
+  for(int i=0; i<collisionIdentifierA_h.size();i++) {
     filestream
     << i << ", "
-    << bodyIdentifierA_h[i] << ", "
-    << bodyIdentifierB_h[i] << ", "
+    << collisionIdentifierA_h[i] << ", "
+    << collisionIdentifierB_h[i] << ", "
     << normalsAndPenetrations_h[i].x << ", "
     << normalsAndPenetrations_h[i].y << ", "
     << normalsAndPenetrations_h[i].z << ", "
     << normalsAndPenetrations_h[i].w << ", "
-    << system->p_h[3*bodyIdentifierA_h[i]] << ", "
-    << system->p_h[3*bodyIdentifierA_h[i]+1] << ", "
-    << system->p_h[3*bodyIdentifierA_h[i]+2] << ", "
-    << system->v_h[3*bodyIdentifierA_h[i]] << ", "
-    << system->v_h[3*bodyIdentifierA_h[i]+1] << ", "
-    << system->v_h[3*bodyIdentifierA_h[i]+2] << ", "
-    << system->contactGeometry_h[bodyIdentifierA_h[i]].x << ", "
-    << system->contactGeometry_h[bodyIdentifierA_h[i]].y << ", "
-    << system->contactGeometry_h[bodyIdentifierA_h[i]].z << ", "
-    << system->p_h[3*bodyIdentifierB_h[i]] << ", "
-    << system->p_h[3*bodyIdentifierB_h[i]+1] << ", "
-    << system->p_h[3*bodyIdentifierB_h[i]+2] << ", "
-    << system->v_h[3*bodyIdentifierB_h[i]] << ", "
-    << system->v_h[3*bodyIdentifierB_h[i]+1] << ", "
-    << system->v_h[3*bodyIdentifierB_h[i]+2] << ", "
-    << system->contactGeometry_h[bodyIdentifierB_h[i]].x << ", "
-    << system->contactGeometry_h[bodyIdentifierB_h[i]].y << ", "
-    << system->contactGeometry_h[bodyIdentifierB_h[i]].z << ", "
+    << system->p_h[3*collisionIdentifierA_h[i]] << ", "
+    << system->p_h[3*collisionIdentifierA_h[i]+1] << ", "
+    << system->p_h[3*collisionIdentifierA_h[i]+2] << ", "
+    << system->v_h[3*collisionIdentifierA_h[i]] << ", "
+    << system->v_h[3*collisionIdentifierA_h[i]+1] << ", "
+    << system->v_h[3*collisionIdentifierA_h[i]+2] << ", "
+    << system->contactGeometry_h[collisionIdentifierA_h[i]].x << ", "
+    << system->contactGeometry_h[collisionIdentifierA_h[i]].y << ", "
+    << system->contactGeometry_h[collisionIdentifierA_h[i]].z << ", "
+    << system->p_h[3*collisionIdentifierB_h[i]] << ", "
+    << system->p_h[3*collisionIdentifierB_h[i]+1] << ", "
+    << system->p_h[3*collisionIdentifierB_h[i]+2] << ", "
+    << system->v_h[3*collisionIdentifierB_h[i]] << ", "
+    << system->v_h[3*collisionIdentifierB_h[i]+1] << ", "
+    << system->v_h[3*collisionIdentifierB_h[i]+2] << ", "
+    << system->contactGeometry_h[collisionIdentifierB_h[i]].x << ", "
+    << system->contactGeometry_h[collisionIdentifierB_h[i]].y << ", "
+    << system->contactGeometry_h[collisionIdentifierB_h[i]].z << ", "
     << "\n";
   }
   filestream.close();
-
-  return 0;
-}
-
-int CollisionDetector::detectCollisions_CPU()
-{
-  thrust::host_vector<uint2> possibleCollisionPairs_h = possibleCollisionPairs_d;
-  bodyIdentifierA_h.clear();
-  bodyIdentifierB_h.clear();
-  normalsAndPenetrations_h.clear();
-  for (int i = 0; i < numPossibleCollisions; i++) {
-    int bodyA = possibleCollisionPairs_h[i].x;
-    int bodyB = possibleCollisionPairs_h[i].y;
-
-    double3 posA = make_double3(system->p_h[system->indices_h[bodyA]],system->p_h[system->indices_h[bodyA]+1],system->p_h[system->indices_h[bodyA]+2]);
-    double3 posB = make_double3(system->p_h[system->indices_h[bodyB]],system->p_h[system->indices_h[bodyB]+1],system->p_h[system->indices_h[bodyB]+2]);
-
-    double3 geometryA = system->contactGeometry_h[bodyA];
-    double3 geometryB = system->contactGeometry_h[bodyB];
-
-    double3 normal;
-    normal.x = 1;
-    normal.y = 0;
-    normal.z = 0;
-    double penetration = 0;
-
-    if(geometryA.y == 0 && geometryB.y == 0) {
-      // sphere-sphere case
-      penetration = (geometryA.x+geometryB.x) - length(posB-posA);
-      normal = normalize(posB-posA); // from A to B!
-    }
-
-    else if(geometryA.y != 0 && geometryB.y == 0) {
-      // box-sphere case
-      // check x-face
-      if((posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-      {
-        normal = normalize(make_double3(posB.x-posA.x,0,0));
-        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      }
-
-      // check y
-      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.z>=(posA.z-geometryA.z) && posB.z<=(posA.z+geometryA.z)))
-      {
-        normal = normalize(make_double3(0,posB.y-posA.y,0));
-        penetration = (geometryB.x + geometryA.y) - fabs(posB.y-posA.y);
-      }
-
-      // check z
-      else if((posB.x>=(posA.x-geometryA.x) && posB.x<=(posA.x+geometryA.x)) && (posB.y>=(posA.y-geometryA.y) && posB.y<=(posA.y+geometryA.y)))
-      {
-        normal = normalize(make_double3(0,0,posB.z-posA.z));
-        penetration = (geometryB.x + geometryA.z) - fabs(posB.z-posA.z);
-      }
-    }
-
-    else if(geometryA.y == 0 && geometryB.y != 0) {
-      // sphere-box case
-      // check x-face
-      if((posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-      {
-        normal = normalize(make_double3(posB.x-posA.x,0,0));
-        penetration = (geometryB.x + geometryA.x) - fabs(posB.x-posA.x);
-      }
-
-      // check y
-      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.z>=(posB.z-geometryB.z) && posA.z<=(posB.z+geometryB.z)))
-      {
-        normal = normalize(make_double3(0,posB.y-posA.y,0));
-        penetration = (geometryB.y + geometryA.x) - fabs(posB.y-posA.y);
-      }
-
-      // check z
-      else if((posA.x>=(posB.x-geometryB.x) && posA.x<=(posB.x+geometryB.x)) && (posA.y>=(posB.y-geometryB.y) && posA.y<=(posB.y+geometryB.y)))
-      {
-        normal = normalize(make_double3(0,0,posB.z-posA.z));
-        penetration = (geometryB.z + geometryA.x) - fabs(posB.z-posA.z);
-      }
-    }
-
-    if(penetration>=-0.01) { //TODO: INCORPORATE A COLLISION ENVELOPE IN MATERIAL LIBRARY
-      bodyIdentifierA_h.push_back(bodyA);
-      bodyIdentifierB_h.push_back(bodyB);
-      normalsAndPenetrations_h.push_back(make_double4(-normal.x,-normal.y,-normal.z,-penetration)); // from B to A!
-    }
-  }
-  numCollisions = bodyIdentifierA_h.size();
-
-  normalsAndPenetrations_d = normalsAndPenetrations_h;
-  bodyIdentifierA_d = bodyIdentifierA_h;
-  bodyIdentifierB_d = bodyIdentifierB_h;
 
   return 0;
 }

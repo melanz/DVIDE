@@ -80,15 +80,15 @@ private:
   // End parallel collision detection data
 
   // TODO: Get rid of these vectors (needed for serial collision detection)
-  thrust::host_vector<uint> bodyIdentifierA_h;
-  thrust::host_vector<uint> bodyIdentifierB_h;
+  thrust::host_vector<uint> collisionIdentifierA_h;
+  thrust::host_vector<uint> collisionIdentifierB_h;
   thrust::host_vector<double4> normalsAndPenetrations_h;
   // TODO: Get rid of these vectors (needed for serial collision detection)
 
 public:
   uint numCollisions;
-  thrust::device_vector<uint> bodyIdentifierA_d;
-  thrust::device_vector<uint> bodyIdentifierB_d;
+  thrust::device_vector<uint> collisionIdentifierA_d;
+  thrust::device_vector<uint> collisionIdentifierB_d;
 
 	CollisionDetector(System* sys);
 	int detectPossibleCollisions_spatialSubdivision();
@@ -96,7 +96,6 @@ public:
 	int detectCollisions();
   int generateAxisAlignedBoundingBoxes();
   void setBinsPerAxis(uint3 binsPerAxis);
-  int detectCollisions_CPU(); // TODO: Get rid of this function
   int exportSystem(string filename);
   int setEnvelope(double envelope);
 

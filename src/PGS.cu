@@ -398,7 +398,7 @@ int PGS::solve() {
   cusp::blas::axpy(system->tmp,system->v,1.0);
 
   // Initialize B matrix (vector in this case, since it's diagonal)
-  buildB_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), system->collisionDetector->numCollisions);
+  buildB_PGS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTU1(system->collisionDetector->collisionIdentifierA_d), CASTU1(system->collisionDetector->collisionIdentifierB_d), system->collisionDetector->numCollisions);
   //cusp::print(B);
 
   // copy everything to host (ONLY FOR SEQUENTIAL VERSION)
@@ -409,8 +409,8 @@ int PGS::solve() {
   system->mass_h = system->mass_d;
   system->v_h = system->v_d;
   system->friction_h = system->friction_d;
-  bodyIdentifierA_h = system->collisionDetector->bodyIdentifierA_d;
-  bodyIdentifierB_h = system->collisionDetector->bodyIdentifierB_d;
+  bodyIdentifierA_h = system->collisionDetector->collisionIdentifierA_d;
+  bodyIdentifierB_h = system->collisionDetector->collisionIdentifierB_d;
 
   // (1) for k := 0 to N_max
   double residual;

@@ -43,3 +43,7 @@ add_dependencies(test_contact ImplicitBeamsGPU)
 cuda_add_executable(test_shear test_shear.cu)
 target_link_libraries(test_shear ImplicitBeamsGPU)
 add_dependencies(test_shear ImplicitBeamsGPU)
+
+cuda_add_executable(test_beam test_beam.cu)
+target_link_libraries(test_beam ImplicitBeamsGPU)
+add_dependencies(test_beam ImplicitBeamsGPU)

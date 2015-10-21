@@ -23,6 +23,24 @@ System::System()
 
   collisionDetector = new CollisionDetector(this);
   solver = new APGD(this);
+
+  wt3.push_back(5.0 / 9.0);
+  wt3.push_back(8.0 / 9.0);
+  wt3.push_back(5.0 / 9.0);
+  pt3.push_back(-sqrt(3.0 / 5.0));
+  pt3.push_back(0.0);
+  pt3.push_back(sqrt(3.0 / 5.0));
+
+  wt5.push_back((322. - 13. * sqrt(70.)) / 900.);
+  wt5.push_back((322. + 13. * sqrt(70.)) / 900.);
+  wt5.push_back(128. / 225.);
+  wt5.push_back((322. + 13. * sqrt(70.)) / 900.);
+  wt5.push_back((322. - 13. * sqrt(70.)) / 900.);
+  pt5.push_back(-(sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back(-(sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back(0.);
+  pt5.push_back((sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back((sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
 }
 
 System::System(int solverType)
@@ -62,6 +80,24 @@ System::System(int solverType)
   default:
     solver = new APGD(this);
   }
+
+  wt3.push_back(5.0 / 9.0);
+  wt3.push_back(8.0 / 9.0);
+  wt3.push_back(5.0 / 9.0);
+  pt3.push_back(-sqrt(3.0 / 5.0));
+  pt3.push_back(0.0);
+  pt3.push_back(sqrt(3.0 / 5.0));
+
+  wt5.push_back((322. - 13. * sqrt(70.)) / 900.);
+  wt5.push_back((322. + 13. * sqrt(70.)) / 900.);
+  wt5.push_back(128. / 225.);
+  wt5.push_back((322. + 13. * sqrt(70.)) / 900.);
+  wt5.push_back((322. - 13. * sqrt(70.)) / 900.);
+  pt5.push_back(-(sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back(-(sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back(0.);
+  pt5.push_back((sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
+  pt5.push_back((sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
 }
 
 void System::setTimeStep(double step_size)
@@ -78,8 +114,8 @@ int System::add(Body* body) {
 
 int System::add(Beam* beam) {
   //add the beam
+  beam->sys = this;
   beams.push_back(beam);
-
   return beams.size();
 }
 
@@ -98,13 +134,22 @@ int System::initializeDevice() {
   gamma_d = a_h;
   friction_d = a_h;
   fApplied_d = fApplied_h;
+  fElastic_d = fElastic_h;
 
   massI_d = massI_h;
   massJ_d = massJ_h;
   mass_d = mass_h;
 
   contactGeometry_d = contactGeometry_h;
+  collisionGeometry_d = collisionGeometry_h;
+  collisionMap_d = collisionMap_h;
+  materialsBeam_d = materialsBeam_h;
   fixedBodies_d = fixedBodies_h;
+
+  strainDerivative_d = strainDerivative_h;
+  strain_d = strain_h;
+  Sx_d = Sx_h;
+  Sxx_d = Sxx_h;
 
   thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
   thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
@@ -112,6 +157,7 @@ int System::initializeDevice() {
   thrust::device_ptr<double> wrapped_device_f(CASTD1(f_d));
   thrust::device_ptr<double> wrapped_device_f_contact(CASTD1(f_contact_d));
   thrust::device_ptr<double> wrapped_device_fApplied(CASTD1(fApplied_d));
+  thrust::device_ptr<double> wrapped_device_fElastic(CASTD1(fElastic_d));
   thrust::device_ptr<double> wrapped_device_tmp(CASTD1(tmp_d));
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
   thrust::device_ptr<double> wrapped_device_b(CASTD1(b_d));
@@ -124,6 +170,7 @@ int System::initializeDevice() {
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
   fApplied = DeviceValueArrayView(wrapped_device_fApplied, wrapped_device_fApplied + fApplied_d.size());
+  fElastic = DeviceValueArrayView(wrapped_device_fElastic, wrapped_device_fElastic + fElastic_d.size());
   tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
   b = DeviceValueArrayView(wrapped_device_b, wrapped_device_b + b_d.size());
@@ -191,6 +238,10 @@ int System::initializeSystem() {
     fApplied_h.push_back(0);
     fApplied_h.push_back(0);
 
+    fElastic_h.push_back(0);
+    fElastic_h.push_back(0);
+    fElastic_h.push_back(0);
+
     tmp_h.push_back(0);
     tmp_h.push_back(0);
     tmp_h.push_back(0);
@@ -220,284 +271,14 @@ int System::initializeSystem() {
     }
 
     contactGeometry_h.push_back(body->contactGeometry);
+    collisionGeometry_h.push_back(body->contactGeometry);
+    collisionMap_h.push_back(make_int3(body->getIdentifier(),0,-1));
 
     if(body->isFixed()) fixedBodies_h.push_back(j);
   }
 
   for(int j=0; j<beams.size(); j++) {
-    Beam* beam = beams[j];
-    beam->setIdentifier(bodies.size()+j); // Indicates the number that the Beam was added
-    beam->setIndex(p_h.size()); // Indicates the Beam's location in the position array
-
-    // Push Beam's location to global library
-    indices_h.push_back(p_h.size());
-
-    // update p
-    p_h.push_back(beam->p_n0.x);
-    p_h.push_back(beam->p_n0.y);
-    p_h.push_back(beam->p_n0.z);
-    p_h.push_back(beam->p_dn0.x);
-    p_h.push_back(beam->p_dn0.y);
-    p_h.push_back(beam->p_dn0.z);
-    p_h.push_back(beam->p_n1.x);
-    p_h.push_back(beam->p_n1.y);
-    p_h.push_back(beam->p_n1.z);
-    p_h.push_back(beam->p_dn1.x);
-    p_h.push_back(beam->p_dn1.y);
-    p_h.push_back(beam->p_dn1.z);
-
-    // update v
-    v_h.push_back(beam->v_n0.x);
-    v_h.push_back(beam->v_n0.y);
-    v_h.push_back(beam->v_n0.z);
-    v_h.push_back(beam->v_dn0.x);
-    v_h.push_back(beam->v_dn0.y);
-    v_h.push_back(beam->v_dn0.z);
-    v_h.push_back(beam->v_n1.x);
-    v_h.push_back(beam->v_n1.y);
-    v_h.push_back(beam->v_n1.z);
-    v_h.push_back(beam->v_dn1.x);
-    v_h.push_back(beam->v_dn1.y);
-    v_h.push_back(beam->v_dn1.z);
-
-    // update a
-    a_h.push_back(beam->a_n0.x);
-    a_h.push_back(beam->a_n0.y);
-    a_h.push_back(beam->a_n0.z);
-    a_h.push_back(beam->a_dn0.x);
-    a_h.push_back(beam->a_dn0.y);
-    a_h.push_back(beam->a_dn0.z);
-    a_h.push_back(beam->a_n1.x);
-    a_h.push_back(beam->a_n1.y);
-    a_h.push_back(beam->a_n1.z);
-    a_h.push_back(beam->a_dn1.x);
-    a_h.push_back(beam->a_dn1.y);
-    a_h.push_back(beam->a_dn1.z);
-
-    // update external force vector (gravity)
-    double rho = beam->getDensity();
-    double r = beam->contactGeometry.x;
-    double A = PI*r*r;
-    double l = beam->contactGeometry.y;
-    f_h.push_back(rho * A * l * gravity.x / 0.2e1);
-    f_h.push_back(rho * A * l * gravity.y / 0.2e1);
-    f_h.push_back(rho * A * l * gravity.z / 0.2e1);
-    f_h.push_back(rho * A * l * l * gravity.x / 0.12e2);
-    f_h.push_back(rho * A * l * l * gravity.y / 0.12e2);
-    f_h.push_back(rho * A * l * l * gravity.z / 0.12e2);
-    f_h.push_back(rho * A * l * gravity.x / 0.2e1);
-    f_h.push_back(rho * A * l * gravity.y / 0.2e1);
-    f_h.push_back(rho * A * l * gravity.z / 0.2e1);
-    f_h.push_back(-rho * A * l * l * gravity.x / 0.12e2);
-    f_h.push_back(-rho * A * l * l * gravity.y / 0.12e2);
-    f_h.push_back(-rho * A * l * l * gravity.z / 0.12e2);
-
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-    f_contact_h.push_back(0);
-
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-    fApplied_h.push_back(0);
-
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-    tmp_h.push_back(0);
-
-    r_h.push_back(0);
-    r_h.push_back(0);
-    r_h.push_back(0);
-    r_h.push_back(0);
-    r_h.push_back(0);
-    r_h.push_back(0);
-
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-    k_h.push_back(0);
-
-    // update the mass matrix
-    massI_h.push_back(0+j*12);
-    massJ_h.push_back(0+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(0+j*12);
-    massJ_h.push_back(3+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(0+j*12);
-    massJ_h.push_back(6+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(0+j*12);
-    massJ_h.push_back(9+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(1+j*12);
-    massJ_h.push_back(1+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(1+j*12);
-    massJ_h.push_back(4+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(1+j*12);
-    massJ_h.push_back(7+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(1+j*12);
-    massJ_h.push_back(10+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(2+j*12);
-    massJ_h.push_back(2+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(2+j*12);
-    massJ_h.push_back(5+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(2+j*12);
-    massJ_h.push_back(8+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(2.0+j*12);
-    massJ_h.push_back(11+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(3+j*12);
-    massJ_h.push_back(0+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(3+j*12);
-    massJ_h.push_back(3+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-    massI_h.push_back(3+j*12);
-    massJ_h.push_back(6+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(3+j*12);
-    massJ_h.push_back(9+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(4+j*12);
-    massJ_h.push_back(1+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(4+j*12);
-    massJ_h.push_back(4+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-    massI_h.push_back(4+j*12);
-    massJ_h.push_back(7+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(4+j*12);
-    massJ_h.push_back(10+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(5+j*12);
-    massJ_h.push_back(2+j*12);
-    mass_h.push_back(-120.0/(A*l*rho));
-    massI_h.push_back(5+j*12);
-    massJ_h.push_back(5+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-    massI_h.push_back(5+j*12);
-    massJ_h.push_back(8+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(5+j*12);
-    massJ_h.push_back(11+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(6+j*12);
-    massJ_h.push_back(0+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(6+j*12);
-    massJ_h.push_back(3+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(6+j*12);
-    massJ_h.push_back(6+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(6+j*12);
-    massJ_h.push_back(9+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(7+j*12);
-    massJ_h.push_back(1+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(7+j*12);
-    massJ_h.push_back(4+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(7+j*12);
-    massJ_h.push_back(7+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(7+j*12);
-    massJ_h.push_back(10+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(8+j*12);
-    massJ_h.push_back(2+j*12);
-    mass_h.push_back(-4.0/(A*rho));
-    massI_h.push_back(8+j*12);
-    massJ_h.push_back(5+j*12);
-    mass_h.push_back(60.0/(A*l*rho));
-    massI_h.push_back(8+j*12);
-    massJ_h.push_back(8+j*12);
-    mass_h.push_back(16.0/(A*rho));
-    massI_h.push_back(8+j*12);
-    massJ_h.push_back(11+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(9+j*12);
-    massJ_h.push_back(0+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(9+j*12);
-    massJ_h.push_back(3+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(9+j*12);
-    massJ_h.push_back(6+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(9+j*12);
-    massJ_h.push_back(9+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-    massI_h.push_back(10+j*12);
-    massJ_h.push_back(1+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(10+j*12);
-    massJ_h.push_back(4+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(10+j*12);
-    massJ_h.push_back(7+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(10+j*12);
-    massJ_h.push_back(10+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-    massI_h.push_back(11+j*12);
-    massJ_h.push_back(2+j*12);
-    mass_h.push_back(-60.0/(A*l*rho));
-    massI_h.push_back(11+j*12);
-    massJ_h.push_back(5+j*12);
-    mass_h.push_back(840.0/(A*l*l*rho));
-    massI_h.push_back(11+j*12);
-    massJ_h.push_back(8+j*12);
-    mass_h.push_back(120.0/(A*l*rho));
-    massI_h.push_back(11+j*12);
-    massJ_h.push_back(11+j*12);
-    mass_h.push_back(1200.0/(A*l*l*rho));
-
-    contactGeometry_h.push_back(beam->contactGeometry);
+    beams[j]->addBeam(j); //TODO: Make a function like this for body (makes code cleaner)
   }
 
   initializeDevice();
@@ -513,9 +294,9 @@ int System::DoTimeStep() {
   cudaEventRecord(start, 0);
 
   // Perform collision detection
-  //collisionDetector->generateAxisAlignedBoundingBoxes();
-  //collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  //collisionDetector->detectCollisions();
+  collisionDetector->generateAxisAlignedBoundingBoxes();
+  collisionDetector->detectPossibleCollisions_spatialSubdivision();
+  collisionDetector->detectCollisions();
 
   buildAppliedImpulseVector();
   if(collisionDetector->numCollisions) {
@@ -538,6 +319,11 @@ int System::DoTimeStep() {
 
     cusp::blas::fill(f_contact,0.0);
   }
+//  v_h = v_d;
+//  v_h[3*bodies.size()+0] = 0;
+//  v_h[3*bodies.size()+1] = 0;
+//  v_h[3*bodies.size()+2] = 0;
+//  v_d = v_h;
   cusp::blas::axpy(v, p, h);
 
   time += h;
@@ -562,46 +348,6 @@ int System::DoTimeStep() {
   return 0;
 }
 
-int System::applyContactForces_CPU() {
-  Thrust_Fill(f_contact_h,0);
-
-  for(int i=0; i<collisionDetector->normalsAndPenetrations_h.size(); i++) {
-    uint bodyA = collisionDetector->bodyIdentifierA_h[i];
-    uint bodyB = collisionDetector->bodyIdentifierB_h[i];
-    double4 nAndP = collisionDetector->normalsAndPenetrations_h[i];
-    double3 normal = make_double3(nAndP.x,nAndP.y,nAndP.z);
-    double penetration = nAndP.w;
-
-    double sigmaA = (1.0-0.25)/2.0e7;
-    double sigmaB = sigmaA;
-    double rA = 0.4;
-    double rB = 0.4;
-    double3 contactForce = 4.0/(3.0*(sigmaA+sigmaB))*sqrt(rA*rB/(rA+rB))*pow(penetration,1.5)*normal;
-
-    // Add damping
-    v_h = v_d;
-    double3 v = make_double3(v_h[indices_h[bodyB]]-v_h[indices_h[bodyA]],v_h[indices_h[bodyB]+1]-v_h[indices_h[bodyA]+1],v_h[indices_h[bodyB]+2]-v_h[indices_h[bodyA]+2]);
-    double b = 250;
-    double3 damping;
-    damping.x = b * normal.x * normal.x * v.x + b * normal.x * normal.y * v.y + b * normal.x * normal.z * v.z;
-    damping.y = b * normal.x * normal.y * v.x + b * normal.y * normal.y * v.y + b * normal.y * normal.z * v.z;
-    damping.z = b * normal.x * normal.z * v.x + b * normal.y * normal.z * v.y + b * normal.z * normal.z * v.z;
-    if(penetration>=0) contactForce -= damping;
-
-    f_contact_h[indices_h[bodyA]]   -= contactForce.x;
-    f_contact_h[indices_h[bodyA]+1] -= contactForce.y;
-    f_contact_h[indices_h[bodyA]+2] -= contactForce.z;
-
-    f_contact_h[indices_h[bodyB]]   += contactForce.x;
-    f_contact_h[indices_h[bodyB]+1] += contactForce.y;
-    f_contact_h[indices_h[bodyB]+2] += contactForce.z;
-
-  }
-  f_contact_d = f_contact_h;
-
-  return 0;
-}
-
 int System::applyForce(Body* body, double3 force) {
   int index = body->getIndex();
   //cout << index << endl;
@@ -620,7 +366,7 @@ int System::clearAppliedForces() {
   return 0;
 }
 
-__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* bodyIdentifierA, uint* bodyIdentifierB, int* indices, uint numCollisions) {
+__global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
@@ -628,8 +374,8 @@ __global__ void constructContactJacobian(int* DI, int* DJ, double* D, double* fr
   double4 nAndP;
   double3 n, u, v;
   uint bodyA, bodyB;
-  bodyA = bodyIdentifierA[index];
-  bodyB = bodyIdentifierB[index];
+  bodyA = collisionIdentifierA[index]; //TODO: THIS IS INCORRECT
+  bodyB = collisionIdentifierB[index]; //TODO: THIS IS INCORRECT
   nAndP = normalsAndPenetrations[index];
   n = make_double3(nAndP.x,nAndP.y,nAndP.z);
 
@@ -723,7 +469,7 @@ int System::buildContactJacobian() {
   D_d.resize(18*collisionDetector->numCollisions);
   friction_d.resize(collisionDetector->numCollisions);
 
-  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->bodyIdentifierA_d), CASTU1(collisionDetector->bodyIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
+  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -774,13 +520,13 @@ __global__ void multiplyByMass(double* massInv, double* src, double* dst, uint n
   dst[index] = mass*src[index];
 }
 
-__global__ void multiplyByBeamMass(double3* geometries, double* src, double* dst, uint numBodies, uint numBeams) {
+__global__ void multiplyByBeamMass(double3* geometries, double3* materials, double* src, double* dst, uint numBodies, uint numBeams) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
 
   double3 geometry = geometries[numBodies+index];
   double A = PI*geometry.x*geometry.x;
   double l = geometry.y;
-  double rho = geometry.z;
+  double rho = materials[index].x;
 
   uint offset = 3*numBodies+12*index;
   dst[offset+0 ] = (13.0*A*rho*src[0+offset])/35.0 + (9.0*A*rho*src[6+offset])/70.0 + (11.0*A*l*rho*src[3+offset])/210.0 - (13.0*A*l*rho*src[9 +offset])/420.0;
@@ -799,9 +545,11 @@ __global__ void multiplyByBeamMass(double3* geometries, double* src, double* dst
 
 int System::buildAppliedImpulseVector() {
   // build k
+  updateElasticForces();
   multiplyByMass<<<BLOCKS(3*bodies.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), 3*bodies.size());
-  multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size());
-  cusp::blas::axpbypcz(f,fApplied,k,k,h,h,1);
+  multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD3(materialsBeam_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size());
+  //cusp::blas::axpy(fElastic,fApplied,-1.0); //TODO: Come up with a fix for applied forces
+  cusp::blas::axpbypcz(f,fElastic,k,k,h,-h,1.0);
 
   return 0;
 }
@@ -810,7 +558,6 @@ __global__ void buildStabilization(double* b, double4* normalsAndPenetrations, d
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
-  //if(penetration>0) penetration = 0; // TODO: is this correct? NO, look at the rolling ball demo
 
   b[3*index] = penetration/timeStep;
   b[3*index+1] = 0;

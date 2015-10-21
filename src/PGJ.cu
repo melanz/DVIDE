@@ -171,7 +171,7 @@ int PGJ::solve() {
   initializeImpulseVector_PGJ<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // Initialize B matrix (vector in this case, since it's diagonal)
-  buildB<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), system->collisionDetector->numCollisions);
+  buildB<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(B_d), CASTD1(system->D_d), CASTD1(system->mass_d), CASTU1(system->collisionDetector->collisionIdentifierA_d), CASTU1(system->collisionDetector->collisionIdentifierB_d), system->collisionDetector->numCollisions);
 
   // (1) for k := 0 to N_max
   double residual;

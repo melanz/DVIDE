@@ -27,6 +27,7 @@ typedef typename cusp::coo_matrix<int, double, cusp::device_memory> DeviceMatrix
 
 class CollisionDetector;
 class Solver;
+class Beam;
 class System {
 public:
   // variables
@@ -43,6 +44,7 @@ public:
 	DeviceValueArrayView v;
 	DeviceValueArrayView a;
 	DeviceValueArrayView f;
+	DeviceValueArrayView fElastic;
 	DeviceValueArrayView fApplied;
   DeviceValueArrayView f_contact;
   DeviceValueArrayView tmp;
@@ -61,6 +63,7 @@ public:
 	thrust::host_vector<double> v_h;
 	thrust::host_vector<double> a_h;
 	thrust::host_vector<double> f_h;
+	thrust::host_vector<double> fElastic_h;
 	thrust::host_vector<double> fApplied_h;
   thrust::host_vector<double> f_contact_h;
   thrust::host_vector<double> tmp_h;
@@ -83,6 +86,7 @@ public:
 	thrust::device_vector<double> v_d;
 	thrust::device_vector<double> a_d;
 	thrust::device_vector<double> f_d;
+	thrust::device_vector<double> fElastic_d;
 	thrust::device_vector<double> fApplied_d;
   thrust::device_vector<double> f_contact_d;
   thrust::device_vector<double> tmp_d;
@@ -111,12 +115,38 @@ public:
   thrust::host_vector<int> fixedBodies_h;
   thrust::device_vector<int> fixedBodies_d;
 
-  // library of contact geometry
+  // library of contact geometry TODO: this is duplicate information, needed for now
   thrust::host_vector<double3> contactGeometry_h;
   thrust::device_vector<double3> contactGeometry_d;
 
-  CollisionDetector* collisionDetector;
+  thrust::host_vector<double3> collisionGeometry_h;
+  thrust::device_vector<double3> collisionGeometry_d;
 
+  thrust::host_vector<int3> collisionMap_h;
+  thrust::device_vector<int3> collisionMap_d;
+
+  // library of material information (beams)
+  thrust::host_vector<double3> materialsBeam_h;
+  thrust::device_vector<double3> materialsBeam_d;
+
+  thrust::host_vector<double> strainDerivative_h;
+  thrust::device_vector<double> strainDerivative_d;
+
+  thrust::host_vector<double> strain_h;
+  thrust::device_vector<double> strain_d;
+
+  thrust::host_vector<double> Sx_h;
+  thrust::device_vector<double> Sx_d;
+
+  thrust::host_vector<double> Sxx_h;
+  thrust::device_vector<double> Sxx_d;
+
+  thrust::host_vector<double> wt5;
+  thrust::host_vector<double> pt5;
+  thrust::host_vector<double> wt3;
+  thrust::host_vector<double> pt3;
+
+  CollisionDetector* collisionDetector;
 
 public:
 	System();
@@ -134,7 +164,6 @@ public:
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();
-	int     applyContactForces_CPU(); //TODO: Get rid of this!
 	int     applyForce(Body* body, double3 force);
 	int     clearAppliedForces();
 	int     buildContactJacobian();
@@ -147,6 +176,7 @@ public:
 	int     importSystem(string filename);
 	int     exportMatrices(string directory);
 	double4 getCCPViolation();
+	int     updateElasticForces();
 };
 
 #endif /* SYSTEM_CUH_ */

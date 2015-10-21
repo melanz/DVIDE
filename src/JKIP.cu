@@ -678,7 +678,7 @@ int JKIP::solve() {
   totalKrylovIterations = 0;
   for (k=0; k < maxIterations; k++) {
     updatePw<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pw_d), CASTD1(x_d), CASTD1(y_d), system->collisionDetector->numCollisions);
-    updatePinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pinv_d), CASTD1(Pw_d), CASTU1(system->collisionDetector->bodyIdentifierA_d), CASTU1(system->collisionDetector->bodyIdentifierB_d), CASTD1(system->D_d), CASTD1(system->mass_d), system->collisionDetector->numCollisions);
+    updatePinv<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(Pinv_d), CASTD1(Pw_d), CASTU1(system->collisionDetector->collisionIdentifierA_d), CASTU1(system->collisionDetector->collisionIdentifierB_d), CASTD1(system->D_d), CASTD1(system->mass_d), system->collisionDetector->numCollisions);
 
     if(verbose) {
       cusp::print(Pw);

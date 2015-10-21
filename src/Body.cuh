@@ -96,6 +96,10 @@ public:
 		this->identifier = identifier;
 	}
 
+  uint getIdentifier() {
+    return identifier;
+  }
+
   void setBodyFixed(bool fixed)
   {
     this->fixed = fixed;
