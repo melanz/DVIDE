@@ -25,12 +25,13 @@ private:
 
 	bool fixed;
 	double3 contactGeometry;
-
+	int collisionFamily;
 public:
 	Body() {
 	  numDOF = 3;
 	  identifier = 0;
 	  index = 0;
+	  collisionFamily = -1;
 
 		// create test element!
 		pos = make_double3(0, 0, 0);
@@ -47,6 +48,7 @@ public:
     numDOF = 3;
     identifier = 0;
     index = 0;
+    collisionFamily = -1;
 
     // create test element!
     pos = position;
@@ -115,6 +117,16 @@ public:
   void setVelocity(double3 velocity)
   {
     this->vel = velocity;
+  }
+
+  void setCollisionFamily(int collisionFamily)
+  {
+    this->collisionFamily = collisionFamily;
+  }
+
+  int getCollisionFamily()
+  {
+    return collisionFamily;
   }
 };
 

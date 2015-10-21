@@ -79,7 +79,7 @@ __global__ void storeAabbBinIntersections(double3* aabbData, uint* numBinsInters
   }
 }
 
-__global__ void countAabbAabbIntersections(double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* numAabbCollisionsPerBin, uint lastActiveBin, uint numAABB) {
+__global__ void countAabbAabbIntersections(int3* collisionMap, double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* numAabbCollisionsPerBin, uint lastActiveBin, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, lastActiveBin);
 
   uint end = binStartIndex[index], count = 0, i = (!index) ? 0 : binStartIndex[index - 1];
@@ -89,18 +89,24 @@ __global__ void countAabbAabbIntersections(double3* aabbData, uint * binIdentifi
     tempa = aabbIdentifier[i];
     A.min = aabbData[tempa];
     A.max = aabbData[tempa + numAABB];
+    int identifierA = collisionMap[tempa].x;
+    int collisionFamilyA = collisionMap[tempa].z;
     for (int k = i + 1; k < end; k++) {
       tempb = aabbIdentifier[k];
       B.min = aabbData[tempb];
       B.max = aabbData[tempb + numAABB];
       bool inContact = (A.min.x <= B.max.x && B.min.x <= A.max.x) && (A.min.y <= B.max.y && B.min.y <= A.max.y) && (A.min.z <= B.max.z && B.min.z <= A.max.z);
+      int identifierB = collisionMap[tempb].x;
+      int collisionFamilyB = collisionMap[tempb].z;
+      if(identifierA==identifierB) inContact = false;
+      if(collisionFamilyA==collisionFamilyB && collisionFamilyA!=-1) inContact = false;
       if (inContact) count++;
     }
   }
   numAabbCollisionsPerBin[index] = count;
 }
 
-__global__ void storeAabbAabbIntersections(double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* numAabbCollisionsPerBin, long long* potentialCollisions, uint lastActiveBin, uint numAABB) {
+__global__ void storeAabbAabbIntersections(int3* collisionMap, double3* aabbData, uint * binIdentifier, uint * aabbIdentifier, uint * binStartIndex, uint* numAabbCollisionsPerBin, long long* potentialCollisions, uint lastActiveBin, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, lastActiveBin);
 
   uint end = binStartIndex[index], count = 0, i = (!index) ? 0 : binStartIndex[index - 1], Bin = binIdentifier[index];
@@ -115,11 +121,17 @@ __global__ void storeAabbAabbIntersections(double3* aabbData, uint * binIdentifi
     tempa = aabbIdentifier[i];
     A.min = aabbData[tempa];
     A.max = aabbData[tempa + numAABB];
+    int identifierA = collisionMap[tempa].x;
+    int collisionFamilyA = collisionMap[tempa].z;
     for (int k = i + 1; k < end; k++) {
       tempb = aabbIdentifier[k];
       B.min = aabbData[tempb];
       B.max = aabbData[tempb + numAABB];
       bool inContact = (A.min.x <= B.max.x && B.min.x <= A.max.x) && (A.min.y <= B.max.y && B.min.y <= A.max.y) && (A.min.z <= B.max.z && B.min.z <= A.max.z);
+      int identifierB = collisionMap[tempb].x;
+      int collisionFamilyB = collisionMap[tempb].z;
+      if(identifierA==identifierB) inContact = false;
+      if(collisionFamilyA==collisionFamilyB && collisionFamilyA!=-1) inContact = false;
       if (inContact) {
         int a = tempa;
         int b = tempb;
@@ -443,14 +455,14 @@ int CollisionDetector::detectPossibleCollisions_spatialSubdivision()
 
   // Step 5: Count the number of AABB collisions
   // At this point, binIdentifier has the bin number for each thread, binStartIndex tells the thread where to start and stop, and aabbIdentifier has the AABB that is in the bin
-  countAabbAabbIntersections<<<BLOCKS(lastActiveBin),THREADS>>>(CASTD3(aabbData_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), CASTU1(binStartIndex_d), CASTU1(numAabbCollisionsPerBin_d), lastActiveBin, numAABB);
+  countAabbAabbIntersections<<<BLOCKS(lastActiveBin),THREADS>>>(CASTI3(system->collisionMap_d), CASTD3(aabbData_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), CASTU1(binStartIndex_d), CASTU1(numAabbCollisionsPerBin_d), lastActiveBin, numAABB);
 
   Thrust_Inclusive_Scan_Sum(numAabbCollisionsPerBin_d, numPossibleCollisions);
   potentialCollisions_d.resize(numPossibleCollisions);
   // End Step 5
 
   // Step 6: Store the possible AABB collision pairs
-  storeAabbAabbIntersections<<<BLOCKS(lastActiveBin),THREADS>>>(CASTD3(aabbData_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), CASTU1(binStartIndex_d), CASTU1(numAabbCollisionsPerBin_d), CASTLL(potentialCollisions_d), lastActiveBin, numAABB);
+  storeAabbAabbIntersections<<<BLOCKS(lastActiveBin),THREADS>>>(CASTI3(system->collisionMap_d), CASTD3(aabbData_d), CASTU1(binIdentifier_d), CASTU1(aabbIdentifier_d), CASTU1(binStartIndex_d), CASTU1(numAabbCollisionsPerBin_d), CASTLL(potentialCollisions_d), lastActiveBin, numAABB);
   //thrust::sort(potentialCollisions_d.begin(), potentialCollisions_d.end());
   thrust::stable_sort(potentialCollisions_d.begin(), potentialCollisions_d.end());
   numPossibleCollisions = thrust::unique(potentialCollisions_d.begin(), potentialCollisions_d.end()) - potentialCollisions_d.begin();

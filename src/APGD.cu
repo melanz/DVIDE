@@ -185,7 +185,7 @@ int APGD::solve() {
   //cusp::blas::fill(system->gamma,0);
 
   // Provide an initial guess for gamma
-  initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  //initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);

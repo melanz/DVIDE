@@ -272,7 +272,7 @@ int System::initializeSystem() {
 
     contactGeometry_h.push_back(body->contactGeometry);
     collisionGeometry_h.push_back(body->contactGeometry);
-    collisionMap_h.push_back(make_int3(body->getIdentifier(),0,-1));
+    collisionMap_h.push_back(make_int3(body->getIdentifier(),0,body->getCollisionFamily()));
 
     if(body->isFixed()) fixedBodies_h.push_back(j);
   }

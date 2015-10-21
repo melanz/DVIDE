@@ -38,7 +38,7 @@ private:
 	double elasticModulus;
 
 	double3 contactGeometry;
-
+	int collisionFamily;
 	System* sys;
 
 public:
@@ -47,6 +47,7 @@ public:
 	  identifier = 0;
 	  index = 0;
 	  sys = 0;
+	  collisionFamily = -1;
 
 		// create test element!
 	  p_n0 = make_double3(0, 0, 0);
@@ -75,6 +76,7 @@ public:
     identifier = 0;
     index = 0;
     sys = 0;
+    collisionFamily = -1;
 
     // create test element!
     double l = length(node0-node1);
@@ -153,9 +155,19 @@ public:
   {
     return contactGeometry;
   }
-  void setGeometry(double3 geometry)
+  void setRadius(double radius)
   {
-    this->contactGeometry = geometry;
+    this->contactGeometry.x = radius;
+  }
+
+  void setCollisionFamily(int collisionFamily)
+  {
+    this->collisionFamily = collisionFamily;
+  }
+
+  int getCollisionFamily()
+  {
+    return collisionFamily;
   }
 
   double3 transformNodalToCartesian(double xi);
