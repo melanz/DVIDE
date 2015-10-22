@@ -261,22 +261,22 @@ int APGD::solve() {
     cusp::blas::axpby(gammaNew,system->gamma,yNew,(1.0+Beta),-Beta);
 
     // (18) r = r(gamma_(k+1))
-    //double res = getResidual(gammaNew);
-    getFeasibleX_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
-    double feasibleX = Thrust_Max(gammaTmp_d);
-
-    performSchurComplementProduct(gammaNew);
-    cusp::blas::axpy(system->r,gammaTmp,1.0);
-    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
-    double res3 = cusp::blas::nrmmax(gammaTmp);
-
-    performSchurComplementProduct(gammaNew);
-    cusp::blas::axpy(system->r,gammaTmp,1.0);
-    getFeasibleY_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
-    double feasibleY = Thrust_Max(gammaTmp_d);
-
-    double res = fmax(feasibleX,feasibleY);
-    res = fmax(res,res3);
+    double res = getResidual(gammaNew);
+//    getFeasibleX_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+//    double feasibleX = Thrust_Max(gammaTmp_d);
+//
+//    performSchurComplementProduct(gammaNew);
+//    cusp::blas::axpy(system->r,gammaTmp,1.0);
+//    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
+//    double res3 = cusp::blas::nrmmax(gammaTmp);
+//
+//    performSchurComplementProduct(gammaNew);
+//    cusp::blas::axpy(system->r,gammaTmp,1.0);
+//    getFeasibleY_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+//    double feasibleY = Thrust_Max(gammaTmp_d);
+//
+//    double res = fmax(feasibleX,feasibleY);
+//    res = fmax(res,res3);
 
     // (19) if r < epsilon_min
     if (res < residual) {

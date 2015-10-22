@@ -11,6 +11,7 @@ JKIP::JKIP(System* sys)
   tolerance = 1e-4;
   maxIterations = 1000;
   iterations = 0;
+  totalKrylovIterations = 0;
 
   // spike stuff
   partitions = 1;

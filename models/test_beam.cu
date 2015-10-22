@@ -222,12 +222,13 @@ int main(int argc, char** argv)
     numElementsPerSide = atoi(argv[1]);
     solverTypeQOCC = atoi(argv[2]);
     tolerance = atof(argv[3]);
+    hh = atof(argv[4]);
   }
 
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -235,7 +236,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_FILL_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDirStream << "../TEST_BEAM_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -283,16 +284,16 @@ int main(int argc, char** argv)
 
   double radius = 0.4;
 
-//  // Beam
-//  Beam* beamPtr = new Beam(make_double3(-1,1,0),make_double3(1,1,0));
-//  beamPtr->setRadius(0.2);
-//  beamPtr->setCollisionFamily(1);
-//  sys->add(beamPtr);
-//
-//  Beam* beamPtr2 = new Beam(make_double3(0,2,-1),make_double3(0,2,1));
-//  beamPtr2->setRadius(0.2);
-//  beamPtr2->setCollisionFamily(1);
-//  sys->add(beamPtr2);
+  // Beam
+  Beam* beamPtr = new Beam(make_double3(-1,1,0),make_double3(1,1,0));
+  beamPtr->setRadius(0.2);
+  beamPtr->setCollisionFamily(1);
+  sys->add(beamPtr);
+
+  Beam* beamPtr2 = new Beam(make_double3(0,2,-1),make_double3(0,2,1));
+  beamPtr2->setRadius(0.2);
+  beamPtr2->setCollisionFamily(1);
+  sys->add(beamPtr2);
 //
 //  Body* ballPtr = new Body(make_double3(1,3,0));
 //  sys->add(ballPtr);
@@ -338,28 +339,36 @@ int main(int argc, char** argv)
 //  //ball1->setMass(20);
 //  sys->add(ball1);
 
-  Beam* beamPtr;
-  int numBodies = 0;
-  double wiggle = 0.1;
-  // Add elements in x-direction
-  for (int i = 0; i < numElementsPerSide; i++) {
-    for (int j = 0; j < numElementsPerSide; j++) {
-      for (int k = 0; k < numElementsPerSide; k++) {
-
-        double xWig = getRandomNumber(-wiggle, wiggle);
-        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
-        double zWig = getRandomNumber(-wiggle, wiggle);
-        double length = 2*radius-2*wiggle;
-        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
-        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
-        beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
-        beamPtr->setRadius(0.1);
-        numBodies = sys->add(beamPtr);
-
-        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-      }
-    }
-  }
+//  Beam* beamPtr;
+//  Body* bodyPtr;
+//  int numBodies = 0;
+//  double wiggle = 0.1;
+//  // Add elements in x-direction
+//  for (int i = 0; i < numElementsPerSide; i++) {
+//    for (int j = 0; j < numElementsPerSide; j++) {
+//      for (int k = 0; k < numElementsPerSide; k++) {
+//        double check = getRandomNumber(-1, 1);
+//        double xWig = getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
+//        double zWig = getRandomNumber(-wiggle, wiggle);
+//        double length = 2*radius-2*wiggle;
+//        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
+//        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
+//        if(check<=0) {
+//          beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
+//          beamPtr->setRadius(0.1);
+//          numBodies = sys->add(beamPtr);
+//        } else {
+//          bodyPtr = new Body(center);
+//          bodyPtr->setGeometry(make_double3(radius,0,0));
+//          bodyPtr->setMass(4.0/3.0*PI*radius*radius*radius*7200.0);
+//          numBodies = sys->add(bodyPtr);
+//        }
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
 //  Body* bodyPtr;
 //  bodyPtr = new Body(make_double3(0,0,0));
 //  bodyPtr->setGeometry(make_double3(1,0,0));
@@ -408,19 +417,17 @@ int main(int argc, char** argv)
   std::stringstream statsFileStream;
   statsFileStream << outDir << "statsBeam_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
 	ofstream statStream(statsFileStream.str().c_str());
-
-	double maxVel = 0;
+  int fileIndex = 0;
 	while(sys->time < t_end)
 	{
-    std::stringstream dataFileStream;
-    dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
-    sys->exportSystem(dataFileStream.str());
+	  if(sys->timeIndex%200==0) {
+      std::stringstream dataFileStream;
+      dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
+      sys->exportSystem(dataFileStream.str());
+      fileIndex++;
+	  }
 
 		sys->DoTimeStep();
-		double4 violation = sys->getCCPViolation();
-
-		double maxVelNow = Thrust_Max(sys->v_d);
-		if(maxVelNow>maxVel) maxVel = maxVelNow;
 
 		// Determine contact force on the container
 		sys->f_contact_h = sys->f_contact_d;
@@ -429,20 +436,18 @@ int main(int argc, char** argv)
 		  weight += sys->f_contact_h[3*i+1];
 		}
 		cout << "  Weight: " << weight << endl;
-		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
 
 		int numKrylovIter = 0;
 		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
 		if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
 		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << violation.x << ", " << violation.y << ", " << violation.z << ", " << violation.w << ", " << endl;
+		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << endl;
 
 	}
 	sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
   collisionFileStream << outDir << "collisionData.dat";
 	sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
-	cout << "Maximum Velocity = " << maxVel << endl;
 
 	return 0;
 }

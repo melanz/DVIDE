@@ -803,7 +803,7 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
-  filestream << "0, " << bodies.size() << ", 0, " << endl;
+  filestream << "0, " << bodies.size() << ", " << beams.size() << ", " << endl;
   for (int i = 0; i < bodies.size(); i++) {
     filestream
         << i << ", "
@@ -831,6 +831,43 @@ int System::exportSystem(string filename) {
             << contactGeometry_h[i].y << ", "
             << contactGeometry_h[i].z << ", ";
         }
+
+        filestream
+          << "\n";
+  }
+  for (int i = 0; i < beams.size(); i++) {
+    // TODO: Need to know collision family information, density, elastic modulus, number of contacts (especially important when importing)
+    filestream
+        << bodies.size()+i << ", "
+        << contactGeometry_h[bodies.size()+i].x << ", "
+        << contactGeometry_h[bodies.size()+i].y << ", "
+
+        << p_h[3*bodies.size()+12*i] << ", "
+        << p_h[3*bodies.size()+12*i+1] << ", "
+        << p_h[3*bodies.size()+12*i+2] << ", "
+        << p_h[3*bodies.size()+12*i+3] << ", "
+        << p_h[3*bodies.size()+12*i+4] << ", "
+        << p_h[3*bodies.size()+12*i+5] << ", "
+        << p_h[3*bodies.size()+12*i+6] << ", "
+        << p_h[3*bodies.size()+12*i+7] << ", "
+        << p_h[3*bodies.size()+12*i+8] << ", "
+        << p_h[3*bodies.size()+12*i+9] << ", "
+        << p_h[3*bodies.size()+12*i+10] << ", "
+        << p_h[3*bodies.size()+12*i+11] << ", "
+
+        << v_h[3*bodies.size()+12*i] << ", "
+        << v_h[3*bodies.size()+12*i+1] << ", "
+        << v_h[3*bodies.size()+12*i+2] << ", "
+        << v_h[3*bodies.size()+12*i+3] << ", "
+        << v_h[3*bodies.size()+12*i+4] << ", "
+        << v_h[3*bodies.size()+12*i+5] << ", "
+        << v_h[3*bodies.size()+12*i+6] << ", "
+        << v_h[3*bodies.size()+12*i+7] << ", "
+        << v_h[3*bodies.size()+12*i+8] << ", "
+        << v_h[3*bodies.size()+12*i+9] << ", "
+        << v_h[3*bodies.size()+12*i+10] << ", "
+        << v_h[3*bodies.size()+12*i+11] << ", ";
+
         filestream
           << "\n";
   }
@@ -846,6 +883,7 @@ int System::importSystem(string filename) {
   int isFixed;
   string temp_data;
   int numBodies;
+  int numBeams;
   double blah;
   int index;
   int shape;
@@ -856,7 +894,7 @@ int System::importSystem(string filename) {
     if(temp_data[i]==','){temp_data[i]=' ';}
   }
   stringstream ss1(temp_data);
-  ss1>>blah>>numBodies>>blah;
+  ss1>>blah>>numBodies>>numBeams;
 
   Body* bodyPtr;
   for(int i=0; i<numBodies; i++) {
@@ -886,6 +924,8 @@ int System::importSystem(string filename) {
     add(bodyPtr);
     //cout << index << " " << isFixed << " " << pos.x << " " << pos.y << " " << pos.z << " " << "1 0 0 0 " << vel.x << " " << vel.y << " " << vel.z << " " << shape << " " << geometry.x << " " << geometry.y << " " << geometry.z << endl;
   }
+
+  // TODO: IMPORT BEAMS
 
   return 0;
 }

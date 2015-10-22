@@ -69,7 +69,7 @@ private:
   // spike stuff
   int partitions;
   SpikeSolver* mySolver;
-  MySpmvPJKIP* m_spmv;
+  //MySpmvPJKIP* m_spmv;
   spike::Options  solverOptions;
   int preconditionerUpdateModulus;
   float preconditionerMaxKrylovIterations;

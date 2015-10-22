@@ -41,6 +41,7 @@ public:
 	}
 	virtual int setup() = 0;
 	virtual int solve() = 0;
+	virtual ~Solver(void) {};
 };
 
 #endif /* SOLVER_CUH_ */
