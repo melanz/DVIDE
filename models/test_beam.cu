@@ -203,7 +203,7 @@ int main(int argc, char** argv)
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 5.0;
+  double t_end = 8.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
@@ -280,29 +280,29 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  sys->solver->maxIterations = 10;
+  sys->solver->maxIterations = 40;
 
   double radius = 0.4;
 
-  // Beam
-  Beam* beamPtr = new Beam(make_double3(-1,1,0),make_double3(1,1,0));
-  beamPtr->setRadius(0.2);
-  beamPtr->setCollisionFamily(1);
-  sys->add(beamPtr);
-
-  Beam* beamPtr2 = new Beam(make_double3(0,2,-1),make_double3(0,2,1));
-  beamPtr2->setRadius(0.2);
-  beamPtr2->setCollisionFamily(1);
-  sys->add(beamPtr2);
+//  // Beam
+//  Beam* beamPtr = new Beam(make_double3(-1,1,0),make_double3(1,1,0));
+//  beamPtr->setRadius(0.2);
+//  beamPtr->setCollisionFamily(1);
+//  sys->add(beamPtr);
+//
+//  Beam* beamPtr2 = new Beam(make_double3(0,2,-1),make_double3(0,2,1));
+//  beamPtr2->setRadius(0.2);
+//  beamPtr2->setCollisionFamily(1);
+//  sys->add(beamPtr2);
 //
 //  Body* ballPtr = new Body(make_double3(1,3,0));
 //  sys->add(ballPtr);
 
-  // Top
-  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3*radius,0));
-  topPtr->setBodyFixed(true);
-  topPtr->setGeometry(make_double3(0.5*numElementsPerSide,radius,0.5*numElementsPerSide));
-  sys->add(topPtr);
+//  // Top
+//  Body* topPtr = new Body(make_double3(0,numElementsPerSide+3*radius,0));
+//  topPtr->setBodyFixed(true);
+//  topPtr->setGeometry(make_double3(0.5*numElementsPerSide,radius,0.5*numElementsPerSide));
+//  sys->add(topPtr);
 
   // Bottom
   Body* groundPtr = new Body(make_double3(0,-radius,0));
@@ -339,36 +339,36 @@ int main(int argc, char** argv)
 //  //ball1->setMass(20);
 //  sys->add(ball1);
 
-//  Beam* beamPtr;
-//  Body* bodyPtr;
-//  int numBodies = 0;
-//  double wiggle = 0.1;
-//  // Add elements in x-direction
-//  for (int i = 0; i < numElementsPerSide; i++) {
-//    for (int j = 0; j < numElementsPerSide; j++) {
-//      for (int k = 0; k < numElementsPerSide; k++) {
-//        double check = getRandomNumber(-1, 1);
-//        double xWig = getRandomNumber(-wiggle, wiggle);
-//        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
-//        double zWig = getRandomNumber(-wiggle, wiggle);
-//        double length = 2*radius-2*wiggle;
-//        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
-//        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
-//        if(check<=0) {
-//          beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
-//          beamPtr->setRadius(0.1);
-//          numBodies = sys->add(beamPtr);
-//        } else {
-//          bodyPtr = new Body(center);
-//          bodyPtr->setGeometry(make_double3(radius,0,0));
-//          bodyPtr->setMass(4.0/3.0*PI*radius*radius*radius*7200.0);
-//          numBodies = sys->add(bodyPtr);
-//        }
-//
-//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-//      }
-//    }
-//  }
+  Beam* beamPtr;
+  Body* bodyPtr;
+  int numBodies = 0;
+  double wiggle = 0.1;
+  // Add elements in x-direction
+  for (int i = 0; i < numElementsPerSide; i++) {
+    for (int j = 0; j < 2*numElementsPerSide; j++) {
+      for (int k = 0; k < numElementsPerSide; k++) {
+        double check = 0;//getRandomNumber(-1, 1);
+        double xWig = getRandomNumber(-wiggle, wiggle);
+        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
+        double zWig = getRandomNumber(-wiggle, wiggle);
+        double length = 2*radius-2*wiggle;
+        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
+        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
+        if(check<=0) {
+          beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
+          beamPtr->setRadius(0.1);
+          numBodies = sys->add(beamPtr);
+        } else {
+          bodyPtr = new Body(center);
+          bodyPtr->setGeometry(make_double3(radius,0,0));
+          bodyPtr->setMass(4.0/3.0*PI*radius*radius*radius*7200.0);
+          numBodies = sys->add(bodyPtr);
+        }
+
+        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+      }
+    }
+  }
 //  Body* bodyPtr;
 //  bodyPtr = new Body(make_double3(0,0,0));
 //  bodyPtr->setGeometry(make_double3(1,0,0));
