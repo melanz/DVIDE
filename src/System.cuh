@@ -125,6 +125,10 @@ public:
   thrust::host_vector<int3> collisionMap_h;
   thrust::device_vector<int3> collisionMap_d;
 
+  // list of constraints
+  thrust::host_vector<int2> constraintsBilateralDOF_h;
+  thrust::device_vector<int2> constraintsBilateralDOF_d;
+
   // library of material information (beams)
   thrust::host_vector<double3> materialsBeam_h;
   thrust::device_vector<double3> materialsBeam_d;
@@ -178,6 +182,7 @@ public:
 	int     exportMatrices(string directory);
 	double4 getCCPViolation();
 	int     updateElasticForces();
+	int     addBilateralConstraintDOF(int DOFA, int DOFB);
 };
 
 #endif /* SYSTEM_CUH_ */

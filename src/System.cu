@@ -145,6 +145,7 @@ int System::initializeDevice() {
   collisionMap_d = collisionMap_h;
   materialsBeam_d = materialsBeam_h;
   fixedBodies_d = fixedBodies_h;
+  constraintsBilateralDOF_d = constraintsBilateralDOF_h;
 
   strainDerivative_d = strainDerivative_h;
   strain_d = strain_h;
@@ -287,6 +288,11 @@ int System::initializeSystem() {
   return 0;
 }
 
+int System::addBilateralConstraintDOF(int DOFA, int DOFB) {
+  constraintsBilateralDOF_h.push_back(make_int2(DOFA,DOFB));
+  return 0;
+}
+
 int System::DoTimeStep() {
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -307,7 +313,7 @@ int System::DoTimeStep() {
     // Solve the QOCC
     solver->solve();
 
-    // Perform time integration (contacts)
+    // Perform time integration (contacts) TODO: Get rid of constraint forces in f_contact vector!
     cusp::multiply(DT,gamma,f_contact);
     cusp::blas::axpby(k,f_contact,tmp,1.0,1.0);
     cusp::multiply(mass,tmp,v);
@@ -366,12 +372,28 @@ int System::clearAppliedForces() {
   return 0;
 }
 
-__global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, uint numCollisions) {
+__global__ void constructBilateralJacobian(int2* contraintBilateralDOF, int* DI, int* DJ, double* D, uint numConstraintsBilateral) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraintsBilateral);
+
+  int2 bilateralDOFs = contraintBilateralDOF[index];
+
+  DI[2*index] = index;
+  DI[2*index+1] = index;
+
+  DJ[2*index] = bilateralDOFs.x;
+  DJ[2*index+1] = bilateralDOFs.y;
+
+  D[2*index] = 1.0;
+  D[2*index+1] = -1.0;
+}
+
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, uint numConstraintsBilateral, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
   int offsetA = (!index) ? 0 : nonzerosPerContact_d[index - 1];
+  offsetA+=2*numConstraintsBilateral; // add offset for bilateral constraints
   DI = &DI[offsetA];
   DJ = &DJ[offsetA];
   D = &D[offsetA];
@@ -412,14 +434,14 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collis
   int end = endA;
   int j = 0;
   for(i=0;i<end;i++) {
-    DI[i] = 3*index+0;
+    DI[i] = 3*index+0+numConstraintsBilateral;
     DJ[i] = indexA+j;
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
-    DI[i] = 3*index+0;
+    DI[i] = 3*index+0+numConstraintsBilateral;
     DJ[i] = indexB+j;
     j++;
   }
@@ -428,14 +450,14 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collis
   end+=endA;
   j = 0;
   for(;i<end;i++) {
-    DI[i] = 3*index+1;
+    DI[i] = 3*index+1+numConstraintsBilateral;
     DJ[i] = indexA+j;
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
-    DI[i] = 3*index+1;
+    DI[i] = 3*index+1+numConstraintsBilateral;
     DJ[i] = indexB+j;
     j++;
   }
@@ -444,14 +466,14 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collis
   end+=endA;
   j = 0;
   for(;i<end;i++) {
-    DI[i] = 3*index+2;
+    DI[i] = 3*index+2+numConstraintsBilateral;
     DJ[i] = indexA+j;
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
-    DI[i] = 3*index+2;
+    DI[i] = 3*index+2+numConstraintsBilateral;
     DJ[i] = indexB+j;
     j++;
   }
@@ -614,13 +636,15 @@ int System::buildContactJacobian() {
   nonzerosPerContact_d.resize(collisionDetector->numCollisions);
   updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), collisionDetector->numCollisions);
   Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
+  totalNonzeros+=2*constraintsBilateralDOF_d.size(); //Add in space for the bilateral entries
 
   DI_d.resize(totalNonzeros);
   DJ_d.resize(totalNonzeros);
   D_d.resize(totalNonzeros);
   friction_d.resize(collisionDetector->numCollisions);
 
-  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), collisionDetector->numCollisions);
+  constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
+  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -705,20 +729,29 @@ int System::buildAppliedImpulseVector() {
   return 0;
 }
 
-__global__ void buildStabilization(double* b, double4* normalsAndPenetrations, double timeStep, uint numCollisions) {
+__global__ void buildStabilization(double* b, double4* normalsAndPenetrations, double timeStep, uint numBilateralConstraints, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
 
-  b[3*index] = penetration/timeStep;
-  b[3*index+1] = 0;
-  b[3*index+2] = 0;
+  b[3*index+numBilateralConstraints] = penetration/timeStep;
+  b[3*index+1+numBilateralConstraints] = 0;
+  b[3*index+2+numBilateralConstraints] = 0;
+}
+
+__global__ void buildStabilizationBilateral(double* b, int2* contraintBilateralDOF, double* p, double timeStep, uint numBilateralConstraints) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBilateralConstraints);
+
+  int2 constraintDOF = contraintBilateralDOF[index];
+  double violation = p[constraintDOF.x]-p[constraintDOF.y];
+
+  b[index] = violation/timeStep;
 }
 
 int System::buildSchurVector() {
   // build r
-  r_d.resize(3*collisionDetector->numCollisions);
-  b_d.resize(3*collisionDetector->numCollisions);
+  r_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size());
+  b_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size());
   // TODO: There's got to be a better way to do this...
   //r.resize(3*collisionDetector->numCollisions);
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
@@ -728,7 +761,8 @@ int System::buildSchurVector() {
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
 
-  buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+  buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size());
+  buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
   cusp::blas::axpy(b,r,1.0);
 
   return 0;

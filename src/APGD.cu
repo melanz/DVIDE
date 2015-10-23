@@ -38,11 +38,12 @@ int APGD::setup()
   return 0;
 }
 
-__global__ void project(double* src, double* friction, uint numCollisions) {
+__global__ void project(double* src, double* friction, uint numBilateralConstraints, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = friction[index]; // TODO: Keep an eye on friction indexing
-  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
+  src = &src[3*index+numBilateralConstraints];
+  double3 gamma = make_double3(src[0],src[1],src[2]);
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
 
@@ -65,9 +66,9 @@ __global__ void project(double* src, double* friction, uint numCollisions) {
     gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
   }
 
-  src[3*index  ] = gamma.x;
-  src[3*index+1] = gamma.y;
-  src[3*index+2] = gamma.z;
+  src[0] = gamma.x;
+  src[1] = gamma.y;
+  src[2] = gamma.z;
 }
 
 
@@ -85,7 +86,7 @@ double APGD::getResidual(DeviceValueArrayView src) {
   performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
   cusp::blas::axpy(system->r,gammaTmp,1.0);
   cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+  project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size(), system->collisionDetector->numCollisions);
   cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
 
   return cusp::blas::nrmmax(gammaTmp);
@@ -219,7 +220,7 @@ int APGD::solve() {
 
     // (9) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
     cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-    project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+    project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size(), system->collisionDetector->numCollisions);
 
     // (10) while 0.5 * gamma_(k+1)' * N * gamma_(k+1) - gamma_(k+1)' * r >= 0.5 * y_k' * N * y_k - y_k' * r + g' * (gamma_(k+1) - y_k) + 0.5 * L_k * norm(gamma_(k+1) - y_k)^2
     performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //
@@ -238,7 +239,7 @@ int APGD::solve() {
 
       // (13) gamma_(k+1) = ProjectionOperator(y_k - t_k * g)
       cusp::blas::axpby(y,g,gammaNew,1.0,-t);
-      project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+      project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size(), system->collisionDetector->numCollisions);
 
       // Update the components of the while condition
       performSchurComplementProduct(gammaNew); //cusp::multiply(system->N,gammaNew,gammaTmp); //
