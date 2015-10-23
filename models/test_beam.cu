@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -280,24 +280,48 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  sys->solver->maxIterations = 40;
+  //sys->solver->maxIterations = 40;
 
   double radius = 0.4;
 
+  // Bottom
+  Body* groundPtr = new Body(make_double3(0,-radius+0.1,0));
+  groundPtr->setBodyFixed(true);
+  groundPtr->setGeometry(make_double3(1,radius,1));
+  sys->add(groundPtr);
+
+  // Pivot
+  Body* pivotPtr = new Body(make_double3(0,1,0));
+  pivotPtr->setBodyFixed(true);
+  pivotPtr->setGeometry(make_double3(0.025,0,0));
+  pivotPtr->setCollisionFamily(1);
+  sys->add(pivotPtr);
+
   Beam* beamPtr;
-  double length = 1.0/static_cast<double>(numElementsPerSide);
+  double length = 2.0/static_cast<double>(numElementsPerSide);
   for(int i=0; i<numElementsPerSide;i++) {
     beamPtr = new Beam(make_double3(((double)i)*length,1,0),make_double3(((double)i+1.0)*length,1,0));
     beamPtr->setRadius(0.02);
     beamPtr->setCollisionFamily(1);
     sys->add(beamPtr);
+
+    if(i==0){
+      sys->addBilateralConstraintDOF(3,3*sys->bodies.size());
+      sys->addBilateralConstraintDOF(4,3*sys->bodies.size()+1);
+      sys->addBilateralConstraintDOF(5,3*sys->bodies.size()+2);
+    } else {
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+6, 3*sys->bodies.size()+12*i);
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+7, 3*sys->bodies.size()+12*i+1);
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+8, 3*sys->bodies.size()+12*i+2);
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+9, 3*sys->bodies.size()+12*i+3);
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+10,3*sys->bodies.size()+12*i+4);
+      sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*(i-1)+11,3*sys->bodies.size()+12*i+5);
+    }
   }
 
-  // Bottom
-  Body* groundPtr = new Body(make_double3(0,-radius,0));
-  groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(1,radius,1));
-  sys->add(groundPtr);
+
+
+
 
 //  // Beam
 //  Beam* beamPtr = new Beam(make_double3(-1,1,0),make_double3(1,1,0));
@@ -435,7 +459,7 @@ int main(int argc, char** argv)
   int fileIndex = 0;
 	while(sys->time < t_end)
 	{
-	  if(sys->timeIndex%200==0) {
+	  if(sys->timeIndex%20==0) {
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());

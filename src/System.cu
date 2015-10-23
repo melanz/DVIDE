@@ -305,7 +305,7 @@ int System::DoTimeStep() {
   collisionDetector->detectCollisions();
 
   buildAppliedImpulseVector();
-  if(collisionDetector->numCollisions) {
+  if(collisionDetector->numCollisions||constraintsBilateralDOF_d.size()) {
     // Set up the QOCC
     buildContactJacobian();
     buildSchurVector();
@@ -325,11 +325,6 @@ int System::DoTimeStep() {
 
     cusp::blas::fill(f_contact,0.0);
   }
-//  v_h = v_d;
-//  v_h[3*bodies.size()+0] = 0;
-//  v_h[3*bodies.size()+1] = 0;
-//  v_h[3*bodies.size()+2] = 0;
-//  v_d = v_h;
   cusp::blas::axpy(v, p, h);
 
   time += h;
@@ -634,8 +629,10 @@ int System::buildContactJacobian() {
   // update nonzeros per contact
   int totalNonzeros = 0;
   nonzerosPerContact_d.resize(collisionDetector->numCollisions);
-  updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), collisionDetector->numCollisions);
-  Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
+  if(collisionDetector->numCollisions) {
+    updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), collisionDetector->numCollisions);
+    Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
+  }
   totalNonzeros+=2*constraintsBilateralDOF_d.size(); //Add in space for the bilateral entries
 
   DI_d.resize(totalNonzeros);
@@ -643,8 +640,8 @@ int System::buildContactJacobian() {
   D_d.resize(totalNonzeros);
   friction_d.resize(collisionDetector->numCollisions);
 
-  constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
-  constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
+  if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -656,7 +653,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions, 3*bodies.size()+12*beams.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -679,7 +676,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size()+12*beams.size(), 3*collisionDetector->numCollisions, DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
@@ -761,8 +758,8 @@ int System::buildSchurVector() {
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
 
-  buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size());
-  buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
+  if(constraintsBilateralDOF_d.size()) buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size());
+  if(collisionDetector->numCollisions) buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
   cusp::blas::axpy(b,r,1.0);
 
   return 0;
