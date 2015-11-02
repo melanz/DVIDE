@@ -11,6 +11,7 @@
 #include "include.cuh"
 #include "Body.cuh"
 #include "Beam.cuh"
+#include "Plate.cuh"
 #include "CollisionDetector.cuh"
 #include "Solver.cuh"
 
@@ -28,6 +29,7 @@ typedef typename cusp::coo_matrix<int, double, cusp::device_memory> DeviceMatrix
 class CollisionDetector;
 class Solver;
 class Beam;
+class Plate;
 class System {
 public:
   // variables
@@ -158,6 +160,7 @@ public:
 	System(int solverType);
 	vector<Body*> bodies;
 	vector<Beam*> beams;
+	vector<Plate*> plates;
 	Solver* solver;
 	double  getCurrentTime() const    {return time;}
 	double  getTimeStep() const       {return h;}
@@ -166,6 +169,7 @@ public:
 	void    setTimeStep(double step_size);
 	int     add(Body* body);
 	int     add(Beam* beam);
+	int     add(Plate* plate);
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();

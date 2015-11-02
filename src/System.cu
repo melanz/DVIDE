@@ -119,6 +119,13 @@ int System::add(Beam* beam) {
   return beams.size();
 }
 
+int System::add(Plate* plate) {
+  //add the plate
+  plate->sys = this;
+  plates.push_back(plate);
+  return plates.size();
+}
+
 int System::initializeDevice() {
 
   indices_d = indices_h;
@@ -280,6 +287,10 @@ int System::initializeSystem() {
 
   for(int j=0; j<beams.size(); j++) {
     beams[j]->addBeam(j); //TODO: Make a function like this for body (makes code cleaner)
+  }
+
+  for(int j=0; j<plates.size(); j++) {
+    plates[j]->addPlate(j); //TODO: Make a function like this for body (makes code cleaner)
   }
 
   initializeDevice();
