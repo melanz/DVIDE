@@ -102,6 +102,35 @@ public:
     contactGeometry = make_double3(0.02,l,10);
   }
 
+  Beam(double3 node0, double3 dnode0, double3 node1, double3 dnode1, double length) {
+    numDOF = 3;
+    identifier = 0;
+    index = 0;
+    sys = 0;
+    collisionFamily = -1;
+
+    // create test element!
+    p_n0 = node0;
+    p_dn0 = dnode0;
+    p_n1 = node1;
+    p_dn1 = dnode1;
+
+    v_n0 = make_double3(0, 0, 0);
+    v_dn0 = make_double3(0, 0, 0);
+    v_n1 = make_double3(0, 0, 0);
+    v_dn1 = make_double3(0, 0, 0);
+
+    a_n0 = make_double3(0, 0, 0);
+    a_dn0 = make_double3(0, 0, 0);
+    a_n1 = make_double3(0, 0, 0);
+    a_dn1 = make_double3(0, 0, 0);
+
+    density = 7200.0;
+    elasticModulus = 2.0e7;
+
+    contactGeometry = make_double3(0.02,length,10);
+  }
+
 	double3 getPosition_node0()
 	{
 	  return p_n0;

@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -280,7 +280,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  sys->solver->maxIterations = 400;
+  sys->solver->maxIterations = 40;
 
   double radius = 0.4;
 
@@ -303,6 +303,7 @@ int main(int argc, char** argv)
 //    beamPtr = new Beam(make_double3(((double)i)*length,1,0),make_double3(((double)i+1.0)*length,1,0));
 //    beamPtr->setRadius(0.02);
 //    beamPtr->setCollisionFamily(1);
+//    beamPtr->setElasticModulus(2.0e9);
 //    sys->add(beamPtr);
 //
 //    if(i==0){
@@ -319,66 +320,194 @@ int main(int argc, char** argv)
 //    }
 //  }
 
+  double rMin = 0.08;
+  double rMax = 0.08;
+  double density = 2600;
+  double L = 4.0;
+  double W = 2.0;
+  double H = 2.0;
+  double th = 0.1;
+
   // Bottom
-  Body* groundPtr = new Body(make_double3(0,-radius,0));
+  Body* groundPtr = new Body(make_double3(0,-th,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(0.5*numElementsPerSide,radius,0.5*numElementsPerSide));
+  groundPtr->setGeometry(make_double3(0.5*L+th,th,0.5*W+th));
   sys->add(groundPtr);
 
   // Left
-  Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-radius,0.5*numElementsPerSide+radius,0));
+  Body* leftPtr = new Body(make_double3(-0.5*L-2*th,0.5*H+th,0));
   leftPtr->setBodyFixed(true);
-  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide));
+  leftPtr->setGeometry(make_double3(th,0.5*H+th,0.5*W+th));
   sys->add(leftPtr);
 
   // Right
-  Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,0));
+  Body* rightPtr = new Body(make_double3(0.5*L+2*th,0.5*H+th,0));
   rightPtr->setBodyFixed(true);
-  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide));
+  rightPtr->setGeometry(make_double3(th,0.5*H+th,0.5*W+th));
   sys->add(rightPtr);
 
   // Back
-  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,-0.5*numElementsPerSide-radius));
+  Body* backPtr = new Body(make_double3(0,0.5*H+th,-0.5*W-2*th));
   backPtr->setBodyFixed(true);
-  backPtr->setGeometry(make_double3(0.5*numElementsPerSide,0.5*numElementsPerSide+radius,radius));
+  backPtr->setGeometry(make_double3(0.5*L+th,0.5*H+th,th));
   sys->add(backPtr);
 
   // Front
-  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+  Body* frontPtr = new Body(make_double3(0,0.5*H+th,0.5*W+2*th));
   frontPtr->setBodyFixed(true);
-  frontPtr->setGeometry(make_double3(0.5*numElementsPerSide,0.5*numElementsPerSide+radius,radius));
+  frontPtr->setGeometry(make_double3(0.5*L+th,0.5*H+th,th));
   sys->add(frontPtr);
 
-  Beam* beamPtr;
   Body* bodyPtr;
+  double wiggle = 0.02;//0.003;//0.1;
+  double numElementsPerSideX = L/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
   int numBodies = 0;
-  double wiggle = 0.1;
   // Add elements in x-direction
-  for (int i = 0; i < numElementsPerSide; i++) {
-    for (int j = 0; j < 2*numElementsPerSide; j++) {
-      for (int k = 0; k < numElementsPerSide; k++) {
-        double check = 0;//getRandomNumber(-1, 1);
-        double xWig = getRandomNumber(-wiggle, wiggle);
-        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
-        double zWig = getRandomNumber(-wiggle, wiggle);
-        double length = 2*radius-2*wiggle;
-        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
-        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
-        if(check<=0) {
-          beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
-          beamPtr->setRadius(0.1);
-          numBodies = sys->add(beamPtr);
-        } else {
-          bodyPtr = new Body(center);
-          bodyPtr->setGeometry(make_double3(radius,0,0));
-          bodyPtr->setMass(4.0/3.0*PI*radius*radius*radius*7200.0);
-          numBodies = sys->add(bodyPtr);
-        }
+  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+
+        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        bodyPtr = new Body(make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+        double rRand = getRandomNumber(rMin, rMax);
+        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
+        bodyPtr->setGeometry(make_double3(rRand,0,0));
+        //if(j==0) bodyPtr->setBodyFixed(true);
+        numBodies = sys->add(bodyPtr);
 
         if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
       }
     }
   }
+
+  double density_tire = 1100.0;
+  double radius_tire = 0.2;
+  double height_tire = 3.0;
+  double length = 2.0*PI*1.0*0.25;
+
+  double3 pos = make_double3(0,height_tire,0);
+  double3 node0 = make_double3(0,0,0)+pos;
+  double3 dnode0 = make_double3(1,0,0);
+  double3 node1 = make_double3(1,1,0)+pos;
+  double3 dnode1 = make_double3(0,1,0);
+  Beam* beam0 = new Beam(node0,dnode0,node1,dnode1,length);
+  beam0->setRadius(radius_tire);
+  beam0->setCollisionFamily(1);
+  beam0->setDensity(density_tire);
+  sys->add(beam0);
+
+  node0 = node1;
+  dnode0 = dnode1;
+  node1 = make_double3(0,2,0)+pos;
+  dnode1 = make_double3(-1,0,0);
+  Beam* beam1 = new Beam(node0,dnode0,node1,dnode1,length);
+  beam1->setCollisionFamily(1);
+  beam1->setRadius(radius_tire);
+  beam1->setDensity(density_tire);
+  sys->add(beam1);
+
+  node0 = node1;
+  dnode0 = dnode1;
+  node1 = make_double3(-1,1,0)+pos;
+  dnode1 = make_double3(0,-1,0);
+  Beam* beam2 = new Beam(node0,dnode0,node1,dnode1,length);
+  beam2->setCollisionFamily(1);
+  beam2->setRadius(radius_tire);
+  beam2->setDensity(density_tire);
+  sys->add(beam2);
+
+  node0 = node1;
+  dnode0 = dnode1;
+  node1 = make_double3(0,0,0)+pos;
+  dnode1 = make_double3(1,0,0);
+  Beam* beam3 = new Beam(node0,dnode0,node1,dnode1,length);
+  beam3->setCollisionFamily(1);
+  beam3->setRadius(radius_tire);
+  beam3->setDensity(density_tire);
+  sys->add(beam3);
+
+  for(int i=0;i<3;i++) {
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+6, 3*sys->bodies.size()+12*(i+1));
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+7, 3*sys->bodies.size()+12*(i+1)+1);
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+8, 3*sys->bodies.size()+12*(i+1)+2);
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+9, 3*sys->bodies.size()+12*(i+1)+3);
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+10,3*sys->bodies.size()+12*(i+1)+4);
+    sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*i+11,3*sys->bodies.size()+12*(i+1)+5);
+  }
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+6, 3*sys->bodies.size()+12*0);
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+7, 3*sys->bodies.size()+12*0+1);
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+8, 3*sys->bodies.size()+12*0+2);
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+9, 3*sys->bodies.size()+12*0+3);
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+10,3*sys->bodies.size()+12*0+4);
+  sys->addBilateralConstraintDOF(3*sys->bodies.size()+12*3+11,3*sys->bodies.size()+12*0+5);
+
+
+
+//  // Bottom
+//  Body* groundPtr = new Body(make_double3(0,-radius,0));
+//  groundPtr->setBodyFixed(true);
+//  groundPtr->setGeometry(make_double3(0.5*numElementsPerSide,radius,0.5*numElementsPerSide));
+//  sys->add(groundPtr);
+//
+//  // Left
+//  Body* leftPtr = new Body(make_double3(-0.5*numElementsPerSide-radius,0.5*numElementsPerSide+radius,0));
+//  leftPtr->setBodyFixed(true);
+//  leftPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide));
+//  sys->add(leftPtr);
+//
+//  // Right
+//  Body* rightPtr = new Body(make_double3(0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius,0));
+//  rightPtr->setBodyFixed(true);
+//  rightPtr->setGeometry(make_double3(radius,0.5*numElementsPerSide+radius,0.5*numElementsPerSide));
+//  sys->add(rightPtr);
+//
+//  // Back
+//  Body* backPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,-0.5*numElementsPerSide-radius));
+//  backPtr->setBodyFixed(true);
+//  backPtr->setGeometry(make_double3(0.5*numElementsPerSide,0.5*numElementsPerSide+radius,radius));
+//  sys->add(backPtr);
+//
+//  // Front
+//  Body* frontPtr = new Body(make_double3(0,0.5*numElementsPerSide+radius,0.5*numElementsPerSide+radius));
+//  frontPtr->setBodyFixed(true);
+//  frontPtr->setGeometry(make_double3(0.5*numElementsPerSide,0.5*numElementsPerSide+radius,radius));
+//  sys->add(frontPtr);
+//
+//  Beam* beamPtr;
+//  Body* bodyPtr;
+//  int numBodies = 0;
+//  double wiggle = 0.1;
+//  // Add elements in x-direction
+//  for (int j = 0; j < 3*numElementsPerSide; j++) {
+//    for (int i = 0; i < numElementsPerSide; i++) {
+//      for (int k = 0; k < numElementsPerSide; k++) {
+//        double check = 0;//getRandomNumber(-1, 1);
+//        double xWig = getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0;//getRandomNumber(-wiggle, wiggle);
+//        double zWig = getRandomNumber(-wiggle, wiggle);
+//        double length = 2*radius-2*wiggle;
+//        double3 center = make_double3(i-0.5*numElementsPerSide+radius+wiggle + xWig,j+wiggle+radius+yWig,k-0.5*numElementsPerSide+radius+wiggle+zWig);
+//        double3 dir = normalize(make_double3( getRandomNumber(-1, 1), getRandomNumber(-1, 1), getRandomNumber(-1, 1)));
+//        if(check<=0) {
+//          beamPtr = new Beam(center-0.5*length*dir,center+0.5*length*dir);
+//          beamPtr->setRadius(0.1);
+//          beamPtr->setElasticModulus(2.0e6);
+//          numBodies = sys->add(beamPtr);
+//        } else {
+//          bodyPtr = new Body(center);
+//          bodyPtr->setGeometry(make_double3(radius,0,0));
+//          bodyPtr->setMass(4.0/3.0*PI*radius*radius*radius*7200.0);
+//          numBodies = sys->add(bodyPtr);
+//        }
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
 
 	sys->initializeSystem();
 	printf("System initialized!\n");
