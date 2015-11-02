@@ -399,7 +399,7 @@ int Plate::addPlate(int j)
   return 0;
 }
 
-double3 Beam::transformNodalToCartesian(double xi)
+double3 Plate::transformNodalToCartesian(double xi, double eta)
 {
   double l = contactGeometry.y;
   double3 pos;
