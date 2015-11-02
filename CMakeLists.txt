@@ -94,6 +94,8 @@ SET(IBEAMS_SOURCES
 	src/Body.cuh
 	src/Beam.cuh
 	src/Beam.cu
+	src/Plate.cuh
+	src/Plate.cu
 	src/CollisionDetector.cuh
 	src/CollisionDetector.cu
 	src/Solver.cuh
