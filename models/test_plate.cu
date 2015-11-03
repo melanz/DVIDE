@@ -116,6 +116,25 @@ void drawAll()
 		  }
 		}
 
+    for(int i=0;i<sys->plates.size();i++)
+    {
+      int xiDiv = sys->plates[i]->getGeometry().z;
+      int etaDiv = sys->plates[i]->getGeometry().z;
+      double xiInc = 1/(static_cast<double>(xiDiv-1));
+      double etaInc = 1/(static_cast<double>(etaDiv-1));
+      glColor3f(1.0f,0.0f,1.0f);
+      for(int j=0;j<xiDiv;j++)
+      {
+        for(int k=0;k<etaDiv;k++) {
+          glPushMatrix();
+          double3 position = sys->plates[i]->transformNodalToCartesian(xiInc*j,etaInc*k);
+          glTranslatef(position.x,position.y,position.z);
+          glutSolidSphere(sys->plates[i]->getThickness(),10,10);
+          glPopMatrix();
+        }
+      }
+    }
+
 		glutSwapBuffers();
 	}
 }
@@ -214,7 +233,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	visualize = true;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);

@@ -135,6 +135,10 @@ public:
   thrust::host_vector<double3> materialsBeam_h;
   thrust::device_vector<double3> materialsBeam_d;
 
+  // library of material information (plates)
+  thrust::host_vector<double4> materialsPlate_h;
+  thrust::device_vector<double4> materialsPlate_d;
+
   thrust::host_vector<double> strainDerivative_h;
   thrust::device_vector<double> strainDerivative_d;
 
