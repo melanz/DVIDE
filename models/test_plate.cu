@@ -19,7 +19,7 @@ std::string povrayDir = outDir + "POVRAY/";
 thrust::host_vector<double> p0_h;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(0,5,-10),camreal3(0,5,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(0,5,-1),camreal3(0,0,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -143,6 +143,21 @@ void renderSceneAll(){
 	if(OGL){
 		drawAll();
 		sys->DoTimeStep();
+
+//    // TODO: This is a big no-no, need to enforce motion via constraints
+//    // Apply motion
+//    sys->v_h = sys->v_d;
+//    for(int i=0;i<1;i++) {
+//      sys->v_h[36*i] = 0;
+//      sys->v_h[36*i+1] = 0;
+//      sys->v_h[36*i+2] = 0;
+//    }
+//
+//    sys->p_d = p0_h;
+//    sys->v_d = sys->v_h;
+//    cusp::blas::axpy(sys->v, sys->p, sys->h);
+//    sys->p_h = sys->p_d;
+//    // End apply motion
 	}
 }
 
@@ -288,7 +303,20 @@ int main(int argc, char** argv)
   sys->solver->maxIterations = 40;
 
   Plate* plate = new Plate();
+  plate->setCollisionFamily(1);
   sys->add(plate);
+
+  // Bottom
+  Body* groundPtr = new Body(make_double3(0,-2,0));
+  groundPtr->setBodyFixed(true);
+  //groundPtr->setGeometry(make_double3(.03,0,0));
+  groundPtr->setGeometry(make_double3(5,1,5));
+  //groundPtr->setCollisionFamily(1);
+  sys->add(groundPtr);
+
+//  sys->addBilateralConstraintDOF(0, 3);
+//  sys->addBilateralConstraintDOF(1, 4);
+//  sys->addBilateralConstraintDOF(2, 5);
 
 	sys->initializeSystem();
 	printf("System initialized!\n");

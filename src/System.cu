@@ -408,17 +408,42 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   int bodyIdentifierA = collisionMap[collisionIdentifierA[index]].x;
   int bodyIdentifierB = collisionMap[collisionIdentifierB[index]].x;
 
-  int endA = (bodyIdentifierA<numBodies) ? 3 : 12;
-  int endB = (bodyIdentifierB<numBodies) ? 3 : 12;
+  int endA = 3;
+  if(bodyIdentifierA<numBodies) {
+    endA = 3;
+  }
+  else if(bodyIdentifierA<(numBodies+numBeams)) {
+    endA = 12;
+  }
+  else {
+    endA = 36;
+  }
+
+  int endB = 3;
+  if(bodyIdentifierB<numBodies) {
+    endB = 3;
+  }
+  else if(bodyIdentifierB<(numBodies+numBeams)) {
+    endB = 12;
+  }
+  else {
+    endB = 36;
+  }
 
   int indexA = indices[bodyIdentifierA];
   int indexB = indices[bodyIdentifierB];
 
   double xiA = static_cast<double>(collisionMap[collisionIdentifierA[index]].y)/(static_cast<double>(geometries[bodyIdentifierA].z-1));
-  double lA = geometries[bodyIdentifierA].y;
+  double etaA = static_cast<double>(collisionMap[collisionIdentifierA[index]].z)/(static_cast<double>(geometries[bodyIdentifierA].z-1));
+  double aA = geometries[bodyIdentifierA].x;
+  double bA = geometries[bodyIdentifierA].y;
+  double lA = bA;
 
   double xiB = static_cast<double>(collisionMap[collisionIdentifierB[index]].y)/(static_cast<double>(geometries[bodyIdentifierB].z-1));
-  double lB = geometries[bodyIdentifierB].y;
+  double etaB = static_cast<double>(collisionMap[collisionIdentifierB[index]].z)/(static_cast<double>(geometries[bodyIdentifierB].z-1));
+  double aB = geometries[bodyIdentifierB].x;
+  double bB = geometries[bodyIdentifierB].y;
+  double lB = bB;
 
   double4 nAndP;
   double3 n, u, v;
@@ -492,7 +517,7 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+1] = n.y;
     D[startIndex+2] = n.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierA<numBodies+numBeams) {
     D[startIndex+0 ] = n.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+1 ] = n.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+2 ] = n.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
@@ -506,13 +531,51 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = -lA*n.y*(-xiA*xiA*xiA+xiA*xiA);
     D[startIndex+11] = -lA*n.z*(-xiA*xiA*xiA+xiA*xiA);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = n.x*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+1 ] = n.y*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+2 ] = n.z*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+3 ] = -aA*n.x*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+4 ] = -aA*n.y*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+5 ] = -aA*n.z*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+6 ] = -bA*etaA*n.x*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+7 ] = -bA*etaA*n.y*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+8 ] = -bA*etaA*n.z*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+9 ] = -n.x*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+10] = -n.y*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+11] = -n.z*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+12] = -aA*n.x*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+13] = -aA*n.y*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+14] = -aA*n.z*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+15] = bA*etaA*n.x*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+16] = bA*etaA*n.y*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+17] = bA*etaA*n.z*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+18] = -etaA*n.x*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+19] = -etaA*n.y*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+20] = -etaA*n.z*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+21] = aA*etaA*n.x*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+22] = aA*etaA*n.y*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+23] = aA*etaA*n.z*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+24] = bA*(etaA*etaA)*n.x*xiA*(etaA-1.0);
+    D[startIndex+25] = bA*(etaA*etaA)*n.y*xiA*(etaA-1.0);
+    D[startIndex+26] = bA*(etaA*etaA)*n.z*xiA*(etaA-1.0);
+    D[startIndex+27] = -etaA*n.x*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+28] = -etaA*n.y*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+29] = -etaA*n.z*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+30] = aA*etaA*n.x*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+31] = aA*etaA*n.y*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+32] = aA*etaA*n.z*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+33] = -bA*(etaA*etaA)*n.x*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+34] = -bA*(etaA*etaA)*n.y*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+35] = -bA*(etaA*etaA)*n.z*(etaA-1.0)*(xiA-1.0);
+    startIndex+=36;
   }
   if(bodyIdentifierB<numBodies) {
     D[startIndex+0] = -n.x;
     D[startIndex+1] = -n.y;
     D[startIndex+2] = -n.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierB<numBodies+numBeams) {
     D[startIndex+0 ] = -n.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+1 ] = -n.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+2 ] = -n.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
@@ -526,6 +589,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = lB*n.y*(-xiB*xiB*xiB+xiB*xiB);
     D[startIndex+11] = lB*n.z*(-xiB*xiB*xiB+xiB*xiB);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = -n.x*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+1 ] = -n.y*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+2 ] = -n.z*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+3 ] = aB*n.x*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+4 ] = aB*n.y*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+5 ] = aB*n.z*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+6 ] = bB*etaB*n.x*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+7 ] = bB*etaB*n.y*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+8 ] = bB*etaB*n.z*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+9 ] = n.x*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+10] = n.y*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+11] = n.z*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+12] = aB*n.x*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+13] = aB*n.y*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+14] = aB*n.z*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+15] = -bB*etaB*n.x*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+16] = -bB*etaB*n.y*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+17] = -bB*etaB*n.z*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+18] = etaB*n.x*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+19] = etaB*n.y*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+20] = etaB*n.z*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+21] = -aB*etaB*n.x*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+22] = -aB*etaB*n.y*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+23] = -aB*etaB*n.z*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+24] = -bB*(etaB*etaB)*n.x*xiB*(etaB-1.0);
+    D[startIndex+25] = -bB*(etaB*etaB)*n.y*xiB*(etaB-1.0);
+    D[startIndex+26] = -bB*(etaB*etaB)*n.z*xiB*(etaB-1.0);
+    D[startIndex+27] = etaB*n.x*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+28] = etaB*n.y*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+29] = etaB*n.z*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+30] = -aB*etaB*n.x*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+31] = -aB*etaB*n.y*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+32] = -aB*etaB*n.z*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+33] = bB*(etaB*etaB)*n.x*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+34] = bB*(etaB*etaB)*n.y*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+35] = bB*(etaB*etaB)*n.z*(etaB-1.0)*(xiB-1.0);
+    startIndex+=36;
   }
 
   // Add u, values
@@ -534,7 +635,7 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+1] = u.y;
     D[startIndex+2] = u.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierA<numBodies+numBeams) {
     D[startIndex+0 ] = u.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+1 ] = u.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+2 ] = u.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
@@ -548,13 +649,51 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = -lA*u.y*(-xiA*xiA*xiA+xiA*xiA);
     D[startIndex+11] = -lA*u.z*(-xiA*xiA*xiA+xiA*xiA);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = u.x*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+1 ] = u.y*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+2 ] = u.z*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+3 ] = -aA*u.x*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+4 ] = -aA*u.y*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+5 ] = -aA*u.z*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+6 ] = -bA*etaA*u.x*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+7 ] = -bA*etaA*u.y*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+8 ] = -bA*etaA*u.z*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+9 ] = -u.x*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+10] = -u.y*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+11] = -u.z*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+12] = -aA*u.x*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+13] = -aA*u.y*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+14] = -aA*u.z*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+15] = bA*etaA*u.x*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+16] = bA*etaA*u.y*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+17] = bA*etaA*u.z*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+18] = -etaA*u.x*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+19] = -etaA*u.y*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+20] = -etaA*u.z*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+21] = aA*etaA*u.x*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+22] = aA*etaA*u.y*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+23] = aA*etaA*u.z*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+24] = bA*(etaA*etaA)*u.x*xiA*(etaA-1.0);
+    D[startIndex+25] = bA*(etaA*etaA)*u.y*xiA*(etaA-1.0);
+    D[startIndex+26] = bA*(etaA*etaA)*u.z*xiA*(etaA-1.0);
+    D[startIndex+27] = -etaA*u.x*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+28] = -etaA*u.y*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+29] = -etaA*u.z*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+30] = aA*etaA*u.x*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+31] = aA*etaA*u.y*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+32] = aA*etaA*u.z*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+33] = -bA*(etaA*etaA)*u.x*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+34] = -bA*(etaA*etaA)*u.y*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+35] = -bA*(etaA*etaA)*u.z*(etaA-1.0)*(xiA-1.0);
+    startIndex+=36;
   }
   if(bodyIdentifierB<numBodies) {
     D[startIndex+0] = -u.x;
     D[startIndex+1] = -u.y;
     D[startIndex+2] = -u.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierB<numBodies+numBeams) {
     D[startIndex+0 ] = -u.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+1 ] = -u.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+2 ] = -u.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
@@ -568,6 +707,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = lB*u.y*(-xiB*xiB*xiB+xiB*xiB);
     D[startIndex+11] = lB*u.z*(-xiB*xiB*xiB+xiB*xiB);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = -u.x*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+1 ] = -u.y*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+2 ] = -u.z*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+3 ] = aB*u.x*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+4 ] = aB*u.y*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+5 ] = aB*u.z*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+6 ] = bB*etaB*u.x*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+7 ] = bB*etaB*u.y*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+8 ] = bB*etaB*u.z*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+9 ] = u.x*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+10] = u.y*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+11] = u.z*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+12] = aB*u.x*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+13] = aB*u.y*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+14] = aB*u.z*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+15] = -bB*etaB*u.x*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+16] = -bB*etaB*u.y*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+17] = -bB*etaB*u.z*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+18] = etaB*u.x*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+19] = etaB*u.y*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+20] = etaB*u.z*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+21] = -aB*etaB*u.x*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+22] = -aB*etaB*u.y*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+23] = -aB*etaB*u.z*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+24] = -bB*(etaB*etaB)*u.x*xiB*(etaB-1.0);
+    D[startIndex+25] = -bB*(etaB*etaB)*u.y*xiB*(etaB-1.0);
+    D[startIndex+26] = -bB*(etaB*etaB)*u.z*xiB*(etaB-1.0);
+    D[startIndex+27] = etaB*u.x*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+28] = etaB*u.y*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+29] = etaB*u.z*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+30] = -aB*etaB*u.x*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+31] = -aB*etaB*u.y*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+32] = -aB*etaB*u.z*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+33] = bB*(etaB*etaB)*u.x*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+34] = bB*(etaB*etaB)*u.y*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+35] = bB*(etaB*etaB)*u.z*(etaB-1.0)*(xiB-1.0);
+    startIndex+=36;
   }
 
   // Add v, values
@@ -576,7 +753,7 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+1] = v.y;
     D[startIndex+2] = v.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierA<numBodies+numBeams) {
     D[startIndex+0 ] = v.x*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+1 ] = v.y*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
     D[startIndex+2 ] = v.z*(2.0*xiA*xiA*xiA-3.0*xiA*xiA+1.0);
@@ -590,13 +767,51 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = -lA*v.y*(-xiA*xiA*xiA+xiA*xiA);
     D[startIndex+11] = -lA*v.z*(-xiA*xiA*xiA+xiA*xiA);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = v.x*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+1 ] = v.y*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+2 ] = v.z*(etaA-1.0)*(xiA-1.0)*(etaA+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0+1.0);
+    D[startIndex+3 ] = -aA*v.x*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+4 ] = -aA*v.y*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+5 ] = -aA*v.z*xiA*(etaA-1.0)*pow(xiA-1.0,2.0);
+    D[startIndex+6 ] = -bA*etaA*v.x*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+7 ] = -bA*etaA*v.y*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+8 ] = -bA*etaA*v.z*pow(etaA-1.0,2.0)*(xiA-1.0);
+    D[startIndex+9 ] = -v.x*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+10] = -v.y*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+11] = -v.z*xiA*(etaA-1.0)*(etaA+xiA*3.0-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+12] = -aA*v.x*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+13] = -aA*v.y*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+14] = -aA*v.z*(xiA*xiA)*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+15] = bA*etaA*v.x*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+16] = bA*etaA*v.y*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+17] = bA*etaA*v.z*xiA*pow(etaA-1.0,2.0);
+    D[startIndex+18] = -etaA*v.x*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+19] = -etaA*v.y*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+20] = -etaA*v.z*xiA*(etaA*-3.0-xiA*3.0+(etaA*etaA)*2.0+(xiA*xiA)*2.0+1.0);
+    D[startIndex+21] = aA*etaA*v.x*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+22] = aA*etaA*v.y*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+23] = aA*etaA*v.z*(xiA*xiA)*(xiA-1.0);
+    D[startIndex+24] = bA*(etaA*etaA)*v.x*xiA*(etaA-1.0);
+    D[startIndex+25] = bA*(etaA*etaA)*v.y*xiA*(etaA-1.0);
+    D[startIndex+26] = bA*(etaA*etaA)*v.z*xiA*(etaA-1.0);
+    D[startIndex+27] = -etaA*v.x*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+28] = -etaA*v.y*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+29] = -etaA*v.z*(xiA-1.0)*(etaA*3.0+xiA-(etaA*etaA)*2.0-(xiA*xiA)*2.0);
+    D[startIndex+30] = aA*etaA*v.x*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+31] = aA*etaA*v.y*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+32] = aA*etaA*v.z*xiA*pow(xiA-1.0,2.0);
+    D[startIndex+33] = -bA*(etaA*etaA)*v.x*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+34] = -bA*(etaA*etaA)*v.y*(etaA-1.0)*(xiA-1.0);
+    D[startIndex+35] = -bA*(etaA*etaA)*v.z*(etaA-1.0)*(xiA-1.0);
+    startIndex+=36;
   }
   if(bodyIdentifierB<numBodies) {
     D[startIndex+0] = -v.x;
     D[startIndex+1] = -v.y;
     D[startIndex+2] = -v.z;
     startIndex+=3;
-  } else {
+  } else if (bodyIdentifierB<numBodies+numBeams) {
     D[startIndex+0 ] = -v.x*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+1 ] = -v.y*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
     D[startIndex+2 ] = -v.z*(2.0*xiB*xiB*xiB-3.0*xiB*xiB+1.0);
@@ -610,6 +825,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
     D[startIndex+10] = lB*v.y*(-xiB*xiB*xiB+xiB*xiB);
     D[startIndex+11] = lB*v.z*(-xiB*xiB*xiB+xiB*xiB);
     startIndex+=12;
+  } else {
+    D[startIndex+0 ] = -v.x*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+1 ] = -v.y*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+2 ] = -v.z*(etaB-1.0)*(xiB-1.0)*(etaB+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0+1.0);
+    D[startIndex+3 ] = aB*v.x*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+4 ] = aB*v.y*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+5 ] = aB*v.z*xiB*(etaB-1.0)*pow(xiB-1.0,2.0);
+    D[startIndex+6 ] = bB*etaB*v.x*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+7 ] = bB*etaB*v.y*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+8 ] = bB*etaB*v.z*pow(etaB-1.0,2.0)*(xiB-1.0);
+    D[startIndex+9 ] = v.x*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+10] = v.y*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+11] = v.z*xiB*(etaB-1.0)*(etaB+xiB*3.0-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+12] = aB*v.x*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+13] = aB*v.y*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+14] = aB*v.z*(xiB*xiB)*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+15] = -bB*etaB*v.x*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+16] = -bB*etaB*v.y*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+17] = -bB*etaB*v.z*xiB*pow(etaB-1.0,2.0);
+    D[startIndex+18] = etaB*v.x*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+19] = etaB*v.y*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+20] = etaB*v.z*xiB*(etaB*-3.0-xiB*3.0+(etaB*etaB)*2.0+(xiB*xiB)*2.0+1.0);
+    D[startIndex+21] = -aB*etaB*v.x*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+22] = -aB*etaB*v.y*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+23] = -aB*etaB*v.z*(xiB*xiB)*(xiB-1.0);
+    D[startIndex+24] = -bB*(etaB*etaB)*v.x*xiB*(etaB-1.0);
+    D[startIndex+25] = -bB*(etaB*etaB)*v.y*xiB*(etaB-1.0);
+    D[startIndex+26] = -bB*(etaB*etaB)*v.z*xiB*(etaB-1.0);
+    D[startIndex+27] = etaB*v.x*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+28] = etaB*v.y*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+29] = etaB*v.z*(xiB-1.0)*(etaB*3.0+xiB-(etaB*etaB)*2.0-(xiB*xiB)*2.0);
+    D[startIndex+30] = -aB*etaB*v.x*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+31] = -aB*etaB*v.y*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+32] = -aB*etaB*v.z*xiB*pow(xiB-1.0,2.0);
+    D[startIndex+33] = bB*(etaB*etaB)*v.x*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+34] = bB*(etaB*etaB)*v.y*(etaB-1.0)*(xiB-1.0);
+    D[startIndex+35] = bB*(etaB*etaB)*v.z*(etaB-1.0)*(xiB-1.0);
+    startIndex+=36;
   }
 }
 
@@ -671,7 +924,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -694,7 +947,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size()+12*beams.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
@@ -742,7 +995,7 @@ __global__ void multiplyByPlateMass(double3* geometries, double4* materials, dou
   double rho = materials[index].x;
   double th = materials[index].w;
 
-  uint offset = 3*numBodies+12*numBeams+36*numPlates;
+  uint offset = 3*numBodies+12*numBeams+36*index;
   dst[offset+0] = rho*th*src[0+offset]*1.370634920634921E-1+rho*th*src[9+offset]*4.865079365079365E-2+rho*th*src[18+offset]*1.563492063492063E-2+rho*th*src[27+offset]*4.865079365079365E-2+a*rho*th*src[3+offset]*1.829365079365079E-2-a*rho*th*src[12+offset]*1.087301587301587E-2-a*rho*th*src[21+offset]*4.603174603174603E-3+a*rho*th*src[30+offset]*7.896825396825397E-3+b*rho*th*src[6+offset]*1.829365079365079E-2+b*rho*th*src[15+offset]*7.896825396825397E-3-b*rho*th*src[24+offset]*4.603174603174603E-3-b*rho*th*src[33+offset]*1.087301587301587E-2;
   dst[offset+1] = rho*th*src[1+offset]*1.370634920634921E-1+rho*th*src[10+offset]*4.865079365079365E-2+rho*th*src[19+offset]*1.563492063492063E-2+rho*th*src[28+offset]*4.865079365079365E-2+a*rho*th*src[4+offset]*1.829365079365079E-2-a*rho*th*src[13+offset]*1.087301587301587E-2-a*rho*th*src[22+offset]*4.603174603174603E-3+a*rho*th*src[31+offset]*7.896825396825397E-3+b*rho*th*src[7+offset]*1.829365079365079E-2+b*rho*th*src[16+offset]*7.896825396825397E-3-b*rho*th*src[25+offset]*4.603174603174603E-3-b*rho*th*src[34+offset]*1.087301587301587E-2;
   dst[offset+2] = rho*th*src[2+offset]*1.370634920634921E-1+rho*th*src[11+offset]*4.865079365079365E-2+rho*th*src[20+offset]*1.563492063492063E-2+rho*th*src[29+offset]*4.865079365079365E-2+a*rho*th*src[5+offset]*1.829365079365079E-2-a*rho*th*src[14+offset]*1.087301587301587E-2-a*rho*th*src[23+offset]*4.603174603174603E-3+a*rho*th*src[32+offset]*7.896825396825397E-3+b*rho*th*src[8+offset]*1.829365079365079E-2+b*rho*th*src[17+offset]*7.896825396825397E-3-b*rho*th*src[26+offset]*4.603174603174603E-3-b*rho*th*src[35+offset]*1.087301587301587E-2;

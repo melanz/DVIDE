@@ -87,19 +87,19 @@ public:
 		// create test element!
 	  p_n0 = make_double3(0,0,0);
 	  p_dxi0 = make_double3(1.0,0,0);
-	  p_deta0 = make_double3(0,1.0,0);
+	  p_deta0 = make_double3(0,0,1.0);
 
 	  p_n1 = make_double3(1.0,0,0);
 	  p_dxi1 = make_double3(1.0,0,0);
-	  p_deta1 = make_double3(0,1.0,0);
+	  p_deta1 = make_double3(0,0,1.0);
 
-	  p_n2 = make_double3(1.0,1.0,0);
+	  p_n2 = make_double3(1.0,0,1.0);
 	  p_dxi2 = make_double3(1.0,0,0);
-	  p_deta2 = make_double3(0,1.0,0);
+	  p_deta2 = make_double3(0,0,1.0);
 
-	  p_n3 = make_double3(0,1.0,0);
+	  p_n3 = make_double3(0,0,1.0);
 	  p_dxi3 = make_double3(1.0,0,0);
-	  p_deta3 = make_double3(0,1.0,0);
+	  p_deta3 = make_double3(0,0,1.0);
 
 	  v_n0 = make_double3(0,0,0);
 	  v_dxi0 = make_double3(0,0,0);

@@ -296,16 +296,18 @@ int System::updateElasticForces()
 {
   thrust::fill(fElastic_d.begin(),fElastic_d.end(),0.0); //Clear internal forces
 
-  for(int j=0;j<pt5.size();j++)
-  {
-    strainDerivativeUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt5[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD1(Sx_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-    addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
-  }
+  if(beams.size()) {
+    for(int j=0;j<pt5.size();j++)
+    {
+      strainDerivativeUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt5[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD1(Sx_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
+    }
 
-  for(int j=0;j<pt3.size();j++)
-  {
-    curvatDerivUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt3[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD1(Sx_d),CASTD1(Sxx_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-    addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
+    for(int j=0;j<pt3.size();j++)
+    {
+      curvatDerivUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt3[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD1(Sx_d),CASTD1(Sxx_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
+    }
   }
 
   return 0;
