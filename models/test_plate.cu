@@ -19,7 +19,7 @@ std::string povrayDir = outDir + "POVRAY/";
 thrust::host_vector<double> p0_h;
 
 #ifdef WITH_GLUT
-OpenGLCamera oglcamera(camreal3(0,5,-1),camreal3(0,0,0),camreal3(0,1,0),.01);
+OpenGLCamera oglcamera(camreal3(0,0,5),camreal3(0,0,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
@@ -142,6 +142,7 @@ void drawAll()
 void renderSceneAll(){
 	if(OGL){
 		drawAll();
+		p0_h = sys->p_d;
 		sys->DoTimeStep();
 
 //    // TODO: This is a big no-no, need to enforce motion via constraints
@@ -307,10 +308,10 @@ int main(int argc, char** argv)
   sys->add(plate);
 
   // Bottom
-  Body* groundPtr = new Body(make_double3(0,-2,0));
+  Body* groundPtr = new Body(make_double3(.5,-3,.5));
   groundPtr->setBodyFixed(true);
   //groundPtr->setGeometry(make_double3(.03,0,0));
-  groundPtr->setGeometry(make_double3(5,1,5));
+  groundPtr->setGeometry(make_double3(2,0,0));
   //groundPtr->setCollisionFamily(1);
   sys->add(groundPtr);
 
