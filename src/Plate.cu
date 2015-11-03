@@ -1484,7 +1484,7 @@ int Plate::addPlate(int j)
   for(int i=0;i<contactGeometry.z;i++) {
     for(int j=0;j<contactGeometry.z;j++) {
       sys->collisionGeometry_h.push_back(make_double3(thickness,0,0));
-      sys->collisionMap_h.push_back(make_int3(identifier,contactGeometry.z*i+j,collisionFamily));
+      sys->collisionMap_h.push_back(make_int4(identifier,i,j,collisionFamily));
     }
   }
 

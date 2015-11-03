@@ -124,8 +124,8 @@ public:
   thrust::host_vector<double3> collisionGeometry_h;
   thrust::device_vector<double3> collisionGeometry_d;
 
-  thrust::host_vector<int3> collisionMap_h;
-  thrust::device_vector<int3> collisionMap_d;
+  thrust::host_vector<int4> collisionMap_h;
+  thrust::device_vector<int4> collisionMap_d;
 
   // list of constraints
   thrust::host_vector<int2> constraintsBilateralDOF_h;

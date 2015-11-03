@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = false;
+	//visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -377,7 +377,7 @@ int main(int argc, char** argv)
         bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
         bodyPtr->setGeometry(make_double3(rRand,0,0));
         //if(j==0) bodyPtr->setBodyFixed(true);
-        numBodies = sys->add(bodyPtr);
+        //numBodies = sys->add(bodyPtr);
 
         if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
       }

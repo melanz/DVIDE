@@ -321,7 +321,7 @@ int Beam::addBeam(int j)
 
   for(int i=0;i<contactGeometry.z;i++) {
     sys->collisionGeometry_h.push_back(make_double3(contactGeometry.x,0,0));
-    sys->collisionMap_h.push_back(make_int3(identifier,i,collisionFamily));
+    sys->collisionMap_h.push_back(make_int4(identifier,i,0,collisionFamily));
   }
 
   return 0;

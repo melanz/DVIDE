@@ -281,7 +281,7 @@ int System::initializeSystem() {
 
     contactGeometry_h.push_back(body->contactGeometry);
     collisionGeometry_h.push_back(body->contactGeometry);
-    collisionMap_h.push_back(make_int3(body->getIdentifier(),0,body->getCollisionFamily()));
+    collisionMap_h.push_back(make_int4(body->getIdentifier(),0,0,body->getCollisionFamily()));
 
     if(body->isFixed()) fixedBodies_h.push_back(j);
   }
@@ -394,7 +394,7 @@ __global__ void constructBilateralJacobian(int2* contraintBilateralDOF, int* DI,
   D[2*index+1] = -1.0;
 }
 
-__global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, uint numConstraintsBilateral, uint numCollisions) {
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, uint numConstraintsBilateral, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
@@ -613,7 +613,7 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int3* collis
   }
 }
 
-__global__ void updateNonzerosPerContact(int* nonzerosPerContact, int3* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB, int numBodies, uint numCollisions) {
+__global__ void updateNonzerosPerContact(int* nonzerosPerContact, int4* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB, int numBodies, int numBeams, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   int numNonzeros = 0;
@@ -623,15 +623,21 @@ __global__ void updateNonzerosPerContact(int* nonzerosPerContact, int3* collisio
   if(bodyIdentifierA<numBodies) {
     numNonzeros+=9;
   }
-  else {
+  else if(bodyIdentifierA<(numBodies+numBeams)) {
     numNonzeros+=36;
+  }
+  else {
+    numNonzeros+=108;
   }
 
   if(bodyIdentifierB<numBodies) {
     numNonzeros+=9;
   }
-  else {
+  else if(bodyIdentifierB<(numBodies+numBeams)) {
     numNonzeros+=36;
+  }
+  else {
+    numNonzeros+=108;
   }
 
   nonzerosPerContact[index] = numNonzeros;
@@ -642,7 +648,7 @@ int System::buildContactJacobian() {
   int totalNonzeros = 0;
   nonzerosPerContact_d.resize(collisionDetector->numCollisions);
   if(collisionDetector->numCollisions) {
-    updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), collisionDetector->numCollisions);
+    updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), beams.size(), collisionDetector->numCollisions);
     Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
   }
   totalNonzeros+=2*constraintsBilateralDOF_d.size(); //Add in space for the bilateral entries
@@ -653,7 +659,7 @@ int System::buildContactJacobian() {
   friction_d.resize(collisionDetector->numCollisions);
 
   if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
-  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI3(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
