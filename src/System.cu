@@ -98,6 +98,19 @@ System::System(int solverType)
   pt5.push_back(0.);
   pt5.push_back((sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
   pt5.push_back((sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
+
+  wt6.push_back(0.17132449);
+  wt6.push_back(0.36076157);
+  wt6.push_back(0.46791393);
+  wt6.push_back(0.46791393);
+  wt6.push_back(0.36076157);
+  wt6.push_back(0.17132449);
+  pt6.push_back(-0.93246951);
+  pt6.push_back(-0.66120939);
+  pt6.push_back(-0.23861918);
+  pt6.push_back(0.23861918);
+  pt6.push_back(0.66120939);
+  pt6.push_back(0.93246951);
 }
 
 void System::setTimeStep(double step_size)
@@ -157,8 +170,13 @@ int System::initializeDevice() {
 
   strainDerivative_d = strainDerivative_h;
   strain_d = strain_h;
+  strainPlate_d = strainPlate_h;
+  strainDerivativePlate_d = strainDerivativePlate_h;
+  curvatureDerivativePlate_d = curvatureDerivativePlate_h;
   Sx_d = Sx_h;
   Sxx_d = Sxx_h;
+  Sy_d = Sy_h;
+  Syy_d = Syy_h;
 
   thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
   thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));

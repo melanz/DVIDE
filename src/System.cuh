@@ -145,12 +145,26 @@ public:
   thrust::host_vector<double> strain_h;
   thrust::device_vector<double> strain_d;
 
+  thrust::host_vector<double3> strainPlate_h;
+  thrust::device_vector<double3> strainPlate_d;
+
+  thrust::host_vector<double3> strainDerivativePlate_h;
+  thrust::device_vector<double3> strainDerivativePlate_d;
+
+  thrust::host_vector<double3> curvatureDerivativePlate_h;
+  thrust::device_vector<double3> curvatureDerivativePlate_d;
+
   thrust::host_vector<double> Sx_h;
   thrust::device_vector<double> Sx_d;
-
   thrust::host_vector<double> Sxx_h;
   thrust::device_vector<double> Sxx_d;
+  thrust::host_vector<double> Sy_h;
+  thrust::device_vector<double> Sy_d;
+  thrust::host_vector<double> Syy_h;
+  thrust::device_vector<double> Syy_d;
 
+  thrust::host_vector<double> wt6;
+  thrust::host_vector<double> pt6;
   thrust::host_vector<double> wt5;
   thrust::host_vector<double> pt5;
   thrust::host_vector<double> wt3;

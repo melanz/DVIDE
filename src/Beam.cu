@@ -159,16 +159,6 @@ int Beam::addBeam(int j)
 
   sys->strain_h.push_back(0);
 
-  sys->Sx_h.push_back(0);
-  sys->Sx_h.push_back(0);
-  sys->Sx_h.push_back(0);
-  sys->Sx_h.push_back(0);
-
-  sys->Sxx_h.push_back(0);
-  sys->Sxx_h.push_back(0);
-  sys->Sxx_h.push_back(0);
-  sys->Sxx_h.push_back(0);
-
   // update the sys->mass matrix
   int offset = j*12+3*sys->bodies.size();
   sys->massI_h.push_back(0+offset);

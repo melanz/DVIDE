@@ -177,6 +177,16 @@ int Plate::addPlate(int j)
     sys->tmp_h.push_back(0);
     sys->k_h.push_back(0);
     sys->r_h.push_back(0);
+    sys->strainDerivativePlate_h.push_back(make_double3(0,0,0));
+    sys->strainPlate_h.push_back(make_double3(0,0,0));
+    sys->curvatureDerivativePlate_h.push_back(make_double3(0,0,0));
+  }
+
+  for(int i=0;i<12;i++) {
+    sys->Sx_h.push_back(0);
+    sys->Sxx_h.push_back(0);
+    sys->Sy_h.push_back(0);
+    sys->Syy_h.push_back(0);
   }
 
   // update the sys->mass matrix
