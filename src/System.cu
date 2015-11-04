@@ -1172,7 +1172,7 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
-  filestream << "0, " << bodies.size() << ", " << beams.size() << ", " << endl;
+  filestream << bodies.size() << ", " << beams.size() << ", " << plates.size() << ", " << endl;
   for (int i = 0; i < bodies.size(); i++) {
     filestream
         << i << ", "
@@ -1239,6 +1239,25 @@ int System::exportSystem(string filename) {
 
         filestream
           << "\n";
+  }
+  for (int i = 0; i < plates.size(); i++) {
+    // TODO: Need to know collision family information, density, elastic modulus, number of contacts (especially important when importing)
+    filestream
+    << bodies.size()+beams.size()+i << ", "
+    << contactGeometry_h[bodies.size()+beams.size()+i].x << ", "
+    << contactGeometry_h[bodies.size()+beams.size()+i].y << ", "
+    << plates[i]->getThickness() << ", ";
+
+    for(int j=0;j<36;j++) {
+      filestream << p_h[3*bodies.size()+12*beams.size()+j] << ", ";
+    }
+
+    for(int j=0;j<36;j++) {
+      filestream << v_h[3*bodies.size()+12*beams.size()+j] << ", ";
+    }
+
+    filestream
+    << "\n";
   }
   filestream.close();
 

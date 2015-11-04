@@ -224,7 +224,7 @@ int main(int argc, char** argv)
 	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
 	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 8.0;
+  double t_end = 4.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
@@ -249,7 +249,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	visualize = true;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -301,7 +301,7 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  sys->solver->maxIterations = 40;
+  //sys->solver->maxIterations = 40;
 
   Plate* plate = new Plate();
   plate->setCollisionFamily(1);
@@ -362,7 +362,7 @@ int main(int argc, char** argv)
 		// Determine contact force on the container
 		sys->f_contact_h = sys->f_contact_d;
 		double weight = 0;
-		for(int i=0; i<6; i++) {
+		for(int i=0; i<1; i++) {
 		  weight += sys->f_contact_h[3*i+1];
 		}
 		cout << "  Weight: " << weight << endl;
