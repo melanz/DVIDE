@@ -159,6 +159,9 @@ int Beam::addBeam(int j)
 
   sys->strain_h.push_back(0);
 
+  for(int k=0;k<sys->wt5.size();k++) sys->strainBeam0_h.push_back(0);
+  for(int k=0;k<sys->wt3.size();k++) sys->curvatureBeam0_h.push_back(0);
+
   // update the sys->mass matrix
   int offset = j*12+3*sys->bodies.size();
   sys->massI_h.push_back(0+offset);

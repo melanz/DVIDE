@@ -55,6 +55,34 @@ __global__ void strainDerivativeUpdate(double ptj, double* p, double* strain, do
   strainD[11] = S.w*(S.w*e11+S.x*e2+S.y*e5+S.z*e8);
 }
 
+__global__ void calculateInitialStrainBeam(double ptj, double* p, int quadIndex, int numQuad, double* strain, double3* geometries, int numBodies, int numBeams)
+{
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
+
+  double a = geometries[index+numBodies].y;
+
+  double x = .5*a*(1.+ptj);
+
+  p = &p[12*index+3*numBodies];
+
+  double e0  = p[0];
+  double e1  = p[1];
+  double e2  = p[2];
+  double e3  = p[3];
+  double e4  = p[4];
+  double e5  = p[5];
+  double e6  = p[6];
+  double e7  = p[7];
+  double e8  = p[8];
+  double e9  = p[9];
+  double e10 = p[10];
+  double e11 = p[11];
+
+  double4 S = ancf_shape_derivative_x(x,a);
+
+  strain[numQuad*index+quadIndex] = S.w*(S.w*(e9*e9+e10*e10+e11*e11)+S.x*(e0*e9+e1*e10+e2*e11)+S.y*(e3*e9+e4*e10+e5*e11)+S.z*(e6*e9+e7*e10+e8*e11))*(1.0/2.0)+S.x*(S.x*(e0*e0+e1*e1+e2*e2)+S.w*(e0*e9+e1*e10+e2*e11)+S.y*(e0*e3+e1*e4+e2*e5)+S.z*(e0*e6+e1*e7+e2*e8))*(1.0/2.0)+S.y*(S.y*(e3*e3+e4*e4+e5*e5)+S.w*(e3*e9+e4*e10+e5*e11)+S.x*(e0*e3+e1*e4+e2*e5)+S.z*(e3*e6+e4*e7+e5*e8))*(1.0/2.0)+S.z*(S.z*(e6*e6+e7*e7+e8*e8)+S.w*(e6*e9+e7*e10+e8*e11)+S.x*(e0*e6+e1*e7+e2*e8)+S.y*(e3*e6+e4*e7+e5*e8))*(1.0/2.0)-1.0/2.0;
+}
+
 __global__ void curvatDerivUpdate(double ptj, double* p, double* k, double* ke, double3* geometries, int numBodies, int numBeams)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
@@ -110,11 +138,49 @@ __global__ void curvatDerivUpdate(double ptj, double* p, double* k, double* ke, 
   ke[11] = -1.0/(g*g)*(g*(fspecial*(S.w*rxx.x-SS.w*rx.x)*(rx.x*rxx.z-rx.z*rxx.x)+fspecial*(S.w*rxx.y-SS.w*rx.y)*(rx.y*rxx.z-rx.z*rxx.y))+S.w*f*(S.w*e11*sqrt(pow(fabs(rx.x),2.0)+pow(fabs(rx.y),2.0)+pow(fabs(rx.z),2.0))*3.0+S.x*e2*sqrt(pow(fabs(rx.x),2.0)+pow(fabs(rx.y),2.0)+pow(fabs(rx.z),2.0))*3.0+S.y*e5*sqrt(pow(fabs(rx.x),2.0)+pow(fabs(rx.y),2.0)+pow(fabs(rx.z),2.0))*3.0+S.z*e8*sqrt(pow(fabs(rx.x),2.0)+pow(fabs(rx.y),2.0)+pow(fabs(rx.z),2.0))*3.0));
 }
 
-__global__ void addInternalForceComponent(double* f, double* strainD_shared, double* strainVec, double3* materials, double3* geometries, double wtl, int numBodies, int numBeams, int check)
+__global__ void calculateInitialCurvatureBeam(double ptj, double* p, int quadIndex, int numQuad, double* k, double3* geometries, int numBodies, int numBeams)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
 
-  double strain = strainVec[index];
+  double a = geometries[index+numBodies].y;
+  double x = .5*a*(1.+ptj);
+
+  p = &p[12*index+3*numBodies];
+
+  double e0  = p[0];
+  double e1  = p[1];
+  double e2  = p[2];
+  double e3  = p[3];
+  double e4  = p[4];
+  double e5  = p[5];
+  double e6  = p[6];
+  double e7  = p[7];
+  double e8  = p[8];
+  double e9  = p[9];
+  double e10 = p[10];
+  double e11 = p[11];
+
+  double4 S = ancf_shape_derivative_x(x,a);
+  double4 SS = ancf_shape_derivative2_x(x,a);
+
+  double3 rx = make_double3(S.w*e9+S.x*e0+S.y*e3+S.z*e6,S.w*e10+S.x*e1+S.y*e4+S.z*e7,S.w*e11+S.x*e2+S.y*e5+S.z*e8);
+  double3 rxx = make_double3(SS.x*e0+SS.y*e3+SS.w*e9+SS.z*e6,SS.x*e1+SS.y*e4+SS.w*e10+SS.z*e7,SS.x*e2+SS.y*e5+SS.w*e11+SS.z*e8);
+
+  double g1 = sqrt(pow(fabs(rx.x),2.0)+pow(fabs(rx.y),2.0)+pow(fabs(rx.z),2.0));
+  double g = pow(g1,3.0);
+
+  double3 f1 = make_double3(rx.y*rxx.z-rx.z*rxx.y,-rx.x*rxx.z+rx.z*rxx.x,rx.x*rxx.y-rx.y*rxx.x);
+
+  double f = sqrt(pow(fabs(rx.x*rxx.y-rx.y*rxx.x),2.0)+pow(fabs(rx.x*rxx.z-rx.z*rxx.x),2.0)+pow(fabs(rx.y*rxx.z-rx.z*rxx.y),2.0));
+
+  k[numQuad*index+quadIndex] = f/g;
+}
+
+__global__ void addInternalForceComponent(double* f, double* strainD_shared, double* strainVec, int quadIndex, int numQuad, double* strain0, double3* materials, double3* geometries, double wtl, int numBodies, int numBeams, int check)
+{
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
+
+  double strain = strainVec[index]-strain0[numQuad*index+quadIndex];
   double3 geometry = geometries[index+numBodies];
   double E = materials[index].y;
   double a = geometry.y;
@@ -345,6 +411,29 @@ __global__ void strainDerivativeUpdatePlate(double ptj, double ptk, double* p, d
   strainD[34].z = Sy[11] * Sx[0] * p[1] + Sy[11] * Sx[1] * p[4] + Sy[11] * Sx[2] * p[7] + Sy[11] * Sx[3] * p[10] + Sy[11] * Sx[4] * p[13] + Sy[11] * Sx[5] * p[16] + Sy[11] * Sx[6] * p[19] + Sy[11] * Sx[7] * p[22] + Sy[11] * Sx[8] * p[25] + Sy[11] * Sx[9] * p[28] + Sy[11] * Sx[10] * p[31] + 2 * Sy[11] * Sx[11] * p[34] + Sx[11] * Sy[0] * p[1] + Sx[11] * Sy[1] * p[4] + Sx[11] * Sy[2] * p[7] + Sx[11] * Sy[3] * p[10] + Sx[11] * Sy[4] * p[13] + Sx[11] * Sy[5] * p[16] + Sx[11] * Sy[6] * p[19] + Sx[11] * Sy[7] * p[22] + Sx[11] * Sy[8] * p[25] + Sx[11] * Sy[9] * p[28] + Sx[11] * Sy[10] * p[31];
   strainD[35].z = Sy[11] * Sx[0] * p[2] + Sy[11] * Sx[1] * p[5] + Sy[11] * Sx[2] * p[8] + Sy[11] * Sx[3] * p[11] + Sy[11] * Sx[4] * p[14] + Sy[11] * Sx[5] * p[17] + Sy[11] * Sx[6] * p[20] + Sy[11] * Sx[7] * p[23] + Sy[11] * Sx[8] * p[26] + Sy[11] * Sx[9] * p[29] + Sy[11] * Sx[10] * p[32] + 2 * Sy[11] * Sx[11] * p[35] + Sx[11] * Sy[0] * p[2] + Sx[11] * Sy[1] * p[5] + Sx[11] * Sy[2] * p[8] + Sx[11] * Sy[3] * p[11] + Sx[11] * Sy[4] * p[14] + Sx[11] * Sy[5] * p[17] + Sx[11] * Sy[6] * p[20] + Sx[11] * Sy[7] * p[23] + Sx[11] * Sy[8] * p[26] + Sx[11] * Sy[9] * p[29] + Sx[11] * Sy[10] * p[32];
 }
+
+__global__ void calculateInitialStrainPlate(double ptj, double ptk, double* p, int quadIndex, int numQuad, double3* strainVec0, double* Sx, double* Sy, double3* geometry, int numBodies, int numBeams, int numPlates)
+{
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPlates);
+
+  double a = geometry[numBodies+numBeams+index].x;
+  double b = geometry[numBodies+numBeams+index].y;
+
+  double x = .5*a*(1.+ptj);
+  double y = .5*b*(1.+ptk);
+
+  p = &p[3*numBodies+12*numBeams+36*index];
+  Sx = &Sx[12*index];
+  Sy = &Sy[12*index];
+
+  ancf_shape_derivative_x(Sx,x,y,a,b);
+  ancf_shape_derivative_y(Sy,x,y,a,b);
+
+  strainVec0[numQuad*index+quadIndex].x = -0.1e1 / 0.2e1 + Sx[0] * p[2] * Sx[6] * p[20] + Sx[0] * p[2] * Sx[7] * p[23] + Sx[0] * p[2] * Sx[8] * p[26] + Sx[0] * p[2] * Sx[9] * p[29] + Sx[0] * p[2] * Sx[10] * p[32] + Sx[0] * p[2] * Sx[11] * p[35] + Sx[1] * p[3] * Sx[2] * p[6] + Sx[1] * p[3] * Sx[3] * p[9] + Sx[1] * p[3] * Sx[4] * p[12] + Sx[1] * p[3] * Sx[5] * p[15] + Sx[1] * p[3] * Sx[6] * p[18] + Sx[1] * p[3] * Sx[7] * p[21] + Sx[1] * p[3] * Sx[8] * p[24] + Sx[1] * p[3] * Sx[9] * p[27] + Sx[1] * p[3] * Sx[10] * p[30] + Sx[1] * p[3] * Sx[11] * p[33] + Sx[1] * p[4] * Sx[2] * p[7] + Sx[1] * p[4] * Sx[3] * p[10] + Sx[1] * p[4] * Sx[4] * p[13] + Sx[1] * p[4] * Sx[5] * p[16] + Sx[1] * p[4] * Sx[6] * p[19] + Sx[1] * p[4] * Sx[7] * p[22] + Sx[1] * p[4] * Sx[8] * p[25] + Sx[1] * p[4] * Sx[9] * p[28] + Sx[1] * p[4] * Sx[10] * p[31] + Sx[1] * p[4] * Sx[11] * p[34] + Sx[1] * p[5] * Sx[2] * p[8] + Sx[1] * p[5] * Sx[3] * p[11] + Sx[1] * p[5] * Sx[4] * p[14] + Sx[1] * p[5] * Sx[5] * p[17] + Sx[1] * p[5] * Sx[6] * p[20] + Sx[1] * p[5] * Sx[7] * p[23] + Sx[1] * p[5] * Sx[8] * p[26] + Sx[1] * p[5] * Sx[9] * p[29] + Sx[1] * p[5] * Sx[10] * p[32] + Sx[1] * p[5] * Sx[11] * p[35] + Sx[2] * p[6] * Sx[3] * p[9] + Sx[2] * p[6] * Sx[4] * p[12] + Sx[2] * p[6] * Sx[5] * p[15] + Sx[2] * p[6] * Sx[6] * p[18] + Sx[2] * p[6] * Sx[7] * p[21] + Sx[2] * p[6] * Sx[8] * p[24] + Sx[2] * p[6] * Sx[9] * p[27] + Sx[2] * p[6] * Sx[10] * p[30] + Sx[2] * p[6] * Sx[11] * p[33] + Sx[2] * p[7] * Sx[3] * p[10] + Sx[2] * p[7] * Sx[4] * p[13] + Sx[2] * p[7] * Sx[5] * p[16] + Sx[2] * p[7] * Sx[6] * p[19] + Sx[2] * p[7] * Sx[7] * p[22] + Sx[2] * p[7] * Sx[8] * p[25] + Sx[2] * p[7] * Sx[9] * p[28] + Sx[2] * p[7] * Sx[10] * p[31] + Sx[2] * p[7] * Sx[11] * p[34] + Sx[2] * p[8] * Sx[3] * p[11] + Sx[2] * p[8] * Sx[4] * p[14] + Sx[2] * p[8] * Sx[5] * p[17] + Sx[2] * p[8] * Sx[6] * p[20] + Sx[2] * p[8] * Sx[7] * p[23] + Sx[2] * p[8] * Sx[8] * p[26] + Sx[2] * p[8] * Sx[9] * p[29] + Sx[2] * p[8] * Sx[10] * p[32] + Sx[2] * p[8] * Sx[11] * p[35] + Sx[3] * p[9] * Sx[4] * p[12] + Sx[3] * p[9] * Sx[5] * p[15] + Sx[3] * p[9] * Sx[6] * p[18] + Sx[3] * p[9] * Sx[7] * p[21] + Sx[3] * p[9] * Sx[8] * p[24] + Sx[3] * p[9] * Sx[9] * p[27] + Sx[3] * p[9] * Sx[10] * p[30] + Sx[3] * p[9] * Sx[11] * p[33] + Sx[3] * p[10] * Sx[4] * p[13] + Sx[3] * p[10] * Sx[5] * p[16] + Sx[3] * p[10] * Sx[6] * p[19] + Sx[3] * p[10] * Sx[7] * p[22] + Sx[3] * p[10] * Sx[8] * p[25] + Sx[3] * p[10] * Sx[9] * p[28] + Sx[3] * p[10] * Sx[10] * p[31] + Sx[3] * p[10] * Sx[11] * p[34] + Sx[3] * p[11] * Sx[4] * p[14] + Sx[3] * p[11] * Sx[5] * p[17] + Sx[3] * p[11] * Sx[6] * p[20] + Sx[3] * p[11] * Sx[7] * p[23] + Sx[3] * p[11] * Sx[8] * p[26] + Sx[3] * p[11] * Sx[9] * p[29] + Sx[3] * p[11] * Sx[10] * p[32] + Sx[3] * p[11] * Sx[11] * p[35] + Sx[4] * p[12] * Sx[5] * p[15] + Sx[4] * p[12] * Sx[6] * p[18] + Sx[4] * p[12] * Sx[7] * p[21] + Sx[4] * p[12] * Sx[8] * p[24] + Sx[4] * p[12] * Sx[9] * p[27] + Sx[4] * p[12] * Sx[10] * p[30] + Sx[4] * p[12] * Sx[11] * p[33] + Sx[4] * p[13] * Sx[5] * p[16] + Sx[4] * p[13] * Sx[6] * p[19] + Sx[4] * p[13] * Sx[7] * p[22] + Sx[4] * p[13] * Sx[8] * p[25] + Sx[4] * p[13] * Sx[9] * p[28] + Sx[4] * p[13] * Sx[10] * p[31] + Sx[4] * p[13] * Sx[11] * p[34] + Sx[4] * p[14] * Sx[5] * p[17] + Sx[4] * p[14] * Sx[6] * p[20] + Sx[4] * p[14] * Sx[7] * p[23] + Sx[4] * p[14] * Sx[8] * p[26] + Sx[4] * p[14] * Sx[9] * p[29] + Sx[4] * p[14] * Sx[10] * p[32] + Sx[4] * p[14] * Sx[11] * p[35] + Sx[5] * p[15] * Sx[6] * p[18] + Sx[5] * p[15] * Sx[7] * p[21] + Sx[5] * p[15] * Sx[8] * p[24] + Sx[5] * p[15] * Sx[9] * p[27] + Sx[5] * p[15] * Sx[10] * p[30] + Sx[5] * p[15] * Sx[11] * p[33] + Sx[5] * p[16] * Sx[6] * p[19] + Sx[5] * p[16] * Sx[7] * p[22] + Sx[5] * p[16] * Sx[8] * p[25] + Sx[5] * p[16] * Sx[9] * p[28] + Sx[5] * p[16] * Sx[10] * p[31] + Sx[5] * p[16] * Sx[11] * p[34] + Sx[5] * p[17] * Sx[6] * p[20] + Sx[5] * p[17] * Sx[7] * p[23] + Sx[5] * p[17] * Sx[8] * p[26] + Sx[5] * p[17] * Sx[9] * p[29] + Sx[5] * p[17] * Sx[10] * p[32] + Sx[5] * p[17] * Sx[11] * p[35] + Sx[6] * p[18] * Sx[7] * p[21] + Sx[6] * p[18] * Sx[8] * p[24] + Sx[6] * p[18] * Sx[9] * p[27] + Sx[6] * p[18] * Sx[10] * p[30] + Sx[6] * p[18] * Sx[11] * p[33] + Sx[6] * p[19] * Sx[7] * p[22] + Sx[6] * p[19] * Sx[8] * p[25] + Sx[6] * p[19] * Sx[9] * p[28] + Sx[6] * p[19] * Sx[10] * p[31] + Sx[6] * p[19] * Sx[11] * p[34] + Sx[6] * p[20] * Sx[7] * p[23] + Sx[6] * p[20] * Sx[8] * p[26] + Sx[6] * p[20] * Sx[9] * p[29] + Sx[6] * p[20] * Sx[10] * p[32] + Sx[6] * p[20] * Sx[11] * p[35] + Sx[7] * p[21] * Sx[8] * p[24] + Sx[7] * p[21] * Sx[9] * p[27] + Sx[7] * p[21] * Sx[10] * p[30] + Sx[7] * p[21] * Sx[11] * p[33] + Sx[7] * p[22] * Sx[8] * p[25] + Sx[7] * p[22] * Sx[9] * p[28] + Sx[7] * p[22] * Sx[10] * p[31] + Sx[7] * p[22] * Sx[11] * p[34] + Sx[7] * p[23] * Sx[8] * p[26] + Sx[7] * p[23] * Sx[9] * p[29] + Sx[7] * p[23] * Sx[10] * p[32] + Sx[7] * p[23] * Sx[11] * p[35] + Sx[8] * p[24] * Sx[9] * p[27] + Sx[8] * p[24] * Sx[10] * p[30] + Sx[8] * p[24] * Sx[11] * p[33] + Sx[8] * p[25] * Sx[9] * p[28] + Sx[8] * p[25] * Sx[10] * p[31] + Sx[8] * p[25] * Sx[11] * p[34] + Sx[8] * p[26] * Sx[9] * p[29] + Sx[8] * p[26] * Sx[10] * p[32] + Sx[8] * p[26] * Sx[11] * p[35] + Sx[9] * p[27] * Sx[10] * p[30] + Sx[9] * p[27] * Sx[11] * p[33] + Sx[9] * p[28] * Sx[10] * p[31] + Sx[9] * p[28] * Sx[11] * p[34] + Sx[9] * p[29] * Sx[10] * p[32] + Sx[9] * p[29] * Sx[11] * p[35] + Sx[10] * p[30] * Sx[11] * p[33] + Sx[10] * p[31] * Sx[11] * p[34] + Sx[10] * p[32] * Sx[11] * p[35] + Sx[3] * Sx[3] * p[11] * p[11] / 0.2e1 + Sx[3] * Sx[3] * p[9] * p[9] / 0.2e1 + Sx[3] * Sx[3] * p[10] * p[10] / 0.2e1 + Sx[4] * Sx[4] * p[12] * p[12] / 0.2e1 + Sx[4] * Sx[4] * p[13] * p[13] / 0.2e1 + Sx[4] * Sx[4] * p[14] * p[14] / 0.2e1 + Sx[5] * Sx[5] * p[15] * p[15] / 0.2e1 + Sx[5] * Sx[5] * p[16] * p[16] / 0.2e1 + Sx[5] * Sx[5] * p[17] * p[17] / 0.2e1 + Sx[6] * Sx[6] * p[18] * p[18] / 0.2e1 + Sx[6] * Sx[6] * p[19] * p[19] / 0.2e1 + Sx[6] * Sx[6] * p[20] * p[20] / 0.2e1 + Sx[7] * Sx[7] * p[21] * p[21] / 0.2e1 + Sx[7] * Sx[7] * p[22] * p[22] / 0.2e1 + Sx[7] * Sx[7] * p[23] * p[23] / 0.2e1 + Sx[8] * Sx[8] * p[24] * p[24] / 0.2e1 + Sx[8] * Sx[8] * p[25] * p[25] / 0.2e1 + Sx[8] * Sx[8] * p[26] * p[26] / 0.2e1 + Sx[9] * Sx[9] * p[27] * p[27] / 0.2e1 + Sx[9] * Sx[9] * p[28] * p[28] / 0.2e1 + Sx[9] * Sx[9] * p[29] * p[29] / 0.2e1 + Sx[10] * Sx[10] * p[30] * p[30] / 0.2e1 + Sx[10] * Sx[10] * p[31] * p[31] / 0.2e1 + Sx[10] * Sx[10] * p[32] * p[32] / 0.2e1 + Sx[11] * Sx[11] * p[33] * p[33] / 0.2e1 + Sx[11] * Sx[11] * p[34] * p[34] / 0.2e1 + Sx[11] * Sx[11] * p[35] * p[35] / 0.2e1 + Sx[0] * Sx[0] * p[0] * p[0] / 0.2e1 + Sx[0] * Sx[0] * p[1] * p[1] / 0.2e1 + Sx[0] * Sx[0] * p[2] * p[2] / 0.2e1 + Sx[1] * Sx[1] * p[3] * p[3] / 0.2e1 + Sx[1] * Sx[1] * p[4] * p[4] / 0.2e1 + Sx[1] * Sx[1] * p[5] * p[5] / 0.2e1 + Sx[2] * Sx[2] * p[6] * p[6] / 0.2e1 + Sx[2] * Sx[2] * p[7] * p[7] / 0.2e1 + Sx[2] * Sx[2] * p[8] * p[8] / 0.2e1 + Sx[0] * p[0] * Sx[11] * p[33] + Sx[0] * p[0] * Sx[4] * p[12] + Sx[0] * p[0] * Sx[2] * p[6] + Sx[0] * p[1] * Sx[1] * p[4] + Sx[0] * p[1] * Sx[2] * p[7] + Sx[0] * p[0] * Sx[9] * p[27] + Sx[0] * p[0] * Sx[10] * p[30] + Sx[0] * p[0] * Sx[1] * p[3] + Sx[0] * p[0] * Sx[5] * p[15] + Sx[0] * p[0] * Sx[6] * p[18] + Sx[0] * p[0] * Sx[3] * p[9] + Sx[0] * p[0] * Sx[8] * p[24] + Sx[0] * p[0] * Sx[7] * p[21] + Sx[0] * p[1] * Sx[4] * p[13] + Sx[0] * p[1] * Sx[3] * p[10] + Sx[0] * p[1] * Sx[9] * p[28] + Sx[0] * p[1] * Sx[8] * p[25] + Sx[0] * p[1] * Sx[7] * p[22] + Sx[0] * p[1] * Sx[6] * p[19] + Sx[0] * p[1] * Sx[5] * p[16] + Sx[0] * p[1] * Sx[11] * p[34] + Sx[0] * p[1] * Sx[10] * p[31] + Sx[0] * p[2] * Sx[1] * p[5] + Sx[0] * p[2] * Sx[2] * p[8] + Sx[0] * p[2] * Sx[5] * p[17] + Sx[0] * p[2] * Sx[4] * p[14] + Sx[0] * p[2] * Sx[3] * p[11];
+  strainVec0[numQuad*index+quadIndex].y = Sy[0] * p[2] * Sy[2] * p[8] + Sy[0] * p[2] * Sy[1] * p[5] + Sy[0] * p[1] * Sy[11] * p[34] + Sy[2] * p[6] * Sy[6] * p[18] + Sy[2] * p[6] * Sy[5] * p[15] + Sy[2] * p[6] * Sy[4] * p[12] + Sy[2] * p[6] * Sy[3] * p[9] + Sy[1] * p[3] * Sy[8] * p[24] + Sy[1] * p[3] * Sy[7] * p[21] + Sy[1] * p[3] * Sy[6] * p[18] + Sy[1] * p[3] * Sy[5] * p[15] + Sy[1] * p[3] * Sy[4] * p[12] + Sy[1] * p[3] * Sy[3] * p[9] + Sy[1] * p[3] * Sy[2] * p[6] + Sy[1] * p[4] * Sy[4] * p[13] + Sy[1] * p[4] * Sy[3] * p[10] + Sy[1] * p[4] * Sy[2] * p[7] + Sy[1] * p[3] * Sy[11] * p[33] + Sy[1] * p[3] * Sy[10] * p[30] + Sy[1] * p[3] * Sy[9] * p[27] + Sy[1] * p[4] * Sy[6] * p[19] + Sy[1] * p[4] * Sy[5] * p[16] + Sy[1] * p[4] * Sy[7] * p[22] + Sy[1] * p[4] * Sy[8] * p[25] + Sy[1] * p[4] * Sy[9] * p[28] + Sy[1] * p[5] * Sy[7] * p[23] + Sy[1] * p[5] * Sy[6] * p[20] + Sy[1] * p[5] * Sy[5] * p[17] + Sy[1] * p[5] * Sy[4] * p[14] + Sy[1] * p[5] * Sy[3] * p[11] + Sy[1] * p[5] * Sy[2] * p[8] + Sy[1] * p[4] * Sy[11] * p[34] + Sy[1] * p[4] * Sy[10] * p[31] + Sy[1] * p[5] * Sy[9] * p[29] + Sy[1] * p[5] * Sy[8] * p[26] + Sy[1] * p[5] * Sy[11] * p[35] + Sy[1] * p[5] * Sy[10] * p[32] + Sy[0] * p[0] * Sy[2] * p[6] + Sy[0] * p[1] * Sy[1] * p[4] + Sy[0] * p[0] * Sy[3] * p[9] + Sy[0] * p[1] * Sy[2] * p[7] + Sy[0] * p[1] * Sy[4] * p[13] + Sy[0] * p[1] * Sy[3] * p[10] + Sy[0] * p[1] * Sy[5] * p[16] + Sy[0] * p[1] * Sy[6] * p[19] + Sy[0] * p[0] * Sy[5] * p[15] + Sy[0] * p[1] * Sy[8] * p[25] + Sy[0] * p[1] * Sy[10] * p[31] + Sy[0] * p[2] * Sy[11] * p[35] + Sy[0] * p[2] * Sy[10] * p[32] + Sy[0] * p[2] * Sy[9] * p[29] + Sy[0] * p[2] * Sy[8] * p[26] + Sy[0] * p[2] * Sy[7] * p[23] + Sy[0] * p[2] * Sy[6] * p[20] + Sy[0] * p[2] * Sy[5] * p[17] + Sy[0] * p[0] * Sy[10] * p[30] + Sy[0] * p[0] * Sy[8] * p[24] + Sy[0] * p[0] * Sy[9] * p[27] + Sy[0] * p[2] * Sy[4] * p[14] + Sy[0] * p[2] * Sy[3] * p[11] + Sy[0] * p[1] * Sy[9] * p[28] + Sy[0] * p[0] * Sy[6] * p[18] + Sy[0] * p[0] * Sy[1] * p[3] + Sy[0] * p[0] * Sy[7] * p[21] + Sy[0] * p[0] * Sy[4] * p[12] + Sy[0] * p[1] * Sy[7] * p[22] - 0.1e1 / 0.2e1 + Sy[2] * p[6] * Sy[10] * p[30] + Sy[2] * p[6] * Sy[9] * p[27] + Sy[2] * p[6] * Sy[8] * p[24] + Sy[2] * p[6] * Sy[7] * p[21] + Sy[3] * p[9] * Sy[11] * p[33] + Sy[2] * p[7] * Sy[7] * p[22] + Sy[2] * p[7] * Sy[8] * p[25] + Sy[2] * p[7] * Sy[5] * p[16] + Sy[2] * p[7] * Sy[6] * p[19] + Sy[2] * p[7] * Sy[11] * p[34] + Sy[2] * p[7] * Sy[9] * p[28] + Sy[2] * p[7] * Sy[10] * p[31] + Sy[2] * p[8] * Sy[4] * p[14] + Sy[2] * p[8] * Sy[5] * p[17] + Sy[2] * p[8] * Sy[3] * p[11] + Sy[2] * p[8] * Sy[8] * p[26] + Sy[2] * p[8] * Sy[9] * p[29] + Sy[2] * p[8] * Sy[6] * p[20] + Sy[2] * p[8] * Sy[7] * p[23] + Sy[2] * p[8] * Sy[10] * p[32] + Sy[2] * p[8] * Sy[11] * p[35] + Sy[2] * p[7] * Sy[4] * p[13] + Sy[2] * p[7] * Sy[3] * p[10] + Sy[2] * p[6] * Sy[11] * p[33] + Sy[3] * p[9] * Sy[5] * p[15] + Sy[3] * p[9] * Sy[6] * p[18] + Sy[3] * p[9] * Sy[4] * p[12] + Sy[3] * p[9] * Sy[9] * p[27] + Sy[3] * p[9] * Sy[10] * p[30] + Sy[3] * p[9] * Sy[7] * p[21] + Sy[3] * p[9] * Sy[8] * p[24] + Sy[4] * p[13] * Sy[9] * p[28] + Sy[4] * p[13] * Sy[8] * p[25] + Sy[4] * p[14] * Sy[6] * p[20] + Sy[4] * p[13] * Sy[10] * p[31] + Sy[4] * p[14] * Sy[5] * p[17] + Sy[4] * p[14] * Sy[7] * p[23] + Sy[4] * p[14] * Sy[8] * p[26] + Sy[4] * p[14] * Sy[9] * p[29] + Sy[4] * p[14] * Sy[10] * p[32] + Sy[4] * p[14] * Sy[11] * p[35] + Sy[3] * p[10] * Sy[5] * p[16] + Sy[3] * p[10] * Sy[6] * p[19] + Sy[3] * p[10] * Sy[4] * p[13] + Sy[3] * p[10] * Sy[9] * p[28] + Sy[3] * p[10] * Sy[10] * p[31] + Sy[3] * p[10] * Sy[7] * p[22] + Sy[3] * p[10] * Sy[8] * p[25] + Sy[3] * p[10] * Sy[11] * p[34] + Sy[3] * p[11] * Sy[6] * p[20] + Sy[3] * p[11] * Sy[7] * p[23] + Sy[3] * p[11] * Sy[4] * p[14] + Sy[3] * p[11] * Sy[5] * p[17] + Sy[3] * p[11] * Sy[10] * p[32] + Sy[3] * p[11] * Sy[11] * p[35] + Sy[3] * p[11] * Sy[8] * p[26] + Sy[3] * p[11] * Sy[9] * p[29] + Sy[5] * p[15] * Sy[11] * p[33] + Sy[5] * p[16] * Sy[6] * p[19] + Sy[5] * p[16] * Sy[7] * p[22] + Sy[5] * p[16] * Sy[8] * p[25] + Sy[5] * p[16] * Sy[9] * p[28] + Sy[5] * p[16] * Sy[10] * p[31] + Sy[5] * p[16] * Sy[11] * p[34] + Sy[5] * p[17] * Sy[6] * p[20] + Sy[5] * p[17] * Sy[7] * p[23] + Sy[5] * p[17] * Sy[8] * p[26] + Sy[4] * p[12] * Sy[7] * p[21] + Sy[4] * p[12] * Sy[8] * p[24] + Sy[4] * p[12] * Sy[5] * p[15] + Sy[4] * p[12] * Sy[6] * p[18] + Sy[4] * p[12] * Sy[11] * p[33] + Sy[4] * p[12] * Sy[9] * p[27] + Sy[4] * p[12] * Sy[10] * p[30] + Sy[4] * p[13] * Sy[7] * p[22] + Sy[4] * p[13] * Sy[5] * p[16] + Sy[4] * p[13] * Sy[6] * p[19] + Sy[4] * p[13] * Sy[11] * p[34] + Sy[6] * p[19] * Sy[8] * p[25] + Sy[6] * p[19] * Sy[9] * p[28] + Sy[6] * p[19] * Sy[10] * p[31] + Sy[6] * p[19] * Sy[11] * p[34] + Sy[6] * p[20] * Sy[7] * p[23] + Sy[5] * p[17] * Sy[9] * p[29] + Sy[5] * p[17] * Sy[10] * p[32] + Sy[5] * p[17] * Sy[11] * p[35] + Sy[5] * p[15] * Sy[6] * p[18] + Sy[5] * p[15] * Sy[7] * p[21] + Sy[5] * p[15] * Sy[8] * p[24] + Sy[5] * p[15] * Sy[9] * p[27] + Sy[5] * p[15] * Sy[10] * p[30] + Sy[6] * p[19] * Sy[7] * p[22] + Sy[6] * p[18] * Sy[9] * p[27] + Sy[6] * p[18] * Sy[10] * p[30] + Sy[6] * p[18] * Sy[11] * p[33] + Sy[7] * p[22] * Sy[11] * p[34] + Sy[7] * p[21] * Sy[8] * p[24] + Sy[7] * p[21] * Sy[9] * p[27] + Sy[7] * p[21] * Sy[10] * p[30] + Sy[7] * p[21] * Sy[11] * p[33] + Sy[6] * p[20] * Sy[8] * p[26] + Sy[6] * p[20] * Sy[9] * p[29] + Sy[6] * p[20] * Sy[10] * p[32] + Sy[6] * p[20] * Sy[11] * p[35] + Sy[6] * p[18] * Sy[7] * p[21] + Sy[6] * p[18] * Sy[8] * p[24] + Sy[8] * p[24] * Sy[9] * p[27] + Sy[8] * p[24] * Sy[10] * p[30] + Sy[8] * p[24] * Sy[11] * p[33] + Sy[7] * p[23] * Sy[11] * p[35] + Sy[7] * p[23] * Sy[10] * p[32] + Sy[7] * p[23] * Sy[8] * p[26] + Sy[7] * p[23] * Sy[9] * p[29] + Sy[7] * p[22] * Sy[8] * p[25] + Sy[7] * p[22] * Sy[9] * p[28] + Sy[7] * p[22] * Sy[10] * p[31] + Sy[8] * p[26] * Sy[9] * p[29] + Sy[8] * p[26] * Sy[10] * p[32] + Sy[8] * p[26] * Sy[11] * p[35] + Sy[8] * p[25] * Sy[10] * p[31] + Sy[8] * p[25] * Sy[11] * p[34] + Sy[9] * p[27] * Sy[10] * p[30] + Sy[9] * p[27] * Sy[11] * p[33] + Sy[9] * p[28] * Sy[11] * p[34] + Sy[8] * p[25] * Sy[9] * p[28] + Sy[9] * p[29] * Sy[11] * p[35] + Sy[9] * p[28] * Sy[10] * p[31] + Sy[9] * p[29] * Sy[10] * p[32] + Sy[0] * p[0] * Sy[11] * p[33] + Sy[10] * p[30] * Sy[11] * p[33] + Sy[10] * p[32] * Sy[11] * p[35] + Sy[9] * Sy[9] * p[28] * p[28] / 0.2e1 + Sy[9] * Sy[9] * p[29] * p[29] / 0.2e1 + Sy[9] * Sy[9] * p[27] * p[27] / 0.2e1 + Sy[8] * Sy[8] * p[26] * p[26] / 0.2e1 + Sy[8] * Sy[8] * p[24] * p[24] / 0.2e1 + Sy[8] * Sy[8] * p[25] * p[25] / 0.2e1 + Sy[7] * Sy[7] * p[21] * p[21] / 0.2e1 + Sy[7] * Sy[7] * p[22] * p[22] / 0.2e1 + Sy[7] * Sy[7] * p[23] * p[23] / 0.2e1 + Sy[5] * Sy[5] * p[17] * p[17] / 0.2e1 + Sy[5] * Sy[5] * p[16] * p[16] / 0.2e1 + Sy[5] * Sy[5] * p[15] * p[15] / 0.2e1 + Sy[6] * Sy[6] * p[18] * p[18] / 0.2e1 + Sy[6] * Sy[6] * p[19] * p[19] / 0.2e1 + Sy[6] * Sy[6] * p[20] * p[20] / 0.2e1 + Sy[10] * p[31] * Sy[11] * p[34] + Sy[4] * Sy[4] * p[14] * p[14] / 0.2e1 + Sy[4] * Sy[4] * p[12] * p[12] / 0.2e1 + Sy[4] * Sy[4] * p[13] * p[13] / 0.2e1 + Sy[2] * Sy[2] * p[6] * p[6] / 0.2e1 + Sy[2] * Sy[2] * p[7] * p[7] / 0.2e1 + Sy[2] * Sy[2] * p[8] * p[8] / 0.2e1 + Sy[3] * Sy[3] * p[9] * p[9] / 0.2e1 + Sy[3] * Sy[3] * p[10] * p[10] / 0.2e1 + Sy[3] * Sy[3] * p[11] * p[11] / 0.2e1 + Sy[0] * Sy[0] * p[1] * p[1] / 0.2e1 + Sy[0] * Sy[0] * p[2] * p[2] / 0.2e1 + Sy[0] * Sy[0] * p[0] * p[0] / 0.2e1 + Sy[1] * Sy[1] * p[3] * p[3] / 0.2e1 + Sy[1] * Sy[1] * p[4] * p[4] / 0.2e1 + Sy[1] * Sy[1] * p[5] * p[5] / 0.2e1 + Sy[10] * Sy[10] * p[30] * p[30] / 0.2e1 + Sy[10] * Sy[10] * p[31] * p[31] / 0.2e1 + Sy[10] * Sy[10] * p[32] * p[32] / 0.2e1 + Sy[11] * Sy[11] * p[33] * p[33] / 0.2e1 + Sy[11] * Sy[11] * p[34] * p[34] / 0.2e1 + Sy[11] * Sy[11] * p[35] * p[35] / 0.2e1;
+  strainVec0[numQuad*index+quadIndex].z = Sy[5] * p[17] * Sx[4] * p[14] + Sy[5] * p[17] * Sx[3] * p[11] + Sy[5] * p[16] * Sx[10] * p[31] + Sy[5] * p[16] * Sx[9] * p[28] + Sy[5] * p[17] * Sx[0] * p[2] + Sy[5] * p[16] * Sx[11] * p[34] + Sy[5] * p[16] * Sx[6] * p[19] + Sy[5] * p[16] * Sx[4] * p[13] + Sy[5] * p[16] * Sx[8] * p[25] + Sy[5] * p[16] * Sx[7] * p[22] + Sy[5] * p[16] * Sx[1] * p[4] + Sy[5] * p[16] * Sx[0] * p[1] + Sy[5] * p[16] * Sx[3] * p[10] + Sy[5] * p[16] * Sx[2] * p[7] + Sy[5] * p[15] * Sx[10] * p[30] + Sy[5] * p[15] * Sx[9] * p[27] + Sy[5] * p[15] * Sx[11] * p[33] + Sy[5] * p[15] * Sx[6] * p[18] + Sy[5] * p[15] * Sx[4] * p[12] + Sy[5] * p[15] * Sx[8] * p[24] + Sy[5] * p[15] * Sx[7] * p[21] + Sy[5] * p[15] * Sx[1] * p[3] + Sy[5] * p[15] * Sx[3] * p[9] + Sy[5] * p[15] * Sx[2] * p[6] + Sy[5] * p[17] * Sx[11] * p[35] + Sy[5] * p[17] * Sx[10] * p[32] + Sy[5] * p[15] * Sx[0] * p[0] + Sy[6] * p[20] * Sx[0] * p[2] + Sy[6] * p[20] * Sx[1] * p[5] + Sy[6] * p[20] * Sx[2] * p[8] + Sy[6] * p[20] * Sx[3] * p[11] + Sy[6] * p[20] * Sx[4] * p[14] + Sy[6] * p[20] * Sx[5] * p[17] + Sy[6] * p[20] * Sx[7] * p[23] + Sy[6] * p[20] * Sx[8] * p[26] + Sy[6] * p[20] * Sx[9] * p[29] + Sy[7] * Sx[7] * p[21] * p[21] + Sy[7] * Sx[7] * p[22] * p[22] + Sy[7] * Sx[7] * p[23] * p[23] + Sy[8] * Sx[8] * p[24] * p[24] + Sy[8] * Sx[8] * p[25] * p[25] + Sy[8] * Sx[8] * p[26] * p[26] + Sy[6] * Sx[6] * p[19] * p[19] + Sy[6] * Sx[6] * p[20] * p[20] + Sy[6] * Sx[6] * p[18] * p[18] + Sy[0] * Sx[0] * p[2] * p[2] + Sy[0] * Sx[0] * p[1] * p[1] + Sy[0] * Sx[0] * p[0] * p[0] + Sy[1] * Sx[1] * p[4] * p[4] + Sy[1] * Sx[1] * p[3] * p[3] + Sy[1] * Sx[1] * p[5] * p[5] + Sy[2] * Sx[2] * p[7] * p[7] + Sy[2] * Sx[2] * p[6] * p[6] + Sy[2] * Sx[2] * p[8] * p[8] + Sy[5] * Sx[5] * p[15] * p[15] + Sy[5] * Sx[5] * p[17] * p[17] + Sy[3] * Sx[3] * p[9] * p[9] + Sy[3] * Sx[3] * p[11] * p[11] + Sy[3] * Sx[3] * p[10] * p[10] + Sy[4] * Sx[4] * p[14] * p[14] + Sy[4] * Sx[4] * p[13] * p[13] + Sy[4] * Sx[4] * p[12] * p[12] + Sy[5] * Sx[5] * p[16] * p[16] + Sy[4] * p[14] * Sx[8] * p[26] + Sy[4] * p[14] * Sx[2] * p[8] + Sy[4] * p[14] * Sx[1] * p[5] + Sy[4] * p[14] * Sx[5] * p[17] + Sy[4] * p[14] * Sx[3] * p[11] + Sy[4] * p[13] * Sx[10] * p[31] + Sy[4] * p[13] * Sx[9] * p[28] + Sy[4] * p[14] * Sx[0] * p[2] + Sy[4] * p[13] * Sx[11] * p[34] + Sy[4] * p[13] * Sx[6] * p[19] + Sy[4] * p[13] * Sx[5] * p[16] + Sy[4] * p[13] * Sx[8] * p[25] + Sy[4] * p[13] * Sx[7] * p[22] + Sy[4] * p[13] * Sx[1] * p[4] + Sy[4] * p[13] * Sx[0] * p[1] + Sy[4] * p[13] * Sx[3] * p[10] + Sy[4] * p[13] * Sx[2] * p[7] + Sy[4] * p[12] * Sx[10] * p[30] + Sy[4] * p[12] * Sx[9] * p[27] + Sy[4] * p[12] * Sx[11] * p[33] + Sy[4] * p[12] * Sx[6] * p[18] + Sy[4] * p[12] * Sx[5] * p[15] + Sy[4] * p[12] * Sx[8] * p[24] + Sy[4] * p[12] * Sx[7] * p[21] + Sy[4] * p[12] * Sx[1] * p[3] + Sy[4] * p[12] * Sx[0] * p[0] + Sy[4] * p[12] * Sx[3] * p[9] + Sy[4] * p[12] * Sx[2] * p[6] + Sy[4] * p[14] * Sx[11] * p[35] + Sy[4] * p[14] * Sx[10] * p[32] + Sy[5] * p[17] * Sx[7] * p[23] + Sy[5] * p[17] * Sx[6] * p[20] + Sy[5] * p[17] * Sx[9] * p[29] + Sy[5] * p[17] * Sx[8] * p[26] + Sy[5] * p[17] * Sx[2] * p[8] + Sy[5] * p[17] * Sx[1] * p[5] + Sy[3] * p[9] * Sx[2] * p[6] + Sy[3] * p[9] * Sx[1] * p[3] + Sy[3] * p[9] * Sx[5] * p[15] + Sy[3] * p[9] * Sx[4] * p[12] + Sy[3] * p[9] * Sx[0] * p[0] + Sy[3] * p[11] * Sx[11] * p[35] + Sy[3] * p[11] * Sx[8] * p[26] + Sy[3] * p[11] * Sx[7] * p[23] + Sy[3] * p[11] * Sx[10] * p[32] + Sy[3] * p[11] * Sx[9] * p[29] + Sy[3] * p[11] * Sx[4] * p[14] + Sy[3] * p[11] * Sx[2] * p[8] + Sy[3] * p[11] * Sx[6] * p[20] + Sy[3] * p[11] * Sx[5] * p[17] + Sy[4] * p[14] * Sx[7] * p[23] + Sy[4] * p[14] * Sx[6] * p[20] + Sy[4] * p[14] * Sx[9] * p[29] + Sy[0] * p[2] * Sx[9] * p[29] + Sy[0] * p[2] * Sx[11] * p[35] + Sy[1] * p[3] * Sx[11] * p[33] + Sy[0] * p[2] * Sx[6] * p[20] + Sy[11] * p[33] * Sx[7] * p[21] + Sy[11] * p[33] * Sx[8] * p[24] + Sy[11] * p[33] * Sx[9] * p[27] + Sy[11] * p[33] * Sx[10] * p[30] + Sy[11] * p[34] * Sx[0] * p[1] + Sy[11] * p[34] * Sx[1] * p[4] + Sy[11] * p[34] * Sx[2] * p[7] + Sy[11] * p[34] * Sx[3] * p[10] + Sy[11] * p[34] * Sx[4] * p[13] + Sy[0] * p[2] * Sx[5] * p[17] + Sy[0] * p[2] * Sx[7] * p[23] + Sy[0] * p[2] * Sx[8] * p[26] + Sy[0] * p[2] * Sx[2] * p[8] + Sy[0] * p[2] * Sx[1] * p[5] + Sy[0] * p[2] * Sx[4] * p[14] + Sy[0] * p[1] * Sx[9] * p[28] + Sy[0] * p[2] * Sx[3] * p[11] + Sy[0] * p[2] * Sx[10] * p[32] + Sy[0] * p[1] * Sx[8] * p[25] + Sy[0] * p[1] * Sx[11] * p[34] + Sy[0] * p[1] * Sx[1] * p[4] + Sy[0] * p[1] * Sx[6] * p[19] + Sy[0] * p[1] * Sx[7] * p[22] + Sy[0] * p[1] * Sx[4] * p[13] + Sy[0] * p[1] * Sx[5] * p[16] + Sy[0] * p[1] * Sx[10] * p[31] + Sy[7] * p[21] * Sx[4] * p[12] + Sy[7] * p[21] * Sx[5] * p[15] + Sy[7] * p[21] * Sx[6] * p[18] + Sy[7] * p[21] * Sx[8] * p[24] + Sy[7] * p[21] * Sx[9] * p[27] + Sy[7] * p[21] * Sx[10] * p[30] + Sy[7] * p[21] * Sx[11] * p[33] + Sy[7] * p[22] * Sx[0] * p[1] + Sy[7] * p[22] * Sx[1] * p[4] + Sy[7] * p[22] * Sx[2] * p[7] + Sy[7] * p[22] * Sx[3] * p[10] + Sy[7] * p[22] * Sx[4] * p[13] + Sy[7] * p[22] * Sx[5] * p[16] + Sy[7] * p[22] * Sx[6] * p[19] + Sy[7] * p[22] * Sx[8] * p[25] + Sy[7] * p[22] * Sx[9] * p[28] + Sy[7] * p[22] * Sx[10] * p[31] + Sy[7] * p[21] * Sx[0] * p[0] + Sy[7] * p[21] * Sx[1] * p[3] + Sy[7] * p[21] * Sx[2] * p[6] + Sy[7] * p[21] * Sx[3] * p[9] + Sy[8] * p[24] * Sx[0] * p[0] + Sy[8] * p[24] * Sx[1] * p[3] + Sy[8] * p[24] * Sx[2] * p[6] + Sy[8] * p[24] * Sx[3] * p[9] + Sy[8] * p[24] * Sx[4] * p[12] + Sy[8] * p[24] * Sx[5] * p[15] + Sy[8] * p[24] * Sx[6] * p[18] + Sy[8] * p[24] * Sx[7] * p[21] + Sy[8] * p[24] * Sx[9] * p[27] + Sy[8] * p[24] * Sx[10] * p[30] + Sy[8] * p[24] * Sx[11] * p[33] + Sy[8] * p[25] * Sx[0] * p[1] + Sy[8] * p[25] * Sx[1] * p[4] + Sy[8] * p[25] * Sx[2] * p[7] + Sy[8] * p[25] * Sx[3] * p[10] + Sy[0] * p[0] * Sx[5] * p[15] + Sy[0] * p[0] * Sx[10] * p[30] + Sy[0] * p[0] * Sx[11] * p[33] + Sy[0] * p[0] * Sx[8] * p[24] + Sy[0] * p[0] * Sx[9] * p[27] + Sy[0] * p[1] * Sx[2] * p[7] + Sy[0] * p[1] * Sx[3] * p[10] + Sy[0] * p[0] * Sx[6] * p[18] + Sy[0] * p[0] * Sx[7] * p[21] + Sy[0] * p[0] * Sx[4] * p[12] + Sy[0] * p[0] * Sx[1] * p[3] + Sy[0] * p[0] * Sx[2] * p[6] + Sy[0] * p[0] * Sx[3] * p[9] + Sy[1] * p[4] * Sx[2] * p[7] + Sy[1] * p[4] * Sx[0] * p[1] + Sy[1] * p[3] * Sx[8] * p[24] + Sy[1] * p[3] * Sx[7] * p[21] + Sy[1] * p[3] * Sx[10] * p[30] + Sy[11] * Sx[11] * p[33] * p[33] + Sy[11] * Sx[11] * p[34] * p[34] + Sy[11] * Sx[11] * p[35] * p[35] + Sy[1] * p[3] * Sx[9] * p[27] + Sy[1] * p[3] * Sx[6] * p[18] + Sy[1] * p[3] * Sx[3] * p[9] + Sy[1] * p[3] * Sx[4] * p[12] + Sy[1] * p[3] * Sx[5] * p[15] + Sy[10] * Sx[10] * p[30] * p[30] + Sy[10] * Sx[10] * p[31] * p[31] + Sy[10] * Sx[10] * p[32] * p[32] + Sy[2] * p[6] * Sx[4] * p[12] + Sy[2] * p[6] * Sx[5] * p[15] + Sy[2] * p[6] * Sx[1] * p[3] + Sy[2] * p[6] * Sx[3] * p[9] + Sy[2] * p[6] * Sx[8] * p[24] + Sy[2] * p[6] * Sx[9] * p[27] + Sy[2] * p[6] * Sx[6] * p[18] + Sy[2] * p[6] * Sx[7] * p[21] + Sy[1] * p[4] * Sx[5] * p[16] + Sy[1] * p[4] * Sx[6] * p[19] + Sy[1] * p[4] * Sx[3] * p[10] + Sy[1] * p[4] * Sx[4] * p[13] + Sy[1] * p[4] * Sx[9] * p[28] + Sy[1] * p[4] * Sx[10] * p[31] + Sy[1] * p[4] * Sx[7] * p[22] + Sy[1] * p[4] * Sx[8] * p[25] + Sy[1] * p[5] * Sx[2] * p[8] + Sy[1] * p[5] * Sx[3] * p[11] + Sy[1] * p[4] * Sx[11] * p[34] + Sy[1] * p[5] * Sx[0] * p[2] + Sy[1] * p[5] * Sx[6] * p[20] + Sy[1] * p[5] * Sx[7] * p[23] + Sy[1] * p[5] * Sx[4] * p[14] + Sy[1] * p[5] * Sx[5] * p[17] + Sy[1] * p[5] * Sx[10] * p[32] + Sy[1] * p[5] * Sx[11] * p[35] + Sy[1] * p[5] * Sx[8] * p[26] + Sy[1] * p[5] * Sx[9] * p[29] + Sy[1] * p[3] * Sx[0] * p[0] + Sy[1] * p[3] * Sx[2] * p[6] + Sy[2] * p[6] * Sx[0] * p[0] + Sy[2] * p[8] * Sx[11] * p[35] + Sy[2] * p[8] * Sx[8] * p[26] + Sy[2] * p[8] * Sx[9] * p[29] + Sy[9] * Sx[9] * p[27] * p[27] + Sy[9] * Sx[9] * p[28] * p[28] + Sy[9] * Sx[9] * p[29] * p[29] + Sy[10] * p[32] * Sx[6] * p[20] + Sy[10] * p[32] * Sx[7] * p[23] + Sy[10] * p[32] * Sx[8] * p[26] + Sy[10] * p[32] * Sx[9] * p[29] + Sy[10] * p[32] * Sx[11] * p[35] + Sy[10] * p[30] * Sx[0] * p[0] + Sy[10] * p[30] * Sx[1] * p[3] + Sy[10] * p[30] * Sx[2] * p[6] + Sy[10] * p[30] * Sx[3] * p[9] + Sy[10] * p[30] * Sx[4] * p[12] + Sy[10] * p[30] * Sx[5] * p[15] + Sy[10] * p[30] * Sx[6] * p[18] + Sy[11] * p[34] * Sx[5] * p[16] + Sy[11] * p[34] * Sx[6] * p[19] + Sy[11] * p[34] * Sx[7] * p[22] + Sy[11] * p[34] * Sx[8] * p[25] + Sy[11] * p[34] * Sx[9] * p[28] + Sy[11] * p[34] * Sx[10] * p[31] + Sy[11] * p[35] * Sx[0] * p[2] + Sy[11] * p[35] * Sx[1] * p[5] + Sy[11] * p[35] * Sx[2] * p[8] + Sy[11] * p[35] * Sx[3] * p[11] + Sy[11] * p[35] * Sx[4] * p[14] + Sy[11] * p[35] * Sx[5] * p[17] + Sy[11] * p[35] * Sx[6] * p[20] + Sy[11] * p[35] * Sx[7] * p[23] + Sy[11] * p[35] * Sx[8] * p[26] + Sy[11] * p[35] * Sx[9] * p[29] + Sy[11] * p[35] * Sx[10] * p[32] + Sy[11] * p[33] * Sx[0] * p[0] + Sy[11] * p[33] * Sx[1] * p[3] + Sy[11] * p[33] * Sx[2] * p[6] + Sy[11] * p[33] * Sx[3] * p[9] + Sy[11] * p[33] * Sx[4] * p[12] + Sy[11] * p[33] * Sx[5] * p[15] + Sy[11] * p[33] * Sx[6] * p[18] + Sy[2] * p[8] * Sx[10] * p[32] + Sy[3] * p[9] * Sx[10] * p[30] + Sy[3] * p[9] * Sx[11] * p[33] + Sy[3] * p[10] * Sx[4] * p[13] + Sy[3] * p[10] * Sx[5] * p[16] + Sy[3] * p[10] * Sx[1] * p[4] + Sy[3] * p[10] * Sx[2] * p[7] + Sy[3] * p[10] * Sx[8] * p[25] + Sy[3] * p[10] * Sx[9] * p[28] + Sy[3] * p[10] * Sx[6] * p[19] + Sy[3] * p[10] * Sx[7] * p[22] + Sy[3] * p[11] * Sx[0] * p[2] + Sy[3] * p[11] * Sx[1] * p[5] + Sy[3] * p[10] * Sx[10] * p[31] + Sy[3] * p[10] * Sx[11] * p[34] + Sy[2] * p[8] * Sx[0] * p[2] + Sy[2] * p[7] * Sx[0] * p[1] + Sy[2] * p[6] * Sx[10] * p[30] + Sy[2] * p[6] * Sx[11] * p[33] + Sy[2] * p[7] * Sx[4] * p[13] + Sy[2] * p[7] * Sx[5] * p[16] + Sy[2] * p[7] * Sx[1] * p[4] + Sy[2] * p[7] * Sx[3] * p[10] + Sy[2] * p[7] * Sx[8] * p[25] + Sy[2] * p[7] * Sx[9] * p[28] + Sy[2] * p[7] * Sx[6] * p[19] + Sy[2] * p[7] * Sx[7] * p[22] + Sy[2] * p[8] * Sx[1] * p[5] + Sy[2] * p[8] * Sx[3] * p[11] + Sy[2] * p[7] * Sx[10] * p[31] + Sy[2] * p[7] * Sx[11] * p[34] + Sy[2] * p[8] * Sx[6] * p[20] + Sy[2] * p[8] * Sx[7] * p[23] + Sy[2] * p[8] * Sx[4] * p[14] + Sy[2] * p[8] * Sx[5] * p[17] + Sy[9] * p[28] * Sx[7] * p[22] + Sy[9] * p[28] * Sx[8] * p[25] + Sy[9] * p[28] * Sx[10] * p[31] + Sy[9] * p[28] * Sx[11] * p[34] + Sy[9] * p[29] * Sx[0] * p[2] + Sy[9] * p[29] * Sx[1] * p[5] + Sy[9] * p[29] * Sx[2] * p[8] + Sy[9] * p[29] * Sx[3] * p[11] + Sy[9] * p[29] * Sx[4] * p[14] + Sy[9] * p[29] * Sx[5] * p[17] + Sy[9] * p[29] * Sx[6] * p[20] + Sy[9] * p[29] * Sx[7] * p[23] + Sy[9] * p[29] * Sx[8] * p[26] + Sy[9] * p[29] * Sx[10] * p[32] + Sy[9] * p[29] * Sx[11] * p[35] + Sy[10] * p[30] * Sx[7] * p[21] + Sy[10] * p[30] * Sx[8] * p[24] + Sy[10] * p[30] * Sx[9] * p[27] + Sy[10] * p[30] * Sx[11] * p[33] + Sy[10] * p[31] * Sx[0] * p[1] + Sy[10] * p[31] * Sx[1] * p[4] + Sy[10] * p[31] * Sx[2] * p[7] + Sy[10] * p[31] * Sx[3] * p[10] + Sy[10] * p[31] * Sx[4] * p[13] + Sy[10] * p[31] * Sx[5] * p[16] + Sy[10] * p[31] * Sx[6] * p[19] + Sy[10] * p[31] * Sx[7] * p[22] + Sy[10] * p[31] * Sx[8] * p[25] + Sy[10] * p[31] * Sx[9] * p[28] + Sy[10] * p[31] * Sx[11] * p[34] + Sy[10] * p[32] * Sx[0] * p[2] + Sy[10] * p[32] * Sx[1] * p[5] + Sy[10] * p[32] * Sx[2] * p[8] + Sy[10] * p[32] * Sx[3] * p[11] + Sy[10] * p[32] * Sx[4] * p[14] + Sy[10] * p[32] * Sx[5] * p[17] + Sy[6] * p[20] * Sx[10] * p[32] + Sy[6] * p[20] * Sx[11] * p[35] + Sy[6] * p[19] * Sx[9] * p[28] + Sy[6] * p[19] * Sx[8] * p[25] + Sy[6] * p[19] * Sx[11] * p[34] + Sy[6] * p[19] * Sx[10] * p[31] + Sy[6] * p[19] * Sx[4] * p[13] + Sy[6] * p[19] * Sx[3] * p[10] + Sy[6] * p[19] * Sx[7] * p[22] + Sy[6] * p[19] * Sx[5] * p[16] + Sy[6] * p[19] * Sx[0] * p[1] + Sy[6] * p[19] * Sx[2] * p[7] + Sy[6] * p[19] * Sx[1] * p[4] + Sy[6] * p[18] * Sx[9] * p[27] + Sy[6] * p[18] * Sx[8] * p[24] + Sy[6] * p[18] * Sx[11] * p[33] + Sy[6] * p[18] * Sx[10] * p[30] + Sy[6] * p[18] * Sx[4] * p[12] + Sy[6] * p[18] * Sx[3] * p[9] + Sy[6] * p[18] * Sx[7] * p[21] + Sy[6] * p[18] * Sx[5] * p[15] + Sy[6] * p[18] * Sx[0] * p[0] + Sy[6] * p[18] * Sx[2] * p[6] + Sy[6] * p[18] * Sx[1] * p[3] + Sy[7] * p[22] * Sx[11] * p[34] + Sy[7] * p[23] * Sx[0] * p[2] + Sy[7] * p[23] * Sx[1] * p[5] + Sy[7] * p[23] * Sx[2] * p[8] + Sy[7] * p[23] * Sx[3] * p[11] + Sy[7] * p[23] * Sx[4] * p[14] + Sy[7] * p[23] * Sx[5] * p[17] + Sy[7] * p[23] * Sx[6] * p[20] + Sy[7] * p[23] * Sx[8] * p[26] + Sy[7] * p[23] * Sx[9] * p[29] + Sy[7] * p[23] * Sx[10] * p[32] + Sy[7] * p[23] * Sx[11] * p[35] + Sy[3] * p[10] * Sx[0] * p[1] + Sy[3] * p[9] * Sx[7] * p[21] + Sy[3] * p[9] * Sx[6] * p[18] + Sy[3] * p[9] * Sx[9] * p[27] + Sy[8] * p[25] * Sx[4] * p[13] + Sy[8] * p[25] * Sx[5] * p[16] + Sy[8] * p[25] * Sx[6] * p[19] + Sy[8] * p[25] * Sx[7] * p[22] + Sy[8] * p[25] * Sx[9] * p[28] + Sy[8] * p[25] * Sx[10] * p[31] + Sy[8] * p[25] * Sx[11] * p[34] + Sy[8] * p[26] * Sx[0] * p[2] + Sy[8] * p[26] * Sx[1] * p[5] + Sy[8] * p[26] * Sx[2] * p[8] + Sy[8] * p[26] * Sx[3] * p[11] + Sy[8] * p[26] * Sx[4] * p[14] + Sy[8] * p[26] * Sx[5] * p[17] + Sy[8] * p[26] * Sx[6] * p[20] + Sy[8] * p[26] * Sx[7] * p[23] + Sy[8] * p[26] * Sx[9] * p[29] + Sy[8] * p[26] * Sx[10] * p[32] + Sy[8] * p[26] * Sx[11] * p[35] + Sy[9] * p[28] * Sx[2] * p[7] + Sy[9] * p[28] * Sx[3] * p[10] + Sy[9] * p[27] * Sx[0] * p[0] + Sy[9] * p[27] * Sx[1] * p[3] + Sy[9] * p[27] * Sx[2] * p[6] + Sy[9] * p[27] * Sx[3] * p[9] + Sy[9] * p[27] * Sx[4] * p[12] + Sy[9] * p[27] * Sx[5] * p[15] + Sy[9] * p[27] * Sx[6] * p[18] + Sy[9] * p[27] * Sx[7] * p[21] + Sy[9] * p[27] * Sx[8] * p[24] + Sy[9] * p[27] * Sx[10] * p[30] + Sy[9] * p[27] * Sx[11] * p[33] + Sy[9] * p[28] * Sx[0] * p[1] + Sy[9] * p[28] * Sx[1] * p[4] + Sy[9] * p[28] * Sx[4] * p[13] + Sy[9] * p[28] * Sx[5] * p[16] + Sy[9] * p[28] * Sx[6] * p[19] + Sy[3] * p[9] * Sx[8] * p[24];
+}
+
 
 __device__ void curvatDerivUpdate1(double* p, double3 k, double3 f, double3 nn, double nf, double g, double3* ke, double3* fe, double* Sx, double* Sy, double* Sxx, double* Syy)
 {
@@ -614,11 +703,51 @@ __global__ void curvatDerivUpdatePlate(double ptj, double ptk, double* p, double
   curvatDerivUpdate1(p,k[index],f,nn,nf,g,ke,fe,Sx,Sy,Sxx,Syy);
 }
 
-__global__ void addInternalForceComponentPlate(double* fint, double3* strainD, double3* strainVec, double4* materials, double3* geometries, double factor, int numBodies, int numBeams, int numPlates, int check)
+__global__ void calculateInitialCurvaturePlate(double ptj, double ptk, double* p, int quadIndex, int numQuad, double3* curvatVec0, double* Sx, double* Sy, double* Sxx, double* Syy, double3* geometry, int numBodies, int numBeams, int numPlates)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPlates);
 
-  double3 strain = strainVec[index];
+  double a = geometry[numBodies+numBeams+index].x;
+  double b = geometry[numBodies+numBeams+index].y;
+
+  double x = .5*a*(1.+ptj);
+  double y = .5*b*(1.+ptk);
+
+  p = &p[3*numBodies+12*numBeams+36*index];
+  Sx = &Sx[12*index];
+  Sy = &Sy[12*index];
+  Sxx = &Sxx[12*index];
+  Syy = &Syy[12*index];
+
+  double3 f;
+  double3 nn;
+  ancf_shape_derivative_x(Sx,x,y,a,b);
+  ancf_shape_derivative_y(Sy,x,y,a,b);
+  ancf_shape_derivative2_x(Sxx,x,y,a,b);
+  ancf_shape_derivative2_y(Syy,x,y,a,b);
+
+  f.x = (Sx[0] * p[1] + Sx[1] * p[4] + Sx[2] * p[7] + Sx[3] * p[10] + Sx[4] * p[13] + Sx[5] * p[16] + Sx[6] * p[19] + Sx[7] * p[22] + Sx[8] * p[25] + Sx[9] * p[28] + Sx[10] * p[31] + Sx[11] * p[34]) * (Sy[0] * p[2] + Sy[1] * p[5] + Sy[2] * p[8] + Sy[3] * p[11] + Sy[4] * p[14] + Sy[5] * p[17] + Sy[6] * p[20] + Sy[7] * p[23] + Sy[8] * p[26] + Sy[9] * p[29] + Sy[10] * p[32] + Sy[11] * p[35]) - (Sx[0] * p[2] + Sx[1] * p[5] + Sx[2] * p[8] + Sx[3] * p[11] + Sx[4] * p[14] + Sx[5] * p[17] + Sx[6] * p[20] + Sx[7] * p[23] + Sx[8] * p[26] + Sx[9] * p[29] + Sx[10] * p[32] + Sx[11] * p[35]) * (Sy[0] * p[1] + Sy[1] * p[4] + Sy[2] * p[7] + Sy[3] * p[10] + Sy[4] * p[13] + Sy[5] * p[16] + Sy[6] * p[19] + Sy[7] * p[22] + Sy[8] * p[25] + Sy[9] * p[28] + Sy[10] * p[31] + Sy[11] * p[34]);
+  f.y = (Sx[0] * p[2] + Sx[1] * p[5] + Sx[2] * p[8] + Sx[3] * p[11] + Sx[4] * p[14] + Sx[5] * p[17] + Sx[6] * p[20] + Sx[7] * p[23] + Sx[8] * p[26] + Sx[9] * p[29] + Sx[10] * p[32] + Sx[11] * p[35]) * (Sy[0] * p[0] + Sy[1] * p[3] + Sy[2] * p[6] + Sy[3] * p[9] + Sy[4] * p[12] + Sy[5] * p[15] + Sy[6] * p[18] + Sy[7] * p[21] + Sy[8] * p[24] + Sy[9] * p[27] + Sy[10] * p[30] + Sy[11] * p[33]) - (Sx[0] * p[0] + Sx[1] * p[3] + Sx[2] * p[6] + Sx[3] * p[9] + Sx[4] * p[12] + Sx[5] * p[15] + Sx[6] * p[18] + Sx[7] * p[21] + Sx[8] * p[24] + Sx[9] * p[27] + Sx[10] * p[30] + Sx[11] * p[33]) * (Sy[0] * p[2] + Sy[1] * p[5] + Sy[2] * p[8] + Sy[3] * p[11] + Sy[4] * p[14] + Sy[5] * p[17] + Sy[6] * p[20] + Sy[7] * p[23] + Sy[8] * p[26] + Sy[9] * p[29] + Sy[10] * p[32] + Sy[11] * p[35]);
+  f.z = (Sx[0] * p[0] + Sx[1] * p[3] + Sx[2] * p[6] + Sx[3] * p[9] + Sx[4] * p[12] + Sx[5] * p[15] + Sx[6] * p[18] + Sx[7] * p[21] + Sx[8] * p[24] + Sx[9] * p[27] + Sx[10] * p[30] + Sx[11] * p[33]) * (Sy[0] * p[1] + Sy[1] * p[4] + Sy[2] * p[7] + Sy[3] * p[10] + Sy[4] * p[13] + Sy[5] * p[16] + Sy[6] * p[19] + Sy[7] * p[22] + Sy[8] * p[25] + Sy[9] * p[28] + Sy[10] * p[31] + Sy[11] * p[34]) - (Sx[0] * p[1] + Sx[1] * p[4] + Sx[2] * p[7] + Sx[3] * p[10] + Sx[4] * p[13] + Sx[5] * p[16] + Sx[6] * p[19] + Sx[7] * p[22] + Sx[8] * p[25] + Sx[9] * p[28] + Sx[10] * p[31] + Sx[11] * p[34]) * (Sy[0] * p[0] + Sy[1] * p[3] + Sy[2] * p[6] + Sy[3] * p[9] + Sy[4] * p[12] + Sy[5] * p[15] + Sy[6] * p[18] + Sy[7] * p[21] + Sy[8] * p[24] + Sy[9] * p[27] + Sy[10] * p[30] + Sy[11] * p[33]);
+
+  double nf = sqrt(f.x*f.x+f.y*f.y+f.z*f.z);
+  double g = nf*nf*nf;
+
+  nn.x = f.x/g;
+  nn.y = f.y/g;
+  nn.z = f.z/g;
+
+  curvatVec0[numQuad*index+quadIndex].x = (p[0] * Sxx[0] + p[3] * Sxx[1] + p[6] * Sxx[2] + p[9] * Sxx[3] + p[12] * Sxx[4] + p[15] * Sxx[5] + p[18] * Sxx[6] + p[21] * Sxx[7] + p[24] * Sxx[8] + p[27] * Sxx[9] + p[30] * Sxx[10] + p[33] * Sxx[11]) * nn.x + (p[1] * Sxx[0] + p[4] * Sxx[1] + p[7] * Sxx[2] + p[10] * Sxx[3] + p[13] * Sxx[4] + p[16] * Sxx[5] + p[19] * Sxx[6] + p[22] * Sxx[7] + p[25] * Sxx[8] + p[28] * Sxx[9] + p[31] * Sxx[10] + p[34] * Sxx[11]) * nn.y + (p[2] * Sxx[0] + p[5] * Sxx[1] + p[8] * Sxx[2] + p[11] * Sxx[3] + p[14] * Sxx[4] + p[17] * Sxx[5] + p[20] * Sxx[6] + p[23] * Sxx[7] + p[26] * Sxx[8] + p[29] * Sxx[9] + p[32] * Sxx[10] + p[35] * Sxx[11]) * nn.z;
+  curvatVec0[numQuad*index+quadIndex].y = nn.x * (p[0] * Syy[0] + p[3] * Syy[1] + p[6] * Syy[2] + p[9] * Syy[3] + p[12] * Syy[4] + p[15] * Syy[5] + p[18] * Syy[6] + p[21] * Syy[7] + p[24] * Syy[8] + p[27] * Syy[9] + p[30] * Syy[10] + p[33] * Syy[11]) + nn.y * (p[1] * Syy[0] + p[4] * Syy[1] + p[7] * Syy[2] + p[10] * Syy[3] + p[13] * Syy[4] + p[16] * Syy[5] + p[19] * Syy[6] + p[22] * Syy[7] + p[25] * Syy[8] + p[28] * Syy[9] + p[31] * Syy[10] + p[34] * Syy[11]) + nn.z * (p[2] * Syy[0] + p[5] * Syy[1] + p[8] * Syy[2] + p[11] * Syy[3] + p[14] * Syy[4] + p[17] * Syy[5] + p[20] * Syy[6] + p[23] * Syy[7] + p[26] * Syy[8] + p[29] * Syy[9] + p[32] * Syy[10] + p[35] * Syy[11]);
+  curvatVec0[numQuad*index+quadIndex].z = nn.x * (2 * p[0] * Syy[0] + 2 * p[3] * Syy[1] + 2 * p[6] * Syy[2] + 2 * p[9] * Syy[3] + 2 * p[12] * Syy[4] + 2 * p[15] * Syy[5] + 2 * p[18] * Syy[6] + 2 * p[21] * Syy[7] + 2 * p[24] * Syy[8] + 2 * p[27] * Syy[9] + 2 * p[30] * Syy[10] + 2 * p[33] * Syy[11]) + nn.y * (2 * p[1] * Syy[0] + 2 * p[4] * Syy[1] + 2 * p[7] * Syy[2] + 2 * p[10] * Syy[3] + 2 * p[13] * Syy[4] + 2 * p[16] * Syy[5] + 2 * p[19] * Syy[6] + 2 * p[22] * Syy[7] + 2 * p[25] * Syy[8] + 2 * p[28] * Syy[9] + 2 * p[31] * Syy[10] + 2 * p[34] * Syy[11]) + nn.z * (2 * p[2] * Syy[0] + 2 * p[5] * Syy[1] + 2 * p[8] * Syy[2] + 2 * p[11] * Syy[3] + 2 * p[14] * Syy[4] + 2 * p[17] * Syy[5] + 2 * p[20] * Syy[6] + 2 * p[23] * Syy[7] + 2 * p[26] * Syy[8] + 2 * p[29] * Syy[9] + 2 * p[32] * Syy[10] + 2 * p[35] * Syy[11]);
+}
+
+
+__global__ void addInternalForceComponentPlate(double* fint, double3* strainD, double3* strainVec, int quadIndex, int numQuad, double3* strainVec0, double4* materials, double3* geometries, double factor, int numBodies, int numBeams, int numPlates, int check)
+{
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPlates);
+
+  double3 strain = strainVec[index]-strainVec0[numQuad*index+quadIndex];
   strainD = &strainD[36*index];
   double4 material = materials[index];
   double3 geometry = geometries[numBodies+numBeams+index];
@@ -679,13 +808,13 @@ int System::updateElasticForces()
     for(int j=0;j<pt5.size();j++)
     {
       strainDerivativeUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt5[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt5.size(),CASTD1(strainBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
     }
 
     for(int j=0;j<pt3.size();j++)
     {
       curvatDerivUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt3[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt3.size(),CASTD1(curvatureBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
     }
   }
 
@@ -695,7 +824,7 @@ int System::updateElasticForces()
       for(int k=0;k<wt6.size();k++)
       {
         strainDerivativeUpdatePlate<<<BLOCKS(plates.size()),THREADS>>>(pt6[j],pt6[k],CASTD1(p_d),CASTD3(strainPlate_d),CASTD3(strainDerivativePlate_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
-        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt6[j]*wt6[k],bodies.size(),beams.size(),plates.size(),0);
+        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainPlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt6[j]*wt6[k],bodies.size(),beams.size(),plates.size(),0);
       }
     }
 
@@ -704,7 +833,41 @@ int System::updateElasticForces()
       for(int k=0;k<wt5.size();k++)
       {
         curvatDerivUpdatePlate<<<BLOCKS(plates.size()),THREADS>>>(pt5[j],pt5[k],CASTD1(p_d),CASTD3(strainPlate_d),CASTD3(strainDerivativePlate_d),CASTD3(curvatureDerivativePlate_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD1(Sxx_d),CASTD1(Syy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
-        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt5[j]*wt5[k],bodies.size(),beams.size(),plates.size(),1);
+        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvaturePlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt5[j]*wt5[k],bodies.size(),beams.size(),plates.size(),1);
+      }
+    }
+  }
+
+  return 0;
+}
+
+int System::calculateInitialStrainAndCurvature() {
+  if(beams.size()) {
+    for(int j=0;j<pt5.size();j++)
+    {
+      calculateInitialStrainBeam<<<BLOCKS(beams.size()),THREADS>>>(pt5[j],CASTD1(p_d),j,pt5.size(),CASTD1(strainBeam0_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
+    }
+
+    for(int j=0;j<pt3.size();j++)
+    {
+      calculateInitialCurvatureBeam<<<BLOCKS(beams.size()),THREADS>>>(pt3[j],CASTD1(p_d),j,pt3.size(),CASTD1(curvatureBeam0_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
+    }
+  }
+
+  if(plates.size()) {
+    for(int j=0;j<pt6.size();j++)
+    {
+      for(int k=0;k<wt6.size();k++)
+      {
+        calculateInitialStrainPlate<<<BLOCKS(plates.size()),THREADS>>>(pt6[j],pt6[k],CASTD1(p_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainPlate0_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
+      }
+    }
+
+    for(int j=0;j<pt5.size();j++)
+    {
+      for(int k=0;k<wt5.size();k++)
+      {
+        calculateInitialCurvaturePlate<<<BLOCKS(plates.size()),THREADS>>>(pt5[j],pt5[k],CASTD1(p_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvaturePlate0_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD1(Sxx_d),CASTD1(Syy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
       }
     }
   }

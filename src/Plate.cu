@@ -178,9 +178,12 @@ int Plate::addPlate(int j)
     sys->k_h.push_back(0);
     sys->r_h.push_back(0);
     sys->strainDerivativePlate_h.push_back(make_double3(0,0,0));
-    sys->strainPlate_h.push_back(make_double3(0,0,0));
     sys->curvatureDerivativePlate_h.push_back(make_double3(0,0,0));
   }
+
+  sys->strainPlate_h.push_back(make_double3(0,0,0));
+  for(int k=0;k<sys->wt6.size()*sys->pt6.size();k++) sys->strainPlate0_h.push_back(make_double3(0,0,0));
+  for(int k=0;k<sys->wt5.size()*sys->pt5.size();k++) sys->curvaturePlate0_h.push_back(make_double3(0,0,0));
 
   for(int i=0;i<12;i++) {
     sys->Sx_h.push_back(0);

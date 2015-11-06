@@ -177,6 +177,10 @@ int System::initializeDevice() {
   Sxx_d = Sxx_h;
   Sy_d = Sy_h;
   Syy_d = Syy_h;
+  strainPlate0_d = strainPlate0_h;
+  curvaturePlate0_d = curvaturePlate0_h;
+  strainBeam0_d = strainBeam0_h;
+  curvatureBeam0_d = curvatureBeam0_h;
 
   thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
   thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
@@ -216,6 +220,9 @@ int System::initializeDevice() {
 
   mass = DeviceView(a_d.size(), a_d.size(), mass_d.size(), row_indices, column_indices, values);
   // end create mass matrix
+
+  // calculate initialize strains and curvatures
+  calculateInitialStrainAndCurvature();
 
   return 0;
 }

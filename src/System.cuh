@@ -154,6 +154,18 @@ public:
   thrust::host_vector<double3> curvatureDerivativePlate_h;
   thrust::device_vector<double3> curvatureDerivativePlate_d;
 
+  thrust::host_vector<double3> strainPlate0_h;
+  thrust::device_vector<double3> strainPlate0_d;
+
+  thrust::host_vector<double3> curvaturePlate0_h;
+  thrust::device_vector<double3> curvaturePlate0_d;
+
+  thrust::host_vector<double> strainBeam0_h;
+  thrust::device_vector<double> strainBeam0_d;
+
+  thrust::host_vector<double> curvatureBeam0_h;
+  thrust::device_vector<double> curvatureBeam0_d;
+
   thrust::host_vector<double> Sx_h;
   thrust::device_vector<double> Sx_d;
   thrust::host_vector<double> Sxx_h;
@@ -204,6 +216,7 @@ public:
 	int     exportMatrices(string directory);
 	double4 getCCPViolation();
 	int     updateElasticForces();
+	int     calculateInitialStrainAndCurvature();
 	int     addBilateralConstraintDOF(int DOFA, int DOFB);
 };
 
