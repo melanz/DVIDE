@@ -9,13 +9,11 @@
 #define BODY_CUH_
 
 #include "include.cuh"
+#include "PhysicsItem.cuh"
 
-class Body {
+class Body : public PhysicsItem {
   friend class System;
 private:
-  uint identifier;
-	uint index;
-	int numDOF;
 
 	double3 pos;
 	double3 vel;
@@ -25,7 +23,7 @@ private:
 
 	bool fixed;
 	double3 contactGeometry;
-	int collisionFamily;
+
 public:
 	Body() {
 	  numDOF = 3;
@@ -75,7 +73,6 @@ public:
   {
     return vel;
   }
-
   double getMass()
   {
     return mass;
@@ -84,24 +81,6 @@ public:
   {
     this->mass = mass;
   }
-
-  uint getIndex()
-  {
-    return index;
-  }
-
-	void setIndex(uint index) {
-		this->index = index;
-	}
-
-	void setIdentifier(uint identifier) {
-		this->identifier = identifier;
-	}
-
-  uint getIdentifier() {
-    return identifier;
-  }
-
   void setBodyFixed(bool fixed)
   {
     this->fixed = fixed;
@@ -118,16 +97,6 @@ public:
   {
     this->vel = velocity;
   }
-
-  void setCollisionFamily(int collisionFamily)
-  {
-    this->collisionFamily = collisionFamily;
-  }
-
-  int getCollisionFamily()
-  {
-    return collisionFamily;
-  }
 };
 
-#endif /* ELEMENT_CUH_ */
+#endif /* BODY_CUH_ */

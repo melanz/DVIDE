@@ -14,6 +14,7 @@
 #include "Plate.cuh"
 #include "CollisionDetector.cuh"
 #include "Solver.cuh"
+#include "PhysicsItem.cuh"
 
 #include <stdio.h>
 
@@ -30,6 +31,7 @@ class CollisionDetector;
 class Solver;
 class Beam;
 class Plate;
+class PhysicsItem;
 class System {
 public:
   // variables
@@ -218,6 +220,7 @@ public:
 	int     updateElasticForces();
 	int     calculateInitialStrainAndCurvature();
 	int     addBilateralConstraintDOF(int DOFA, int DOFB);
+	int     addBilateralConstraintFixed(PhysicsItem* itemA, int nodeA, PhysicsItem* itemB, int nodeB);
 };
 
 #endif /* SYSTEM_CUH_ */

@@ -18,7 +18,6 @@ class System;
 class PGJ :public Solver {
   friend class System;
 private:
-  System* system;
 
   // PGJ Solver
   DeviceValueArrayView gammaHat;

@@ -10,14 +10,12 @@
 
 #include "include.cuh"
 #include "System.cuh"
+#include "PhysicsItem.cuh"
 
 class System;
-class Beam {
+class Beam : public PhysicsItem {
   friend class System;
 private:
-  uint identifier;
-	uint index;
-	int numDOF;
 
   double3 p_n0;
   double3 p_dn0;
@@ -38,7 +36,6 @@ private:
 	double elasticModulus;
 
 	double3 contactGeometry;
-	int collisionFamily;
 	System* sys;
 
 public:
@@ -72,7 +69,7 @@ public:
 	}
 
 	Beam(double3 node0, double3 node1) {
-    numDOF = 3;
+    numDOF = 12;
     identifier = 0;
     index = 0;
     sys = 0;
@@ -103,7 +100,7 @@ public:
   }
 
   Beam(double3 node0, double3 dnode0, double3 node1, double3 dnode1, double length) {
-    numDOF = 3;
+    numDOF = 12;
     identifier = 0;
     index = 0;
     sys = 0;
@@ -167,19 +164,6 @@ public:
     this->elasticModulus = elasticModulus;
   }
 
-  uint getIndex()
-  {
-    return index;
-  }
-
-	void setIndex(uint index) {
-		this->index = index;
-	}
-
-	void setIdentifier(uint identifier) {
-		this->identifier = identifier;
-	}
-
   double3 getGeometry()
   {
     return contactGeometry;
@@ -188,17 +172,6 @@ public:
   {
     this->contactGeometry.x = radius;
   }
-
-  void setCollisionFamily(int collisionFamily)
-  {
-    this->collisionFamily = collisionFamily;
-  }
-
-  int getCollisionFamily()
-  {
-    return collisionFamily;
-  }
-
   double3 transformNodalToCartesian(double xi);
   int addBeam(int j);
 };

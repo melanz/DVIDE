@@ -10,14 +10,12 @@
 
 #include "include.cuh"
 #include "System.cuh"
+#include "PhysicsItem.cuh"
 
 class System;
-class Plate {
+class Plate : public PhysicsItem {
   friend class System;
 private:
-  uint identifier;
-	uint index;
-	int numDOF;
 	bool isCurved;
 
   double3 p_n0;
@@ -74,7 +72,6 @@ private:
 	double thickness;
 
 	double3 contactGeometry;
-	int collisionFamily;
 	System* sys;
 
 public:
@@ -280,15 +277,6 @@ public:
     this->thickness = thickness;
   }
 
-  uint getIndex()
-  {
-    return index;
-  }
-
-	void setIndex(uint index) {
-		this->index = index;
-	}
-
   bool getCurved() {
     return isCurved;
   }
@@ -296,10 +284,6 @@ public:
   void setCurved(bool isCurved) {
     this->isCurved = isCurved;
   }
-
-	void setIdentifier(uint identifier) {
-		this->identifier = identifier;
-	}
 
   double3 getGeometry()
   {
@@ -316,16 +300,6 @@ public:
   void setNumContactPoints(int numPoints)
   {
     this->contactGeometry.z = (double)numPoints;
-  }
-
-  void setCollisionFamily(int collisionFamily)
-  {
-    this->collisionFamily = collisionFamily;
-  }
-
-  int getCollisionFamily()
-  {
-    return collisionFamily;
   }
 
   double3 transformNodalToCartesian(double xi, double eta);

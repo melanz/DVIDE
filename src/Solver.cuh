@@ -16,7 +16,7 @@ typedef typename cusp::array1d_view<thrust::device_ptr<double> > DeviceValueArra
 class System;
 class Solver {
   friend class System;
-private:
+protected:
   System* system;
 
 public:

@@ -91,6 +91,7 @@ SET(IBEAMS_SOURCES
 	src/System.cuh
 	src/System.cu
 	src/SystemElastic.cu
+	src/PhysicsItem.cuh
 	src/Body.cuh
 	src/Beam.cuh
 	src/Beam.cu

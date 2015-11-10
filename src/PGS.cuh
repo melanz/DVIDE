@@ -18,7 +18,6 @@ class System;
 class PGS :public Solver {
   friend class System;
 private:
-  System* system;
 
   // PGS Solver
   DeviceValueArrayView gammaTmp;

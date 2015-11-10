@@ -41,6 +41,19 @@ System::System()
   pt5.push_back(0.);
   pt5.push_back((sqrt(5. - 2. * sqrt(10. / 7.))) / 3.);
   pt5.push_back((sqrt(5. + 2. * sqrt(10. / 7.))) / 3.);
+
+  wt6.push_back(0.17132449);
+  wt6.push_back(0.36076157);
+  wt6.push_back(0.46791393);
+  wt6.push_back(0.46791393);
+  wt6.push_back(0.36076157);
+  wt6.push_back(0.17132449);
+  pt6.push_back(-0.93246951);
+  pt6.push_back(-0.66120939);
+  pt6.push_back(-0.23861918);
+  pt6.push_back(0.23861918);
+  pt6.push_back(0.66120939);
+  pt6.push_back(0.93246951);
 }
 
 System::System(int solverType)
@@ -1256,11 +1269,11 @@ int System::exportSystem(string filename) {
     << plates[i]->getThickness() << ", ";
 
     for(int j=0;j<36;j++) {
-      filestream << p_h[3*bodies.size()+12*beams.size()+j] << ", ";
+      filestream << p_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
     }
 
     for(int j=0;j<36;j++) {
-      filestream << v_h[3*bodies.size()+12*beams.size()+j] << ", ";
+      filestream << v_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
     }
 
     filestream

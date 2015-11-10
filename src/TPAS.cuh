@@ -70,7 +70,6 @@ class System;
 class TPAS :public Solver {
   friend class System;
 private:
-  System* system;
 
   // spike stuff
   int partitions;

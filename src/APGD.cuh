@@ -18,7 +18,6 @@ class System;
 class APGD :public Solver {
   friend class System;
 private:
-  System* system;
 
   // APGD Solver
   DeviceValueArrayView gammaHat;
