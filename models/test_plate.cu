@@ -238,7 +238,7 @@ int main(int argc, char** argv)
   int solverTypeQOCC = 1;
   int binsPerAxis = 20;
   double tolerance = 1e-2;
-  double hh = 1e-3;
+  double hh = 1e-4;
 
   if(argc > 1) {
     numElementsPerSide = atoi(argv[1]);
@@ -250,7 +250,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
 	bool visualize = true;
 #endif
-	//visualize = false;
+	visualize = false;
 
 	sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -307,7 +307,7 @@ int main(int argc, char** argv)
 
   int numDiv = 7;
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e7;
+  double EM = 2.e8;
   double rho = 7810.0;
   double th = .01;
   double R = .2;
@@ -318,8 +318,8 @@ int main(int argc, char** argv)
   double L = 2*PI*(R+1.4*0.33*beltWidth)/((double) numDiv);
   int numContacts = 12;
 
-  double r_rim = 0.01;
-  double EM_rim = 2.e7;
+  double r_rim = 0.011;
+  double EM_rim = 2.e9;
   double rho_rim = 7200.0;
 
   // Create the nodes
