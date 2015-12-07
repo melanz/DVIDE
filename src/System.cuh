@@ -12,6 +12,7 @@
 #include "Body.cuh"
 #include "Beam.cuh"
 #include "Plate.cuh"
+#include "Body2D.cuh"
 #include "CollisionDetector.cuh"
 #include "Solver.cuh"
 #include "PhysicsItem.cuh"
@@ -31,6 +32,7 @@ class CollisionDetector;
 class Solver;
 class Beam;
 class Plate;
+class Body2D;
 class PhysicsItem;
 class System {
 public:
@@ -141,6 +143,10 @@ public:
   thrust::host_vector<double4> materialsPlate_h;
   thrust::device_vector<double4> materialsPlate_d;
 
+  // library of material information (body2D)
+  thrust::host_vector<double2> materialsBody2D_h;
+  thrust::device_vector<double2> materialsBody2D_d;
+
   thrust::host_vector<double> strainDerivative_h;
   thrust::device_vector<double> strainDerivative_d;
 
@@ -193,6 +199,7 @@ public:
 	vector<Body*> bodies;
 	vector<Beam*> beams;
 	vector<Plate*> plates;
+  vector<Body2D*> body2Ds;
 	Solver* solver;
 	double  getCurrentTime() const    {return time;}
 	double  getTimeStep() const       {return h;}
@@ -202,6 +209,7 @@ public:
 	int     add(Body* body);
 	int     add(Beam* beam);
 	int     add(Plate* plate);
+  int     add(Body2D* body2D);
 	int     DoTimeStep();
 	int     initializeDevice();
 	int     initializeSystem();

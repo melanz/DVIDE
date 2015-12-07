@@ -5,6 +5,7 @@
 #include "Body.cuh"
 #include "Beam.cuh"
 #include "Plate.cuh"
+#include "Body2D.cuh"
 #include "PDIP.cuh"
 #include "TPAS.cuh"
 #include "JKIP.cuh"
@@ -15,7 +16,7 @@ double desiredVelocity = 0.5;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
-std::string outDir = "../TEST_PLATE/";
+std::string outDir = "../TEST_HUB/";
 std::string povrayDir = outDir + "POVRAY/";
 thrust::host_vector<double> p0_h;
 
@@ -136,6 +137,36 @@ void drawAll()
       }
     }
 
+    for(int i=0;i<sys->body2Ds.size();i++)
+    {
+      double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+      double3 pos = make_double3(sys->p_h[3*i+offset],sys->p_h[3*i+1+offset],sys->p_h[3*i+2+offset]);
+
+      // Draw x-axis
+      glLineWidth(2.5);
+      glColor3f(1.0, 0.0, 0.0);
+      glBegin(GL_LINES);
+      glVertex3f(pos.x, pos.y, 0.0);
+      glVertex3f(pos.x+cos(pos.z), pos.y+sin(pos.z), 0.0);
+      glEnd();
+
+      // Draw y-axis
+      glLineWidth(2.5);
+      glColor3f(0.0, 1.0, 0.0);
+      glBegin(GL_LINES);
+      glVertex3f(pos.x, pos.y, 0.0);
+      glVertex3f(pos.x-sin(pos.z), pos.y+cos(pos.z), 0.0);
+      glEnd();
+
+      // Draw z-axis
+      glLineWidth(2.5);
+      glColor3f(0.0, 0.0, 1.0);
+      glBegin(GL_LINES);
+      glVertex3f(pos.x, pos.y, 0);
+      glVertex3f(pos.x, pos.y, 1.0);
+      glEnd();
+    }
+
     glutSwapBuffers();
   }
 }
@@ -146,20 +177,21 @@ void renderSceneAll(){
     p0_h = sys->p_d;
     sys->DoTimeStep();
 
-    //    // TODO: This is a big no-no, need to enforce motion via constraints
-    //    // Apply motion
-    //    sys->v_h = sys->v_d;
-    //    for(int i=0;i<1;i++) {
-    //      sys->v_h[36*i] = 0;
-    //      sys->v_h[36*i+1] = 0;
-    //      sys->v_h[36*i+2] = 0;
-    //    }
-    //
-    //    sys->p_d = p0_h;
-    //    sys->v_d = sys->v_h;
-    //    cusp::blas::axpy(sys->v, sys->p, sys->h);
-    //    sys->p_h = sys->p_d;
-    //    // End apply motion
+    // TODO: This is a big no-no, need to enforce motion via constraints
+    // Apply motion
+    double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+    sys->v_h = sys->v_d;
+    for(int i=0;i<1;i++) {
+      sys->v_h[3*i+offset] = 0;
+      sys->v_h[3*i+1+offset] = 0;
+      sys->v_h[3*i+2+offset] = 0.1;
+    }
+
+    sys->p_d = p0_h;
+    sys->v_d = sys->v_h;
+    cusp::blas::axpy(sys->v, sys->p, sys->h);
+    sys->p_h = sys->p_d;
+    // End apply motion
   }
 }
 
@@ -258,7 +290,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_PLATE_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDirStream << "../TEST_HUB_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -355,7 +387,6 @@ int main(int argc, char** argv)
 
   // Add tire elements
   Plate* plate;
-  Beam* beam;
   for(int i=0;i<numDiv;i++)
   {
     plate = new Plate(L,B,nodes[2*i],dxis[2*i],detas[2*i],
@@ -368,55 +399,14 @@ int main(int argc, char** argv)
     plate->setDensity(rho);
     plate->setCollisionFamily(1);
     plate->setNumContactPoints(numContacts);
-    sys->add(plate);
-
-    beam = new Beam(center, detas[2*i],
-        nodes[2*i],detas[2*i],R);
-    beam->setRadius(r_rim);
-    beam->setElasticModulus(EM_rim);
-    beam->setDensity(rho_rim);
-    beam->setCollisionFamily(1);
-    //sys->add(beam);
-
-    beam = new Beam(nodes[2*i+1], detas[2*i+1],
-        center_back,detas[2*i+1],R);
-    beam->setRadius(r_rim);
-    beam->setElasticModulus(EM_rim);
-    beam->setDensity(rho_rim);
-    beam->setCollisionFamily(1);
-    //sys->add(beam);
-
-    beam = new Beam(nodes[2*i],dxis[2*i],
-        nodes[2*i+2],dxis[2*i+2],L_rim);
-    beam->setRadius(r_rim);
-    beam->setElasticModulus(EM_rim);
-    beam->setDensity(rho_rim);
-    beam->setCollisionFamily(1);
-    //sys->add(beam);
-
-    beam = new Beam(nodes[2*i+1],dxis[2*i+1],
-        nodes[2*i+3],dxis[2*i+3],L_rim);
-    beam->setRadius(r_rim);
-    beam->setElasticModulus(EM_rim);
-    beam->setDensity(rho_rim);
-    beam->setCollisionFamily(1);
-    //sys->add(beam);
-
+    //sys->add(plate);
   }
 
   // Add hub
-  Body* hub = new Body(center);
+  Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
   //hub->setBodyFixed(true);
-  hub->setGeometry(make_double3(2*r_rim,0,0));
   hub->setCollisionFamily(1);
   sys->add(hub);
-
-  // Add hub
-  Body* hub_back = new Body(center_back);
-  //hub_back->setBodyFixed(true);
-  hub_back->setGeometry(make_double3(2*r_rim,0,0));
-  hub_back->setCollisionFamily(1);
-  sys->add(hub_back);
 
   // Add ground
   Body* groundPtr = new Body(make_double3(0,-R-beltWidth-0.5*depth,0));
@@ -424,13 +414,6 @@ int main(int argc, char** argv)
   groundPtr->setCollisionFamily(2);
   groundPtr->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
   sys->add(groundPtr);
-
-  // Add track
-  Body* track = new Body(make_double3(0,-R-beltWidth-0.5*depth,beltWidth));
-  track->setBodyFixed(true);
-  track->setCollisionFamily(2);
-  track->setGeometry(make_double3(th,0,0));
-  sys->add(track);
 
   // Add ground
   Body* groundPtr2 = new Body(make_double3(4*R+ditchLength,-R-beltWidth-0.5*depth,0));
@@ -460,169 +443,71 @@ int main(int argc, char** argv)
   left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
   sys->add(left);
 
-  double rMin = 0.007;
-  double rMax = 0.007;
-  double density = 2600;
-  double W = ditchWidth;
-  double L_G = ditchLength;
-  double H = 3.0*depth;
-  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
-  Body* bodyPtr;
-  double wiggle = 0.003;//0.003;//0.1;
-  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
-  int numBodies = 0;
-  // Add elements in x-direction
-  for (int i = 0; i < (int) numElementsPerSideX; i++) {
-    for (int j = 0; j < (int) numElementsPerSideY; j++) {
-      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//  double rMin = 0.007;
+//  double rMax = 0.007;
+//  double density = 2600;
+//  double W = ditchWidth;
+//  double L_G = ditchLength;
+//  double H = 3.0*depth;
+//  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
+//  Body* bodyPtr;
+//  double wiggle = 0.003;//0.003;//0.1;
+//  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
+//  int numBodies = 0;
+//  // Add elements in x-direction
+//  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+//    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+//      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//
+//        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+//        double rRand = getRandomNumber(rMin, rMax);
+//        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
+//        bodyPtr->setGeometry(make_double3(rRand,0,0));
+//        //if(j==0)
+//        //bodyPtr->setBodyFixed(true);
+//        numBodies = sys->add(bodyPtr);
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
 
-        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
-        double rRand = getRandomNumber(rMin, rMax);
-        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
-        bodyPtr->setGeometry(make_double3(rRand,0,0));
-        //if(j==0)
-        //bodyPtr->setBodyFixed(true);
-        numBodies = sys->add(bodyPtr);
-
-        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-      }
-    }
-  }
-
-  // Add bilateral constraints
-  for(int i=0;i<numDiv;i++)
-  {
-    int iNext = i+1;
-    if(i==numDiv-1) iNext = 0;
-    int numPlates = 1;
-    int offsetA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i);
-    int offsetB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext);
-    int offsetFlatA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i+1);
-    int offsetFlatB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext+1);
-
-    int offsetBeamBackA = 3*sys->bodies.size()+12*(4*i);
-    int offsetBeamFrontA = 3*sys->bodies.size()+12*(4*i+1);
-    int offsetCurvBeamBackA = 3*sys->bodies.size()+12*(4*i+2);
-    int offsetCurvBeamFrontA = 3*sys->bodies.size()+12*(4*i+3);
-
-    int offsetBeamBackB = 3*sys->bodies.size()+12*(4*iNext);
-    int offsetBeamFrontB = 3*sys->bodies.size()+12*(4*iNext+1);
-    int offsetCurvBeamBackB = 3*sys->bodies.size()+12*(4*iNext+2);
-    int offsetCurvBeamFrontB = 3*sys->bodies.size()+12*(4*iNext+3);
-
-    // node 1 of plate A is fixed to node 0 of plate B
-    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
-    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
-    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
-    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
-    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
-    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
-    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
-    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
-    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
-
-    // node 2 of plate A is fixed to node 3 of plate B
-    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
-    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
-    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
-    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
-    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
-    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
-    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
-    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
-    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
-    //
-    //    // node 1 of flat plate A is fixed to node 0 of flat plate B
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1, offsetFlatB+9*0);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+1, offsetFlatB+9*0+1);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+2, offsetFlatB+9*0+2);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+3, offsetFlatB+9*0+3);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+4, offsetFlatB+9*0+4);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+5, offsetFlatB+9*0+5);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+6, offsetFlatB+9*0+6);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+7, offsetFlatB+9*0+7);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*1+8, offsetFlatB+9*0+8);
-    //
-    //    // node 2 of flat plate A is fixed to node 3 of flat plate B
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2, offsetFlatB+9*3);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+1, offsetFlatB+9*3+1);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+2, offsetFlatB+9*3+2);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+3, offsetFlatB+9*3+3);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+4, offsetFlatB+9*3+4);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+5, offsetFlatB+9*3+5);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+6, offsetFlatB+9*3+6);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+7, offsetFlatB+9*3+7);
-    //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+8, offsetFlatB+9*3+8);
-
-//    // node 0 of curved plate A is fixed to node 0 of back curved plate A
-//    sys->addBilateralConstraintDOF(offsetA+9*0, offsetCurvBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+1, offsetCurvBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+2, offsetCurvBeamBackA+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+3, offsetCurvBeamBackA+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+4, offsetCurvBeamBackA+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+5, offsetCurvBeamBackA+6*0+5);
+//  // Add bilateral constraints
+//  for(int i=0;i<numDiv;i++)
+//  {
+//    int iNext = i+1;
+//    if(i==numDiv-1) iNext = 0;
+//    int numPlates = 1;
+//    int offsetA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i);
+//    int offsetB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext);
 //
-//    // node 3 of curved plate A is fixed to node 0 of front curved plate A
-//    sys->addBilateralConstraintDOF(offsetA+9*3, offsetCurvBeamFrontA+6*0);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+1, offsetCurvBeamFrontA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+2, offsetCurvBeamFrontA+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+3, offsetCurvBeamFrontA+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+4, offsetCurvBeamFrontA+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+5, offsetCurvBeamFrontA+6*0+5);
+//    // node 1 of plate A is fixed to node 0 of plate B
+//    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
 //
-//    // node 1 of back curved plate A is fixed to node 0 of back curved plate B
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1, offsetCurvBeamBackB+6*0);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+1, offsetCurvBeamBackB+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+2, offsetCurvBeamBackB+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+3, offsetCurvBeamBackB+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+4, offsetCurvBeamBackB+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+5, offsetCurvBeamBackB+6*0+5);
-//
-//    // node 1 of front curved plate A is fixed to node 0 of front curved plate B
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1, offsetCurvBeamFrontB+6*0);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+1, offsetCurvBeamFrontB+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+2, offsetCurvBeamFrontB+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+3, offsetCurvBeamFrontB+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+4, offsetCurvBeamFrontB+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+5, offsetCurvBeamFrontB+6*0+5);
-//
-//    // node 1 of back beam A is fixed to node 0 of curved back beam A
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1, offsetCurvBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+1, offsetCurvBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+2, offsetCurvBeamBackA+6*0+2);
-//
-//    // node 0 of front beam A is fixed to node 0 of curved front beam A
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0, offsetCurvBeamFrontA+6*0);
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+1, offsetCurvBeamFrontA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+2, offsetCurvBeamFrontA+6*0+2);
-//
-//    // body 0 is fixed to node 0 of beam A back
-//    sys->addBilateralConstraintDOF(3*0, offsetBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(3*0+1, offsetBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(3*0+2, offsetBeamBackA+6*0+2);
-//
-//    // body 1 is fixed to node 1 of beam A front
-//    sys->addBilateralConstraintDOF(3*1, offsetBeamFrontA+6*1);
-//    sys->addBilateralConstraintDOF(3*1+1, offsetBeamFrontA+6*1+1);
-//    sys->addBilateralConstraintDOF(3*1+2, offsetBeamFrontA+6*1+2);
-//
-//    // node 0 of beam A is fixed to body 2 (z-direction)
-//    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*0+2);
-//
-//    // node 1 of beam A is fixed to body 2 (z-direction)
-//    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*1+2);
-//
-//    // node 0 of beam A is fixed to body 3 (z-direction)
-//    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*0+2);
-//
-//    // node 1 of beam A is fixed to body 3 (z-direction)
-//    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*1+2);
-  }
+//    // node 2 of plate A is fixed to node 3 of plate B
+//    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
+//  }
 
   sys->initializeSystem();
   printf("System initialized!\n");
@@ -650,7 +535,7 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsPlate_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsHub_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)

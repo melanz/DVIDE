@@ -152,6 +152,13 @@ int System::add(Plate* plate) {
   return plates.size();
 }
 
+int System::add(Body2D* body2D) {
+  //add the plate
+  body2D->sys = this;
+  body2Ds.push_back(body2D);
+  return body2Ds.size();
+}
+
 int System::initializeDevice() {
 
   indices_d = indices_h;
@@ -178,6 +185,7 @@ int System::initializeDevice() {
   collisionMap_d = collisionMap_h;
   materialsBeam_d = materialsBeam_h;
   materialsPlate_d = materialsPlate_h;
+  materialsBody2D_d = materialsBody2D_h;
   fixedBodies_d = fixedBodies_h;
   constraintsBilateralDOF_d = constraintsBilateralDOF_h;
 
@@ -329,7 +337,11 @@ int System::initializeSystem() {
   }
 
   for(int j=0; j<plates.size(); j++) {
-    plates[j]->addPlate(j); //TODO: Make a function like this for body (makes code cleaner)
+    plates[j]->addPlate(j);
+  }
+
+  for(int j=0; j<body2Ds.size(); j++) {
+    body2Ds[j]->addBody2D(j);
   }
 
   initializeDevice();
@@ -962,7 +974,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -985,7 +997,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
@@ -1072,12 +1084,25 @@ __global__ void multiplyByPlateMass(double3* geometries, double4* materials, dou
   dst[offset+35] = b*rho*th*src[2+offset]*(-1.087301587301587E-2)-b*rho*th*src[11+offset]*4.603174603174603E-3-b*rho*th*src[20+offset]*7.896825396825397E-3-b*rho*th*src[29+offset]*1.829365079365079E-2-(b*b)*rho*th*src[8+offset]*(1.0/4.2E2)-(b*b)*rho*th*src[17+offset]*(1.0/8.4E2)+(b*b)*rho*th*src[26+offset]*(1.0/6.3E2)+(b*b)*rho*th*src[35+offset]*(1.0/3.15E2)-a*b*rho*th*src[5+offset]*(1.0/6.0E2)+a*b*rho*th*src[14+offset]*(1.0/9.0E2)+a*b*rho*th*src[23+offset]*(1.0/6.0E2)-a*b*rho*th*src[32+offset]*(1.0/4.0E2);
 }
 
+__global__ void multiplyByBody2DMass(double2* materials, double* src, double* dst, int numBodies, int numBeams, int numPlates, int numBody2Ds) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBody2Ds);
+
+  double mass = materials[index].x;
+  double inertia = materials[index].y;
+
+  uint offset = 3*numBodies+12*numBeams+36*numPlates+3*index;
+  dst[offset+0] = mass*src[offset+0];
+  dst[offset+1] = mass*src[offset+1];
+  dst[offset+2] = inertia*src[offset+2];
+}
+
 int System::buildAppliedImpulseVector() {
   // build k
   updateElasticForces();
   if(bodies.size()) multiplyByMass<<<BLOCKS(3*bodies.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(k_d), 3*bodies.size());
   if(beams.size()) multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD3(materialsBeam_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size());
   if(plates.size()) multiplyByPlateMass<<<BLOCKS(plates.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD4(materialsPlate_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size(), plates.size());
+  if(body2Ds.size()) multiplyByBody2DMass<<<BLOCKS(body2Ds.size()),THREADS>>>(CASTD2(materialsBody2D_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size(), plates.size(), body2Ds.size());
   //cusp::blas::axpy(fElastic,fApplied,-1.0); //TODO: Come up with a fix for applied forces
   cusp::blas::axpbypcz(f,fElastic,k,k,h,-h,1.0);
 

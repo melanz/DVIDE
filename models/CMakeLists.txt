@@ -51,3 +51,7 @@ add_dependencies(test_beam ImplicitBeamsGPU)
 cuda_add_executable(test_plate test_plate.cu)
 target_link_libraries(test_plate ImplicitBeamsGPU)
 add_dependencies(test_plate ImplicitBeamsGPU)
+
+cuda_add_executable(test_hub test_hub.cu)
+target_link_libraries(test_hub ImplicitBeamsGPU)
+add_dependencies(test_hub ImplicitBeamsGPU)
