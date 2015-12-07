@@ -477,9 +477,11 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-//  // Add bilateral constraints
-//  for(int i=0;i<numDiv;i++)
-//  {
+  // Add bilateral constraints
+  for(int i=0;i<numDiv;i++)
+  {
+    //pin tire nodes to hub
+    sys->pinShellNodeToBody2D(i,0,0);
 //    int iNext = i+1;
 //    if(i==numDiv-1) iNext = 0;
 //    int numPlates = 1;
@@ -507,7 +509,7 @@ int main(int argc, char** argv)
 //    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
 //    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
 //    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
-//  }
+  }
 
   sys->initializeSystem();
   printf("System initialized!\n");

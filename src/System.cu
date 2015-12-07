@@ -187,7 +187,6 @@ int System::initializeDevice() {
   materialsPlate_d = materialsPlate_h;
   materialsBody2D_d = materialsBody2D_h;
   fixedBodies_d = fixedBodies_h;
-  constraintsBilateralDOF_d = constraintsBilateralDOF_h;
 
   strainDerivative_d = strainDerivative_h;
   strain_d = strain_h;
@@ -244,6 +243,26 @@ int System::initializeDevice() {
 
   // calculate initialize strains and curvatures
   calculateInitialStrainAndCurvature();
+
+  processConstraints();
+  constraintsBilateralDOF_d = constraintsBilateralDOF_h;
+  constraintsSpherical_ShellNodeToBody2D_d =constraintsSpherical_ShellNodeToBody2D_h;
+  pSpherical_ShellNodeToBody2D_d = pSpherical_ShellNodeToBody2D_h;
+
+  return 0;
+}
+
+int System::processConstraints() {
+  // process the ShellNodeToBody2D spherical constraints
+  for(int i=0;i<constraintsSpherical_ShellNodeToBody2D_h.size();i++) {
+    int indexA = constraintsSpherical_ShellNodeToBody2D_h[i].x;
+    int nodeIndexA = constraintsSpherical_ShellNodeToBody2D_h[i].y;
+    int indexB = constraintsSpherical_ShellNodeToBody2D_h[i].z;
+    int offsetA = 3*bodies.size()+12*beams.size()+36*indexA+9*nodeIndexA;
+    int offsetB = 3*bodies.size()+12*beams.size()+36*plates.size()+3*indexB;
+    pSpherical_ShellNodeToBody2D_h.push_back(make_double3(p_h[offsetA]-p_h[offsetB],p_h[offsetA+1]-p_h[offsetB+1],p_h[offsetA+2]));
+  }
+  // process the ShellNodeToBody2D spherical constraints
 
   return 0;
 }
@@ -352,6 +371,11 @@ int System::initializeSystem() {
 
 int System::addBilateralConstraintDOF(int DOFA, int DOFB) {
   constraintsBilateralDOF_h.push_back(make_int2(DOFA,DOFB));
+  return 0;
+}
+
+int System::pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex) {
+  constraintsSpherical_ShellNodeToBody2D_h.push_back(make_int3(shellIndex,shellNodeIndex,body2Dindex));
   return 0;
 }
 
@@ -954,7 +978,7 @@ int System::buildContactJacobian() {
     updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), beams.size(), collisionDetector->numCollisions);
     Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
   }
-  totalNonzeros+=2*constraintsBilateralDOF_d.size(); //Add in space for the bilateral entries
+  totalNonzeros+=2*constraintsBilateralDOF_d.size()+7*constraintsSpherical_ShellNodeToBody2D_d.size(); //Add in space for the bilateralDOF entries
 
   DI_d.resize(totalNonzeros);
   DJ_d.resize(totalNonzeros);

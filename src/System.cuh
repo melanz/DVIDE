@@ -135,6 +135,11 @@ public:
   thrust::host_vector<int2> constraintsBilateralDOF_h;
   thrust::device_vector<int2> constraintsBilateralDOF_d;
 
+  thrust::host_vector<int3> constraintsSpherical_ShellNodeToBody2D_h;
+  thrust::device_vector<int3> constraintsSpherical_ShellNodeToBody2D_d;
+  thrust::host_vector<double3> pSpherical_ShellNodeToBody2D_h;
+  thrust::device_vector<double3> pSpherical_ShellNodeToBody2D_d;
+
   // library of material information (beams)
   thrust::host_vector<double3> materialsBeam_h;
   thrust::device_vector<double3> materialsBeam_d;
@@ -193,6 +198,7 @@ public:
   CollisionDetector* collisionDetector;
   thrust::device_vector<int> nonzerosPerContact_d;
 
+  int processConstraints();
 public:
 	System();
 	System(int solverType);
@@ -229,6 +235,7 @@ public:
 	int     calculateInitialStrainAndCurvature();
 	int     addBilateralConstraintDOF(int DOFA, int DOFB);
 	int     addBilateralConstraintFixed(PhysicsItem* itemA, int nodeA, PhysicsItem* itemB, int nodeB);
+	int     pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex);
 };
 
 #endif /* SYSTEM_CUH_ */
