@@ -32,7 +32,7 @@ void changeSize(int w, int h) {
   gluPerspective(45,ratio,.1,1000);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
-  gluLookAt(0.0,0.0,0.0,		0.0,0.0,-7,		0.0f,1.0f,0.0f);
+  gluLookAt(0.0,0.0,0.0,    0.0,0.0,-7,   0.0f,1.0f,0.0f);
 }
 
 void initScene(){
@@ -238,7 +238,7 @@ int main(int argc, char** argv)
   int solverTypeQOCC = 1;
   int binsPerAxis = 20;
   double tolerance = 1.0;//e-2;
-  double hh = 1e-3;
+  double hh = 1e-4;
 
   if(argc > 1) {
     numElementsPerSide = atoi(argv[1]);
@@ -250,7 +250,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -376,7 +376,7 @@ int main(int argc, char** argv)
     beam->setElasticModulus(EM_rim);
     beam->setDensity(rho_rim);
     beam->setCollisionFamily(1);
-    //sys->add(beam);
+    sys->add(beam);
 
     beam = new Beam(nodes[2*i+1], detas[2*i+1],
         center_back,detas[2*i+1],R);
@@ -384,7 +384,7 @@ int main(int argc, char** argv)
     beam->setElasticModulus(EM_rim);
     beam->setDensity(rho_rim);
     beam->setCollisionFamily(1);
-    //sys->add(beam);
+    sys->add(beam);
 
     beam = new Beam(nodes[2*i],dxis[2*i],
         nodes[2*i+2],dxis[2*i+2],L_rim);
@@ -392,7 +392,7 @@ int main(int argc, char** argv)
     beam->setElasticModulus(EM_rim);
     beam->setDensity(rho_rim);
     beam->setCollisionFamily(1);
-    //sys->add(beam);
+    sys->add(beam);
 
     beam = new Beam(nodes[2*i+1],dxis[2*i+1],
         nodes[2*i+3],dxis[2*i+3],L_rim);
@@ -400,7 +400,7 @@ int main(int argc, char** argv)
     beam->setElasticModulus(EM_rim);
     beam->setDensity(rho_rim);
     beam->setCollisionFamily(1);
-    //sys->add(beam);
+    sys->add(beam);
 
   }
 
@@ -465,7 +465,7 @@ int main(int argc, char** argv)
   double density = 2600;
   double W = ditchWidth;
   double L_G = ditchLength;
-  double H = 3.0*depth;
+  double H = 1.5*depth;
   double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
   Body* bodyPtr;
   double wiggle = 0.003;//0.003;//0.1;
@@ -559,69 +559,69 @@ int main(int argc, char** argv)
     //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+7, offsetFlatB+9*3+7);
     //    sys->addBilateralConstraintDOF(offsetFlatA+9*2+8, offsetFlatB+9*3+8);
 
-//    // node 0 of curved plate A is fixed to node 0 of back curved plate A
-//    sys->addBilateralConstraintDOF(offsetA+9*0, offsetCurvBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+1, offsetCurvBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+2, offsetCurvBeamBackA+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+3, offsetCurvBeamBackA+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+4, offsetCurvBeamBackA+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*0+5, offsetCurvBeamBackA+6*0+5);
-//
-//    // node 3 of curved plate A is fixed to node 0 of front curved plate A
-//    sys->addBilateralConstraintDOF(offsetA+9*3, offsetCurvBeamFrontA+6*0);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+1, offsetCurvBeamFrontA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+2, offsetCurvBeamFrontA+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+3, offsetCurvBeamFrontA+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+4, offsetCurvBeamFrontA+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*3+5, offsetCurvBeamFrontA+6*0+5);
-//
-//    // node 1 of back curved plate A is fixed to node 0 of back curved plate B
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1, offsetCurvBeamBackB+6*0);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+1, offsetCurvBeamBackB+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+2, offsetCurvBeamBackB+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+3, offsetCurvBeamBackB+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+4, offsetCurvBeamBackB+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+5, offsetCurvBeamBackB+6*0+5);
-//
-//    // node 1 of front curved plate A is fixed to node 0 of front curved plate B
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1, offsetCurvBeamFrontB+6*0);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+1, offsetCurvBeamFrontB+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+2, offsetCurvBeamFrontB+6*0+2);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+3, offsetCurvBeamFrontB+6*0+3);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+4, offsetCurvBeamFrontB+6*0+4);
-//    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+5, offsetCurvBeamFrontB+6*0+5);
-//
-//    // node 1 of back beam A is fixed to node 0 of curved back beam A
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1, offsetCurvBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+1, offsetCurvBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+2, offsetCurvBeamBackA+6*0+2);
-//
-//    // node 0 of front beam A is fixed to node 0 of curved front beam A
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0, offsetCurvBeamFrontA+6*0);
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+1, offsetCurvBeamFrontA+6*0+1);
-//    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+2, offsetCurvBeamFrontA+6*0+2);
-//
-//    // body 0 is fixed to node 0 of beam A back
-//    sys->addBilateralConstraintDOF(3*0, offsetBeamBackA+6*0);
-//    sys->addBilateralConstraintDOF(3*0+1, offsetBeamBackA+6*0+1);
-//    sys->addBilateralConstraintDOF(3*0+2, offsetBeamBackA+6*0+2);
-//
-//    // body 1 is fixed to node 1 of beam A front
-//    sys->addBilateralConstraintDOF(3*1, offsetBeamFrontA+6*1);
-//    sys->addBilateralConstraintDOF(3*1+1, offsetBeamFrontA+6*1+1);
-//    sys->addBilateralConstraintDOF(3*1+2, offsetBeamFrontA+6*1+2);
-//
-//    // node 0 of beam A is fixed to body 2 (z-direction)
-//    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*0+2);
-//
-//    // node 1 of beam A is fixed to body 2 (z-direction)
-//    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*1+2);
-//
-//    // node 0 of beam A is fixed to body 3 (z-direction)
-//    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*0+2);
-//
-//    // node 1 of beam A is fixed to body 3 (z-direction)
-//    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*1+2);
+    // node 0 of curved plate A is fixed to node 0 of back curved plate A
+    sys->addBilateralConstraintDOF(offsetA+9*0, offsetCurvBeamBackA+6*0);
+    sys->addBilateralConstraintDOF(offsetA+9*0+1, offsetCurvBeamBackA+6*0+1);
+    sys->addBilateralConstraintDOF(offsetA+9*0+2, offsetCurvBeamBackA+6*0+2);
+    sys->addBilateralConstraintDOF(offsetA+9*0+3, offsetCurvBeamBackA+6*0+3);
+    sys->addBilateralConstraintDOF(offsetA+9*0+4, offsetCurvBeamBackA+6*0+4);
+    sys->addBilateralConstraintDOF(offsetA+9*0+5, offsetCurvBeamBackA+6*0+5);
+
+    // node 3 of curved plate A is fixed to node 0 of front curved plate A
+    sys->addBilateralConstraintDOF(offsetA+9*3, offsetCurvBeamFrontA+6*0);
+    sys->addBilateralConstraintDOF(offsetA+9*3+1, offsetCurvBeamFrontA+6*0+1);
+    sys->addBilateralConstraintDOF(offsetA+9*3+2, offsetCurvBeamFrontA+6*0+2);
+    sys->addBilateralConstraintDOF(offsetA+9*3+3, offsetCurvBeamFrontA+6*0+3);
+    sys->addBilateralConstraintDOF(offsetA+9*3+4, offsetCurvBeamFrontA+6*0+4);
+    sys->addBilateralConstraintDOF(offsetA+9*3+5, offsetCurvBeamFrontA+6*0+5);
+
+    // node 1 of back curved plate A is fixed to node 0 of back curved plate B
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1, offsetCurvBeamBackB+6*0);
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+1, offsetCurvBeamBackB+6*0+1);
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+2, offsetCurvBeamBackB+6*0+2);
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+3, offsetCurvBeamBackB+6*0+3);
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+4, offsetCurvBeamBackB+6*0+4);
+    sys->addBilateralConstraintDOF(offsetCurvBeamBackA+6*1+5, offsetCurvBeamBackB+6*0+5);
+
+    // node 1 of front curved plate A is fixed to node 0 of front curved plate B
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1, offsetCurvBeamFrontB+6*0);
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+1, offsetCurvBeamFrontB+6*0+1);
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+2, offsetCurvBeamFrontB+6*0+2);
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+3, offsetCurvBeamFrontB+6*0+3);
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+4, offsetCurvBeamFrontB+6*0+4);
+    sys->addBilateralConstraintDOF(offsetCurvBeamFrontA+6*1+5, offsetCurvBeamFrontB+6*0+5);
+
+    // node 1 of back beam A is fixed to node 0 of curved back beam A
+    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1, offsetCurvBeamBackA+6*0);
+    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+1, offsetCurvBeamBackA+6*0+1);
+    sys->addBilateralConstraintDOF(offsetBeamBackA+6*1+2, offsetCurvBeamBackA+6*0+2);
+
+    // node 0 of front beam A is fixed to node 0 of curved front beam A
+    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0, offsetCurvBeamFrontA+6*0);
+    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+1, offsetCurvBeamFrontA+6*0+1);
+    sys->addBilateralConstraintDOF(offsetBeamFrontA+6*0+2, offsetCurvBeamFrontA+6*0+2);
+
+    // body 0 is fixed to node 0 of beam A back
+    sys->addBilateralConstraintDOF(3*0, offsetBeamBackA+6*0);
+    sys->addBilateralConstraintDOF(3*0+1, offsetBeamBackA+6*0+1);
+    sys->addBilateralConstraintDOF(3*0+2, offsetBeamBackA+6*0+2);
+
+    // body 1 is fixed to node 1 of beam A front
+    sys->addBilateralConstraintDOF(3*1, offsetBeamFrontA+6*1);
+    sys->addBilateralConstraintDOF(3*1+1, offsetBeamFrontA+6*1+1);
+    sys->addBilateralConstraintDOF(3*1+2, offsetBeamFrontA+6*1+2);
+
+    // node 0 of beam A is fixed to body 2 (z-direction)
+    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*0+2);
+
+    // node 1 of beam A is fixed to body 2 (z-direction)
+    sys->addBilateralConstraintDOF(3*3+2, offsetBeamFrontA+6*1+2);
+
+    // node 0 of beam A is fixed to body 3 (z-direction)
+    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*0+2);
+
+    // node 1 of beam A is fixed to body 3 (z-direction)
+    sys->addBilateralConstraintDOF(3*2+2, offsetBeamBackA+6*1+2);
   }
 
   sys->initializeSystem();
@@ -634,7 +634,7 @@ int main(int argc, char** argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutInitWindowPosition(0,0);
-    glutInitWindowSize(1024	,512);
+    glutInitWindowSize(1024 ,512);
     glutCreateWindow("MAIN");
     glutDisplayFunc(renderSceneAll);
     glutIdleFunc(renderSceneAll);
@@ -710,4 +710,3 @@ int main(int argc, char** argv)
 
   return 0;
 }
-
