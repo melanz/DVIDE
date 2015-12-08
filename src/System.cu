@@ -260,6 +260,8 @@ int System::processConstraints() {
     int indexB = constraintsSpherical_ShellNodeToBody2D_h[i].z;
     int offsetA = 3*bodies.size()+12*beams.size()+36*indexA+9*nodeIndexA;
     int offsetB = 3*bodies.size()+12*beams.size()+36*plates.size()+3*indexB;
+    constraintsSpherical_ShellNodeToBody2D_h[i].x = offsetA; // NOTE: Reset value to offsets! Easier for later constraint processing
+    constraintsSpherical_ShellNodeToBody2D_h[i].y = offsetB; // NOTE: Reset value to offsets! Easier for later constraint processing
     pSpherical_ShellNodeToBody2D_h.push_back(make_double3(p_h[offsetA]-p_h[offsetB],p_h[offsetA+1]-p_h[offsetB+1],p_h[offsetA+2]));
   }
   // process the ShellNodeToBody2D spherical constraints
@@ -391,7 +393,7 @@ int System::DoTimeStep() {
   collisionDetector->detectCollisions();
 
   buildAppliedImpulseVector();
-  if(collisionDetector->numCollisions||constraintsBilateralDOF_d.size()) {
+  if(collisionDetector->numCollisions||constraintsBilateralDOF_d.size()||constraintsSpherical_ShellNodeToBody2D_d.size()) {
     // Set up the QOCC
     buildContactJacobian();
     buildSchurVector();
@@ -468,13 +470,49 @@ __global__ void constructBilateralJacobian(int2* contraintBilateralDOF, int* DI,
   D[2*index+1] = -1.0;
 }
 
-__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, uint numConstraintsBilateral, uint numCollisions) {
+__global__ void constructSpherical_ShellNodeToBody2DJacobian(int3* constraints, double3* pHats, double* p, int* DI, int* DJ, double* D, int numConstraintsDOF, uint numConstraints) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraints);
+
+  int offset = 2*numConstraintsDOF;
+  int3 constraint = constraints[index];
+  double3 pHat = pHats[index];
+
+  int offsetS = constraint.x;
+  int offsetB = constraint.y;
+
+  DI[7*index+0+offset] = 3*index+numConstraintsDOF;
+  DI[7*index+1+offset] = 3*index+numConstraintsDOF;
+  DI[7*index+2+offset] = 3*index+numConstraintsDOF;
+  DI[7*index+3+offset] = 3*index+1+numConstraintsDOF;
+  DI[7*index+4+offset] = 3*index+1+numConstraintsDOF;
+  DI[7*index+5+offset] = 3*index+1+numConstraintsDOF;
+  DI[7*index+6+offset] = 3*index+2+numConstraintsDOF;
+
+  DJ[7*index+0+offset] = offsetB;
+  DJ[7*index+1+offset] = offsetB+2;
+  DJ[7*index+2+offset] = offsetS;
+  DJ[7*index+3+offset] = offsetB+1;
+  DJ[7*index+4+offset] = offsetB+2;
+  DJ[7*index+5+offset] = offsetS+1;
+  DJ[7*index+6+offset] = offsetS+2;
+
+  double phi = p[offsetB+2];
+  D[7*index+0+offset] = 1.0;
+  D[7*index+1+offset] = -pHat.x*sin(phi)-pHat.y*cos(phi);
+  D[7*index+2+offset] = -1.0;
+  D[7*index+3+offset] = 1.0;
+  D[7*index+4+offset] = pHat.x*cos(phi)-pHat.y*sin(phi);
+  D[7*index+5+offset] = -1.0;
+  D[7*index+6+offset] = -1.0;
+}
+
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, uint offsetConstraintsBilateral, uint numConstraintsBilateral, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
 
   int offsetA = (!index) ? 0 : nonzerosPerContact_d[index - 1];
-  offsetA+=2*numConstraintsBilateral; // add offset for bilateral constraints
+  offsetA+=offsetConstraintsBilateral; // add offset for bilateral constraints
   DI = &DI[offsetA];
   DJ = &DJ[offsetA];
   D = &D[offsetA];
@@ -986,7 +1024,8 @@ int System::buildContactJacobian() {
   friction_d.resize(collisionDetector->numCollisions);
 
   if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
-  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
+  if(constraintsSpherical_ShellNodeToBody2D_d.size()) constructSpherical_ShellNodeToBody2DJacobian<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size(), constraintsSpherical_ShellNodeToBody2D_d.size());
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), 2*constraintsBilateralDOF_d.size()+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -998,7 +1037,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -1021,7 +1060,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size(), DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
@@ -1133,14 +1172,14 @@ int System::buildAppliedImpulseVector() {
   return 0;
 }
 
-__global__ void buildStabilization(double* b, double4* normalsAndPenetrations, double timeStep, uint numBilateralConstraints, uint numCollisions) {
+__global__ void buildStabilization(double* b, double4* normalsAndPenetrations, double timeStep, uint offsetBilateralConstraints, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double penetration = normalsAndPenetrations[index].w;
 
-  b[3*index+numBilateralConstraints] = penetration/timeStep;
-  b[3*index+1+numBilateralConstraints] = 0;
-  b[3*index+2+numBilateralConstraints] = 0;
+  b[3*index+offsetBilateralConstraints] = penetration/timeStep;
+  b[3*index+1+offsetBilateralConstraints] = 0;
+  b[3*index+2+offsetBilateralConstraints] = 0;
 }
 
 __global__ void buildStabilizationBilateral(double* b, int2* contraintBilateralDOF, double* p, double timeStep, uint numBilateralConstraints) {
@@ -1152,10 +1191,25 @@ __global__ void buildStabilizationBilateral(double* b, int2* contraintBilateralD
   b[index] = violation/timeStep;
 }
 
+__global__ void buildStabilizationSpherical_ShellNodeToBody2D(double* b, int3* constraints, double3* pHats, double* p, double timeStep, uint numDOFConstraints, int numConstraints) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraints);
+
+  int offset = 2*numDOFConstraints;
+  int3 constraint = constraints[index];
+  double3 pHat = pHats[index];
+  int indexS = constraint.x;
+  int indexB = constraint.y;
+
+  double phi = p[indexB+2];
+  b[3*index+offset+0] = (p[indexB]+pHat.x*cos(phi)-pHat.y*sin(phi)-p[indexS])/timeStep;
+  b[3*index+offset+1] = (p[indexB+1]+pHat.x*sin(phi)+pHat.y*cos(phi)-p[indexS+1])/timeStep;
+  b[3*index+offset+2] = (pHat.z-p[indexS+2])/timeStep;
+}
+
 int System::buildSchurVector() {
   // build r
-  r_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size());
-  b_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size());
+  r_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size());
+  b_d.resize(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size());
   // TODO: There's got to be a better way to do this...
   //r.resize(3*collisionDetector->numCollisions);
   thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
@@ -1166,7 +1220,8 @@ int System::buildSchurVector() {
   cusp::multiply(D,tmp,r);
 
   if(constraintsBilateralDOF_d.size()) buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size());
-  if(collisionDetector->numCollisions) buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size(), collisionDetector->numCollisions);
+  if(constraintsSpherical_ShellNodeToBody2D_d.size()) buildStabilizationSpherical_ShellNodeToBody2D<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTD1(b_d), CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size(), constraintsSpherical_ShellNodeToBody2D_d.size());
+  if(collisionDetector->numCollisions) buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
   cusp::blas::axpy(b,r,1.0);
 
   return 0;
@@ -1241,7 +1296,7 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
-  filestream << bodies.size() << ", " << beams.size() << ", " << plates.size() << ", " << endl;
+  filestream << bodies.size() << ", " << beams.size() << ", " << plates.size() << ", " << body2Ds.size() << ", " << endl;
   for (int i = 0; i < bodies.size(); i++) {
     filestream
         << i << ", "
@@ -1323,6 +1378,22 @@ int System::exportSystem(string filename) {
 
     for(int j=0;j<36;j++) {
       filestream << v_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
+    }
+
+    filestream
+    << "\n";
+  }
+  for (int i = 0; i < body2Ds.size(); i++) {
+    // TODO: Need to know collision family information, density, elastic modulus, number of contacts (especially important when importing)
+    filestream
+    << bodies.size()+beams.size()+plates.size()+i << ", ";
+
+    for(int j=0;j<3;j++) {
+      filestream << p_h[3*bodies.size()+12*beams.size()+36*plates.size()+3*i+j] << ", ";
+    }
+
+    for(int j=0;j<36;j++) {
+      filestream << v_h[3*bodies.size()+12*beams.size()+36*plates.size()+3*i+j] << ", ";
     }
 
     filestream

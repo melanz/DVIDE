@@ -181,10 +181,12 @@ void renderSceneAll(){
     // Apply motion
     double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
     sys->v_h = sys->v_d;
-    for(int i=0;i<1;i++) {
-      sys->v_h[3*i+offset] = 0;
-      sys->v_h[3*i+1+offset] = 0;
-      sys->v_h[3*i+2+offset] = 0.1;
+    if(sys->time>1.0) {
+      for(int i=0;i<1;i++) {
+        sys->v_h[3*i+offset] = 0.2;
+        //sys->v_h[3*i+1+offset] = 0;
+        sys->v_h[3*i+2+offset] = -1.0;
+      }
     }
 
     sys->p_d = p0_h;
@@ -269,7 +271,7 @@ int main(int argc, char** argv)
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 1;
   int binsPerAxis = 20;
-  double tolerance = 1.0;//e-2;
+  double tolerance = 1e-2;
   double hh = 1e-3;
 
   if(argc > 1) {
@@ -345,7 +347,7 @@ int main(int argc, char** argv)
   double R = .2;
   double nu = .1;
   double fillet = .04;
-  double beltWidth = .1;
+  double beltWidth = .2;
   double B = .5*PI*beltWidth;//1.5*.5*PI*beltWidth;
   double L = 2.0*PI*(R+0.5*beltWidth)/((double) numDiv);//2*PI*(R+1.4*0.33*beltWidth)/((double) numDiv);
   int numContacts = 12;
@@ -399,12 +401,11 @@ int main(int argc, char** argv)
     plate->setDensity(rho);
     plate->setCollisionFamily(1);
     plate->setNumContactPoints(numContacts);
-    //sys->add(plate);
+    sys->add(plate);
   }
 
   // Add hub
   Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
-  //hub->setBodyFixed(true);
   hub->setCollisionFamily(1);
   sys->add(hub);
 
@@ -482,33 +483,37 @@ int main(int argc, char** argv)
   {
     //pin tire nodes to hub
     sys->pinShellNodeToBody2D(i,0,0);
-//    int iNext = i+1;
-//    if(i==numDiv-1) iNext = 0;
-//    int numPlates = 1;
-//    int offsetA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i);
-//    int offsetB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext);
-//
-//    // node 1 of plate A is fixed to node 0 of plate B
-//    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
-//    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
-//
-//    // node 2 of plate A is fixed to node 3 of plate B
-//    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
-//    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
+    sys->pinShellNodeToBody2D(i,1,0);
+    sys->pinShellNodeToBody2D(i,2,0);
+    sys->pinShellNodeToBody2D(i,3,0);
+
+    int iNext = i+1;
+    if(i==numDiv-1) iNext = 0;
+    int numPlates = 1;
+    int offsetA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i);
+    int offsetB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext);
+
+    // node 1 of plate A is fixed to node 0 of plate B
+    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
+    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
+    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
+    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
+    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
+    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
+    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
+    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
+    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
+
+    // node 2 of plate A is fixed to node 3 of plate B
+    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
+    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
+    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
+    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
+    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
+    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
+    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
+    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
+    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
   }
 
   sys->initializeSystem();
@@ -551,6 +556,8 @@ int main(int argc, char** argv)
 
     p0_h = sys->p_d;
     sys->DoTimeStep();
+    sys->exportMatrices(outDir.c_str());
+    cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
