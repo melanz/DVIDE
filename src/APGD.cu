@@ -120,36 +120,36 @@ __global__ void getResidual_APGD(double* src, double* gamma, uint numCollisions)
   src[3*index+2] = 0;
 }
 
-__global__ void getFeasibleX_APGD(double* src, double* dst, double* friction, uint numCollisions) {
+__global__ void getFeasibleX_APGD(double* src, double* dst, double* friction, uint numBilaterals, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = friction[index]; // TODO: Keep an eye on friction indexing
 
-  double xn = src[3*index];
-  double xt1 = src[3*index+1];
-  double xt2 = src[3*index+2];
+  double xn = src[3*index+numBilaterals];
+  double xt1 = src[3*index+1+numBilaterals];
+  double xt2 = src[3*index+2+numBilaterals];
 
   xn = mu*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
   if(xn!=xn) xn = 0.0;
-  dst[3*index] = -fmin(0.0,xn);
-  dst[3*index+1] = -10e30;
-  dst[3*index+2] = -10e30;
+  dst[3*index+numBilaterals] = -fmin(0.0,xn);
+  dst[3*index+1+numBilaterals] = -10e30;
+  dst[3*index+2+numBilaterals] = -10e30;
 }
 
-__global__ void getFeasibleY_APGD(double* src, double* dst, double* friction, uint numCollisions) {
+__global__ void getFeasibleY_APGD(double* src, double* dst, double* friction, uint numBilaterals, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   double mu = friction[index]; // TODO: Keep an eye on friction indexing
 
-  double xn = src[3*index];
-  double xt1 = src[3*index+1];
-  double xt2 = src[3*index+2];
+  double xn = src[3*index+numBilaterals];
+  double xt1 = src[3*index+1+numBilaterals];
+  double xt2 = src[3*index+2+numBilaterals];
 
   xn = (1.0/mu)*xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
   if(xn!=xn) xn = 0.0;
-  dst[3*index] = -fmin(0.0,xn);
-  dst[3*index+1] = -10e30;
-  dst[3*index+2] = -10e30;
+  dst[3*index+numBilaterals] = -fmin(0.0,xn);
+  dst[3*index+1+numBilaterals] = -10e30;
+  dst[3*index+2+numBilaterals] = -10e30;
 }
 
 int APGD::solve() {
@@ -263,17 +263,16 @@ int APGD::solve() {
 
     // (18) r = r(gamma_(k+1))
     double res = getResidual(gammaNew);
-//    getFeasibleX_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+//    getFeasibleX_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaNew_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), system->collisionDetector->numCollisions);
+//    thrust::fill(gammaTmp_d.begin(), gammaTmp_d.begin() + system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), -10e30);
 //    double feasibleX = Thrust_Max(gammaTmp_d);
 //
 //    performSchurComplementProduct(gammaNew);
 //    cusp::blas::axpy(system->r,gammaTmp,1.0);
-//    getResidual_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaNew), system->collisionDetector->numCollisions);
-//    double res3 = cusp::blas::nrmmax(gammaTmp);
+//    double res3 = abs(cusp::blas::dot(gammaNew,gammaTmp));
 //
-//    performSchurComplementProduct(gammaNew);
-//    cusp::blas::axpy(system->r,gammaTmp,1.0);
-//    getFeasibleY_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+//    getFeasibleY_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), system->collisionDetector->numCollisions);
+//    thrust::fill(gammaTmp_d.begin(), gammaTmp_d.begin() + system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), -10e30);
 //    double feasibleY = Thrust_Max(gammaTmp_d);
 //
 //    double res = fmax(feasibleX,feasibleY);
