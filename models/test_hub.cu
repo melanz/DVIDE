@@ -177,23 +177,23 @@ void renderSceneAll(){
     p0_h = sys->p_d;
     sys->DoTimeStep();
 
-    // TODO: This is a big no-no, need to enforce motion via constraints
-    // Apply motion
-    double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
-    sys->v_h = sys->v_d;
-    //if(sys->time>1.0) {
-      for(int i=0;i<1;i++) {
-        sys->v_h[3*i+offset] = 0.2;
-        sys->v_h[3*i+1+offset] = 0;
-        sys->v_h[3*i+2+offset] = -1.0;
-      }
-    //}
-
-    sys->p_d = p0_h;
-    sys->v_d = sys->v_h;
-    cusp::blas::axpy(sys->v, sys->p, sys->h);
-    sys->p_h = sys->p_d;
-    // End apply motion
+//    // TODO: This is a big no-no, need to enforce motion via constraints
+//    // Apply motion
+//    double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+//    sys->v_h = sys->v_d;
+//    //if(sys->time>1.0) {
+//      for(int i=0;i<1;i++) {
+//        sys->v_h[3*i+offset] = 0.2;
+//        sys->v_h[3*i+1+offset] = 0;
+//        sys->v_h[3*i+2+offset] = -1.0;
+//      }
+//    //}
+//
+//    sys->p_d = p0_h;
+//    sys->v_d = sys->v_h;
+//    cusp::blas::axpy(sys->v, sys->p, sys->h);
+//    sys->p_h = sys->p_d;
+//    // End apply motion
   }
 }
 
@@ -337,10 +337,10 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  //sys->solver->maxIterations = 40;
+  //sys->solver->maxIterations = 1;
   //sys->gravity = make_double3(0,0,0);
 
-  int numDiv = 7;
+  int numDiv = 4;
   double radianInc = 2.0*PI/((double) numDiv);
   double EM = 7.e7;
   double rho = 7810.0;
@@ -479,6 +479,13 @@ int main(int argc, char** argv)
 //    }
 //  }
 
+  double omega = 180*PI/180.0;
+  double vel = (R+0.5*beltWidth)*omega;
+  double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+  sys->addBilateralConstraintDOF(offsetHub,-1, vel, 0.2);
+  //sys->addBilateralConstraintDOF(offsetHub+1,-1);
+  sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, 0.2);
+
   // Add bilateral constraints
   for(int i=0;i<numDiv;i++)
   {
@@ -557,6 +564,8 @@ int main(int argc, char** argv)
 
     p0_h = sys->p_d;
     sys->DoTimeStep();
+    sys->exportMatrices(outDir.c_str());
+    cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;

@@ -132,8 +132,13 @@ public:
   thrust::device_vector<int4> collisionMap_d;
 
   // list of constraints
+  int offsetConstraintsDOF;
   thrust::host_vector<int2> constraintsBilateralDOF_h;
   thrust::device_vector<int2> constraintsBilateralDOF_d;
+  thrust::host_vector<double3> infoConstraintBilateralDOF_h;
+  thrust::device_vector<double3> infoConstraintBilateralDOF_d;
+  thrust::host_vector<int> offsetBilaterals_h;
+  thrust::device_vector<int> offsetBilaterals_d;
 
   thrust::host_vector<int3> constraintsSpherical_ShellNodeToBody2D_h;
   thrust::device_vector<int3> constraintsSpherical_ShellNodeToBody2D_d;
@@ -233,8 +238,8 @@ public:
 	double4 getCCPViolation();
 	int     updateElasticForces();
 	int     calculateInitialStrainAndCurvature();
-	int     addBilateralConstraintDOF(int DOFA, int DOFB);
-	int     addBilateralConstraintFixed(PhysicsItem* itemA, int nodeA, PhysicsItem* itemB, int nodeB);
+  int     addBilateralConstraintDOF(int DOFA, int DOFB);
+	int     addBilateralConstraintDOF(int DOFA, int DOFB, double velocity, double startTime);
 	int     pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex);
 };
 

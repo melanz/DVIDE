@@ -20,6 +20,7 @@ System::System()
   time = 0;
   elapsedTime = 0;
   totalGPUMemoryUsed = 0;
+  offsetConstraintsDOF = 0;
 
   collisionDetector = new CollisionDetector(this);
   solver = new APGD(this);
@@ -65,6 +66,7 @@ System::System(int solverType)
   time = 0;
   elapsedTime = 0;
   totalGPUMemoryUsed = 0;
+  offsetConstraintsDOF = 0;
 
   collisionDetector = new CollisionDetector(this);
 
@@ -245,7 +247,9 @@ int System::initializeDevice() {
   calculateInitialStrainAndCurvature();
 
   processConstraints();
+  offsetBilaterals_d = offsetBilaterals_h;
   constraintsBilateralDOF_d = constraintsBilateralDOF_h;
+  infoConstraintBilateralDOF_d = infoConstraintBilateralDOF_h;
   constraintsSpherical_ShellNodeToBody2D_d =constraintsSpherical_ShellNodeToBody2D_h;
   pSpherical_ShellNodeToBody2D_d = pSpherical_ShellNodeToBody2D_h;
 
@@ -253,6 +257,19 @@ int System::initializeDevice() {
 }
 
 int System::processConstraints() {
+  // process the DOF bilaterals
+  int offset = 0;
+  for(int i=0;i<constraintsBilateralDOF_h.size();i++) {
+    offsetBilaterals_h.push_back(offset);
+    if(constraintsBilateralDOF_h[i].y<0) {
+      offset+=1;
+      infoConstraintBilateralDOF_h[i].z = p_h[constraintsBilateralDOF_h[i].x]; // need to know initial value
+    } else {
+      offset+=2;
+    }
+  }
+  // end process the DOF bilaterals
+
   // process the ShellNodeToBody2D spherical constraints
   for(int i=0;i<constraintsSpherical_ShellNodeToBody2D_h.size();i++) {
     int indexA = constraintsSpherical_ShellNodeToBody2D_h[i].x;
@@ -264,7 +281,7 @@ int System::processConstraints() {
     constraintsSpherical_ShellNodeToBody2D_h[i].y = offsetB; // NOTE: Reset value to offsets! Easier for later constraint processing
     pSpherical_ShellNodeToBody2D_h.push_back(make_double3(p_h[offsetA]-p_h[offsetB],p_h[offsetA+1]-p_h[offsetB+1],p_h[offsetA+2]));
   }
-  // process the ShellNodeToBody2D spherical constraints
+  // end process the ShellNodeToBody2D spherical constraints
 
   return 0;
 }
@@ -373,6 +390,25 @@ int System::initializeSystem() {
 
 int System::addBilateralConstraintDOF(int DOFA, int DOFB) {
   constraintsBilateralDOF_h.push_back(make_int2(DOFA,DOFB));
+  infoConstraintBilateralDOF_h.push_back(make_double3(0,0,0));
+
+  if(DOFB<0) {
+    offsetConstraintsDOF=offsetConstraintsDOF+1;
+  } else {
+    offsetConstraintsDOF=offsetConstraintsDOF+2;
+  }
+  return 0;
+}
+
+int System::addBilateralConstraintDOF(int DOFA, int DOFB, double velocity, double startTime) {
+  constraintsBilateralDOF_h.push_back(make_int2(DOFA,DOFB));
+  infoConstraintBilateralDOF_h.push_back(make_double3(velocity,startTime,0));
+
+  if(DOFB<0) {
+    offsetConstraintsDOF=offsetConstraintsDOF+1;
+  } else {
+    offsetConstraintsDOF=offsetConstraintsDOF+2;
+  }
   return 0;
 }
 
@@ -388,9 +424,11 @@ int System::DoTimeStep() {
   cudaEventRecord(start, 0);
 
   // Perform collision detection
-  collisionDetector->generateAxisAlignedBoundingBoxes();
-  collisionDetector->detectPossibleCollisions_spatialSubdivision();
-  collisionDetector->detectCollisions();
+  if(collisionGeometry_d.size()) {
+    collisionDetector->generateAxisAlignedBoundingBoxes();
+    collisionDetector->detectPossibleCollisions_spatialSubdivision();
+    collisionDetector->detectCollisions();
+  }
 
   buildAppliedImpulseVector();
   if(collisionDetector->numCollisions||constraintsBilateralDOF_d.size()||constraintsSpherical_ShellNodeToBody2D_d.size()) {
@@ -455,25 +493,28 @@ int System::clearAppliedForces() {
   return 0;
 }
 
-__global__ void constructBilateralJacobian(int2* contraintBilateralDOF, int* DI, int* DJ, double* D, uint numConstraintsBilateral) {
+__global__ void constructBilateralJacobian(int2* constraintBilateralDOF, int* offsets, int* DI, int* DJ, double* D, uint numConstraintsBilateral) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraintsBilateral);
 
-  int2 bilateralDOFs = contraintBilateralDOF[index];
+  int2 bilateralDOFs = constraintBilateralDOF[index];
+  int offset = offsets[index];
 
-  DI[2*index] = index;
-  DI[2*index+1] = index;
+  DI[offset] = index;
+  DJ[offset] = bilateralDOFs.x;
+  D[offset] = 1.0;
 
-  DJ[2*index] = bilateralDOFs.x;
-  DJ[2*index+1] = bilateralDOFs.y;
-
-  D[2*index] = 1.0;
-  D[2*index+1] = -1.0;
+  if(bilateralDOFs.y>=0)
+  {
+    DI[offset+1] = index;
+    DJ[offset+1] = bilateralDOFs.y;
+    D[offset+1] = -1.0;
+  }
 }
 
-__global__ void constructSpherical_ShellNodeToBody2DJacobian(int3* constraints, double3* pHats, double* p, int* DI, int* DJ, double* D, int numConstraintsDOF, uint numConstraints) {
+__global__ void constructSpherical_ShellNodeToBody2DJacobian(int3* constraints, double3* pHats, double* p, int* DI, int* DJ, double* D, int numConstraintsDOF, int offsetConstraintsDOF, uint numConstraints) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraints);
 
-  int offset = 2*numConstraintsDOF;
+  int offset = offsetConstraintsDOF;
   int3 constraint = constraints[index];
   double3 pHat = pHats[index];
 
@@ -1016,16 +1057,16 @@ int System::buildContactJacobian() {
     updateNonzerosPerContact<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), bodies.size(), beams.size(), collisionDetector->numCollisions);
     Thrust_Inclusive_Scan_Sum(nonzerosPerContact_d, totalNonzeros);
   }
-  totalNonzeros+=2*constraintsBilateralDOF_d.size()+7*constraintsSpherical_ShellNodeToBody2D_d.size(); //Add in space for the bilateralDOF entries
+  totalNonzeros+=offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(); //Add in space for the bilateralDOF entries
 
   DI_d.resize(totalNonzeros);
   DJ_d.resize(totalNonzeros);
   D_d.resize(totalNonzeros);
   friction_d.resize(collisionDetector->numCollisions);
 
-  if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
-  if(constraintsSpherical_ShellNodeToBody2D_d.size()) constructSpherical_ShellNodeToBody2DJacobian<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size(), constraintsSpherical_ShellNodeToBody2D_d.size());
-  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), 2*constraintsBilateralDOF_d.size()+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
+  if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(offsetBilaterals_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
+  if(constraintsSpherical_ShellNodeToBody2D_d.size()) constructSpherical_ShellNodeToBody2DJacobian<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size(), offsetConstraintsDOF, constraintsSpherical_ShellNodeToBody2D_d.size());
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
@@ -1182,11 +1223,22 @@ __global__ void buildStabilization(double* b, double4* normalsAndPenetrations, d
   b[3*index+2+offsetBilateralConstraints] = 0;
 }
 
-__global__ void buildStabilizationBilateral(double* b, int2* contraintBilateralDOF, double* p, double timeStep, uint numBilateralConstraints) {
+__global__ void buildStabilizationBilateral(double* b, double3* infoConstraintBilateralDOF, int2* constraintBilateralDOF, double* p, double timeStep, double time, uint numBilateralConstraints) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBilateralConstraints);
 
-  int2 constraintDOF = contraintBilateralDOF[index];
-  double violation = p[constraintDOF.x]-p[constraintDOF.y];
+  int2 constraintDOF = constraintBilateralDOF[index];
+  double3 info = infoConstraintBilateralDOF[index];
+  double tStart = info.y;
+  double velocity = info.x;
+  if(time<tStart) velocity = 0;
+  double p0 = info.z;
+
+  double violation = 0;
+  if(constraintDOF.y<0) {
+    violation = p[constraintDOF.x]-p0-velocity*(time-tStart);
+  } else {
+    violation = p[constraintDOF.x]-p[constraintDOF.y]-velocity*(time-tStart);
+  }
 
   b[index] = violation/timeStep;
 }
@@ -1194,7 +1246,7 @@ __global__ void buildStabilizationBilateral(double* b, int2* contraintBilateralD
 __global__ void buildStabilizationSpherical_ShellNodeToBody2D(double* b, int3* constraints, double3* pHats, double* p, double timeStep, uint numDOFConstraints, int numConstraints) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numConstraints);
 
-  int offset = 2*numDOFConstraints;
+  int offset = numDOFConstraints;
   int3 constraint = constraints[index];
   double3 pHat = pHats[index];
   int indexS = constraint.x;
@@ -1219,7 +1271,7 @@ int System::buildSchurVector() {
   cusp::multiply(mass,k,tmp);
   cusp::multiply(D,tmp,r);
 
-  if(constraintsBilateralDOF_d.size()) buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size());
+  if(constraintsBilateralDOF_d.size()) buildStabilizationBilateral<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTD1(b_d), CASTD3(infoConstraintBilateralDOF_d), CASTI2(constraintsBilateralDOF_d), CASTD1(p_d), h, time, constraintsBilateralDOF_d.size());
   if(constraintsSpherical_ShellNodeToBody2D_d.size()) buildStabilizationSpherical_ShellNodeToBody2D<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTD1(b_d), CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), h, constraintsBilateralDOF_d.size(), constraintsSpherical_ShellNodeToBody2D_d.size());
   if(collisionDetector->numCollisions) buildStabilization<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD1(b_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
   cusp::blas::axpy(b,r,1.0);
