@@ -181,13 +181,13 @@ void renderSceneAll(){
     // Apply motion
     double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
     sys->v_h = sys->v_d;
-    if(sys->time>1.0) {
+    //if(sys->time>1.0) {
       for(int i=0;i<1;i++) {
         sys->v_h[3*i+offset] = 0.2;
         sys->v_h[3*i+1+offset] = 0;
         sys->v_h[3*i+2+offset] = -1.0;
       }
-    }
+    //}
 
     sys->p_d = p0_h;
     sys->v_d = sys->v_h;
@@ -284,7 +284,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  visualize = false;
+  //visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -445,39 +445,39 @@ int main(int argc, char** argv)
   left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
   sys->add(left);
 
-  double rMin = 0.007;
-  double rMax = 0.007;
-  double density = 2600;
-  double W = ditchWidth;
-  double L_G = ditchLength;
-  double H = 3.0*depth;
-  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
-  Body* bodyPtr;
-  double wiggle = 0.003;//0.003;//0.1;
-  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
-  int numBodies = 0;
-  // Add elements in x-direction
-  for (int i = 0; i < (int) numElementsPerSideX; i++) {
-    for (int j = 0; j < (int) numElementsPerSideY; j++) {
-      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
-
-        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
-        double rRand = getRandomNumber(rMin, rMax);
-        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
-        bodyPtr->setGeometry(make_double3(rRand,0,0));
-        //if(j==0)
-        //bodyPtr->setBodyFixed(true);
-        numBodies = sys->add(bodyPtr);
-
-        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-      }
-    }
-  }
+//  double rMin = 0.007;
+//  double rMax = 0.007;
+//  double density = 2600;
+//  double W = ditchWidth;
+//  double L_G = ditchLength;
+//  double H = 3.0*depth;
+//  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
+//  Body* bodyPtr;
+//  double wiggle = 0.003;//0.003;//0.1;
+//  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
+//  int numBodies = 0;
+//  // Add elements in x-direction
+//  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+//    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+//      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//
+//        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+//        double rRand = getRandomNumber(rMin, rMax);
+//        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
+//        bodyPtr->setGeometry(make_double3(rRand,0,0));
+//        //if(j==0)
+//        //bodyPtr->setBodyFixed(true);
+//        numBodies = sys->add(bodyPtr);
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
 
   // Add bilateral constraints
   for(int i=0;i<numDiv;i++)
@@ -548,7 +548,7 @@ int main(int argc, char** argv)
   int fileIndex = 0;
   while(sys->time < t_end)
   {
-    if(sys->timeIndex%200==0) {
+    if(sys->timeIndex%20==0) {
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());
@@ -579,7 +579,7 @@ int main(int argc, char** argv)
     if(sys->time>1.0) {
       for(int i=0;i<1;i++) {
         sys->v_h[3*i+offset] = 0.2;
-        sys->v_h[3*i+1+offset] = 0;
+        //sys->v_h[3*i+1+offset] = 0;
         sys->v_h[3*i+2+offset] = -1.0;
       }
     }

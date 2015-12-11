@@ -82,12 +82,15 @@ int APGD::performSchurComplementProduct(DeviceValueArrayView src) {
 
 
 double APGD::getResidual(DeviceValueArrayView src) {
+  //1/g*(y-P(y-g*(N*y+r)))
   double gdiff = 1.0 / pow(system->collisionDetector->numCollisions+system->constraintsBilateralDOF_d.size(),2.0);
   performSchurComplementProduct(src); //cusp::multiply(system->N,src,gammaTmp); //
   cusp::blas::axpy(system->r,gammaTmp,1.0);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
-  if(system->collisionDetector->numCollisions) project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), system->collisionDetector->numCollisions);
-  cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
+  if(system->collisionDetector->numCollisions) {
+    cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0,-gdiff);
+    if(system->collisionDetector->numCollisions) project<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp_d), CASTD1(system->friction_d), system->constraintsBilateralDOF_d.size()+3*system->constraintsSpherical_ShellNodeToBody2D_d.size(), system->collisionDetector->numCollisions);
+    cusp::blas::axpby(src,gammaTmp,gammaTmp,1.0/gdiff,-1.0/gdiff);
+  }
 
   return cusp::blas::nrmmax(gammaTmp);
 }

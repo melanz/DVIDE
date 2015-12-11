@@ -1392,7 +1392,7 @@ int System::exportSystem(string filename) {
       filestream << p_h[3*bodies.size()+12*beams.size()+36*plates.size()+3*i+j] << ", ";
     }
 
-    for(int j=0;j<36;j++) {
+    for(int j=0;j<3;j++) {
       filestream << v_h[3*bodies.size()+12*beams.size()+36*plates.size()+3*i+j] << ", ";
     }
 
