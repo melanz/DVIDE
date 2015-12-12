@@ -195,7 +195,7 @@ int main(int argc, char** argv)
   double mu_pdip = 10.0;
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
-  int solverTypeQOCC = 6;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 10;
   double tolerance = 1e-3;
   double hh = 1e-2;

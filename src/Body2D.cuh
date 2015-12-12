@@ -14,12 +14,12 @@
 
 class System;
 class Body2D : public PhysicsItem {
-  friend class System;
+	friend class System;
 private:
 
-  double3 p;
+	double3 p;
 	double3 v;
-  double3 a;
+	double3 a;
 
 	double mass;
 	double inertia;
@@ -28,63 +28,63 @@ private:
 
 public:
 	Body2D() {
-	  numDOF = 3;
-	  identifier = 0;
-	  index = 0;
-	  sys = 0;
-	  collisionFamily = -1;
+		numDOF = 3;
+		identifier = 0;
+		index = 0;
+		sys = 0;
+		collisionFamily = -1;
 
 		// create test element!
-	  p = make_double3(0, 0, 0);
-    v = make_double3(0, 0, 0);
-    a = make_double3(0, 0, 0);
+		p = make_double3(0, 0, 0);
+		v = make_double3(0, 0, 0);
+		a = make_double3(0, 0, 0);
 
 		mass = 1.0;
 		inertia = 1.0;
 	}
 
 	Body2D(double3 pos, double3 vel, double mass, double inertia) {
-    numDOF = 3;
-    identifier = 0;
-    index = 0;
-    sys = 0;
-    collisionFamily = -1;
+		numDOF = 3;
+		identifier = 0;
+		index = 0;
+		sys = 0;
+		collisionFamily = -1;
 
-    // create test element!
-    p = pos;
-    v = vel;
-    a = make_double3(0, 0, 0);
+		// create test element!
+		p = pos;
+		v = vel;
+		a = make_double3(0, 0, 0);
 
-    this->mass = mass;
-    this->inertia = inertia;
-  }
+		this->mass = mass;
+		this->inertia = inertia;
+	}
 
 	double3 getPosition()
 	{
-	  return p;
+		return p;
 	}
-  double3 getVelocity()
-  {
-    return v;
-  }
-  double getMass()
-  {
-    return mass;
-  }
-  double getInertia()
-  {
-    return inertia;
-  }
-  void setMass(double mass)
-  {
-    this->mass = mass;
-  }
-  void setInertia(double inertia)
-  {
-    this->inertia = inertia;
-  }
+	double3 getVelocity()
+	{
+		return v;
+	}
+	double getMass()
+	{
+		return mass;
+	}
+	double getInertia()
+	{
+		return inertia;
+	}
+	void setMass(double mass)
+	{
+		this->mass = mass;
+	}
+	void setInertia(double inertia)
+	{
+		this->inertia = inertia;
+	}
 
-  int addBody2D(int j);
+	int addBody2D(int j);
 };
 
 #endif /* BODY2D_CUH_ */

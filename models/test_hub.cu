@@ -173,8 +173,8 @@ void drawAll()
 
 void renderSceneAll(){
   if(OGL){
-    drawAll();
-    p0_h = sys->p_d;
+	  if(sys->timeIndex%20==0) drawAll();
+//    p0_h = sys->p_d;
     sys->DoTimeStep();
 
 //    // TODO: This is a big no-no, need to enforce motion via constraints
@@ -270,7 +270,7 @@ int main(int argc, char** argv)
   double alpha = 0.01; // should be [0.01, 0.1]
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 1;
-  int binsPerAxis = 20;
+  int binsPerAxis = 10;
   double tolerance = 1e-2;
   double hh = 1e-3;
 
@@ -284,12 +284,12 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
   sys->solver->tolerance = tolerance;
-  //sys->solver->maxIterations = 5000;
+  //sys->solver->maxIterations = 2000;
 
   // Create output directories
   std::stringstream outDirStream;
@@ -313,7 +313,7 @@ int main(int argc, char** argv)
     }
   }
 
-  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,binsPerAxis,binsPerAxis));
+  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,10,binsPerAxis));
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
@@ -367,20 +367,20 @@ int main(int argc, char** argv)
   vector<double3> detas;
   for(int i=0;i<numDiv;i++)
   {
-    nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),0));
+    nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),-0.5*beltWidth));
     dxis.push_back(make_double3(-sin(radianInc*i),cos(radianInc*i),0));
     detas.push_back(make_double3(cos(radianInc*i),sin(radianInc*i),0));
 
-    nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),beltWidth));
+    nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),0.5*beltWidth));
     dxis.push_back(make_double3(-sin(radianInc*i),cos(radianInc*i),0));
     detas.push_back(make_double3(-cos(radianInc*i),-sin(radianInc*i),0));
   }
   int i = 0;
-  nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),0));
+  nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),-0.5*beltWidth));
   dxis.push_back(make_double3(-sin(radianInc*i),cos(radianInc*i),0));
   detas.push_back(make_double3(cos(radianInc*i),sin(radianInc*i),0));
 
-  nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),beltWidth));
+  nodes.push_back(make_double3(R*cos(radianInc*i),R*sin(radianInc*i),0.5*beltWidth));
   dxis.push_back(make_double3(-sin(radianInc*i),cos(radianInc*i),0));
   detas.push_back(make_double3(-cos(radianInc*i),-sin(radianInc*i),0));
 
@@ -407,84 +407,100 @@ int main(int argc, char** argv)
 
   // Add hub
   Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
-  hub->setCollisionFamily(1);
   sys->add(hub);
 
   // Add ground
   Body* groundPtr = new Body(make_double3(0,-R-beltWidth-0.5*depth,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setCollisionFamily(2);
+  //groundPtr->setCollisionFamily(2);
   groundPtr->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
   sys->add(groundPtr);
 
   // Add ground
   Body* groundPtr2 = new Body(make_double3(4*R+ditchLength,-R-beltWidth-0.5*depth,0));
   groundPtr2->setBodyFixed(true);
-  groundPtr2->setCollisionFamily(2);
+  //groundPtr2->setCollisionFamily(2);
   groundPtr2->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
   sys->add(groundPtr2);
 
   // Add ground
   Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth-th,0));
   groundPtr3->setBodyFixed(true);
-  groundPtr3->setCollisionFamily(2);
+  //groundPtr3->setCollisionFamily(2);
   groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
   sys->add(groundPtr3);
 
   // Add sides
   Body* right = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,0.5*ditchWidth+th));
   right->setBodyFixed(true);
-  right->setCollisionFamily(2);
+  //right->setCollisionFamily(2);
   right->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
   sys->add(right);
 
   // Add sides
   Body* left = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,-0.5*ditchWidth-th));
   left->setBodyFixed(true);
-  left->setCollisionFamily(2);
+  //left->setCollisionFamily(2);
   left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
   sys->add(left);
 
-//  double rMin = 0.007;
-//  double rMax = 0.007;
-//  double density = 2600;
-//  double W = ditchWidth;
-//  double L_G = ditchLength;
-//  double H = 3.0*depth;
-//  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
-//  Body* bodyPtr;
-//  double wiggle = 0.003;//0.003;//0.1;
-//  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
-//  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
-//  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
-//  int numBodies = 0;
-//  // Add elements in x-direction
-//  for (int i = 0; i < (int) numElementsPerSideX; i++) {
-//    for (int j = 0; j < (int) numElementsPerSideY; j++) {
-//      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//  Body* body = new Body(make_double3(2,0,0));
+//  body->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body);
 //
-//        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
-//        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
-//        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
-//        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
-//        double rRand = getRandomNumber(rMin, rMax);
-//        bodyPtr->setMass(4.0*rRand*rRand*rRand*3.1415/3.0*density);
-//        bodyPtr->setGeometry(make_double3(rRand,0,0));
-//        //if(j==0)
-//        //bodyPtr->setBodyFixed(true);
-//        numBodies = sys->add(bodyPtr);
+//  Body* body1 = new Body(make_double3(2,2.1*(R+0.5*beltWidth),0));
+//  body1->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body1);
 //
-//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-//      }
-//    }
-//  }
+//  Body* body2 = new Body(make_double3(2,4.2*(R+0.5*beltWidth),0));
+//  body2->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body2);
+//
+//  Body* body3 = new Body(make_double3(2,6.3*(R+0.5*beltWidth),0));
+//  body3->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body3);
 
-  double omega = 180*PI/180.0;
-  double vel = (R+0.5*beltWidth)*omega;
+  double rMin = 0.007;
+  double rMax = 0.007;
+  double density = 2600;
+  double W = ditchWidth;
+  double L_G = ditchLength;
+  double H = 3.0*depth;
+  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
+  Body* bodyPtr;
+  double wiggle = 0.003;//0.1;
+  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
+  int numBodies = 0;
+  // Add elements in x-direction
+  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+
+        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+        double rRand = getRandomNumber(rMin, rMax);
+        bodyPtr->setMass(4.0*rRand*rRand*rRand*PI/3.0*density);
+        bodyPtr->setGeometry(make_double3(rRand,0,0));
+        //if(j==0)
+        //bodyPtr->setBodyFixed(true);
+        numBodies = sys->add(bodyPtr);
+
+        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+      }
+    }
+  }
+
+  double tStart = 1.0;
+  double slip = 0;
+  double omega = 17.0*PI/180.0;
+  double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
-  sys->addBilateralConstraintDOF(offsetHub,-1, vel, 0.2);
-  //sys->addBilateralConstraintDOF(offsetHub+1,-1);
-  sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, 0.2);
+  sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
+  sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   // Add bilateral constraints
   for(int i=0;i<numDiv;i++)
@@ -562,42 +578,17 @@ int main(int argc, char** argv)
       fileIndex++;
     }
 
-    p0_h = sys->p_d;
     sys->DoTimeStep();
     sys->exportMatrices(outDir.c_str());
-    cin.get();
+    //cin.get();
 
-    // Determine contact force on the container
-    sys->f_contact_h = sys->f_contact_d;
     double weight = 0;
-    for(int i=0; i<1; i++) {
-      weight += sys->f_contact_h[3*i+1];
-    }
-    cout << "  Weight: " << weight << endl;
 
     int numKrylovIter = 0;
     if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
     if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
     if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
     statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << endl;
-
-    // TODO: This is a big no-no, need to enforce motion via constraints
-    // Apply motion
-    double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
-    sys->v_h = sys->v_d;
-    if(sys->time>1.0) {
-      for(int i=0;i<1;i++) {
-        sys->v_h[3*i+offset] = 0.2;
-        //sys->v_h[3*i+1+offset] = 0;
-        sys->v_h[3*i+2+offset] = -1.0;
-      }
-    }
-
-    sys->p_d = p0_h;
-    sys->v_d = sys->v_h;
-    cusp::blas::axpy(sys->v, sys->p, sys->h);
-    sys->p_h = sys->p_d;
-    // End apply motion
   }
   sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
