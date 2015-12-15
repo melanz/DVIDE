@@ -340,7 +340,7 @@ int main(int argc, char** argv)
   //sys->solver->maxIterations = 1;
   //sys->gravity = make_double3(0,0,0);
 
-  int numDiv = 4;
+  int numDiv = 9;
   double radianInc = 2.0*PI/((double) numDiv);
   double EM = 7.e7;
   double rho = 7810.0;
@@ -496,7 +496,7 @@ int main(int argc, char** argv)
 
   double tStart = 1.0;
   double slip = 0;
-  double omega = 17.0*PI/180.0;
+  double omega = 180.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
@@ -579,7 +579,7 @@ int main(int argc, char** argv)
     }
 
     sys->DoTimeStep();
-    sys->exportMatrices(outDir.c_str());
+    //sys->exportMatrices(outDir.c_str());
     //cin.get();
 
     double weight = 0;
