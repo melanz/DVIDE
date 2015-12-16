@@ -27,6 +27,7 @@ private:
   DeviceValueArrayView yNew;
   DeviceValueArrayView gammaTmp;
   DeviceValueArrayView antiRelaxation;
+  DeviceValueArrayView pOld;
   // End APGD Solver
 
   // APGD Solver
@@ -37,6 +38,7 @@ private:
   thrust::host_vector<double> yNew_h;
   thrust::host_vector<double> gammaTmp_h;
   thrust::host_vector<double> antiRelaxation_h;
+  thrust::host_vector<double> pOld_h;
   // End APGD Solver
 
   // APGD Solver
@@ -47,12 +49,18 @@ private:
   thrust::device_vector<double> yNew_d;
   thrust::device_vector<double> gammaTmp_d;
   thrust::device_vector<double> antiRelaxation_d;
+  thrust::device_vector<double> pOld_d;
   // End APGD Solver
+
+  bool useWarmStarting;
+  bool useAntiRelaxation;
 
   int performSchurComplementProduct(DeviceValueArrayView src);
   double getResidual(DeviceValueArrayView src);
 
 public:
+  void setWarmStarting(bool useWarmStarting) {this->useWarmStarting = useWarmStarting;}
+  void setAntiRelaxation(bool useAntiRelaxation) {this->useAntiRelaxation = useAntiRelaxation;}
 
 	APGD(System* sys);
 	int setup();

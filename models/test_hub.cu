@@ -6,6 +6,7 @@
 #include "Beam.cuh"
 #include "Plate.cuh"
 #include "Body2D.cuh"
+#include "APGD.cuh"
 #include "PDIP.cuh"
 #include "TPAS.cuh"
 #include "JKIP.cuh"
@@ -284,7 +285,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  visualize = false;
+  //visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -314,6 +315,10 @@ int main(int argc, char** argv)
   }
 
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,10,binsPerAxis));
+  if(solverTypeQOCC==1) {
+    dynamic_cast<APGD*>(sys->solver)->setWarmStarting(true);
+    dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(true);
+  }
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
@@ -410,39 +415,46 @@ int main(int argc, char** argv)
   sys->add(hub);
 
   // Add ground
-  Body* groundPtr = new Body(make_double3(0,-R-beltWidth-0.5*depth,0));
-  groundPtr->setBodyFixed(true);
-  //groundPtr->setCollisionFamily(2);
-  groundPtr->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
-  sys->add(groundPtr);
-
-  // Add ground
-  Body* groundPtr2 = new Body(make_double3(4*R+ditchLength,-R-beltWidth-0.5*depth,0));
-  groundPtr2->setBodyFixed(true);
-  //groundPtr2->setCollisionFamily(2);
-  groundPtr2->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
-  sys->add(groundPtr2);
-
-  // Add ground
-  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth-th,0));
+  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-0.5*beltWidth-th,0));
   groundPtr3->setBodyFixed(true);
   //groundPtr3->setCollisionFamily(2);
   groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
   sys->add(groundPtr3);
 
-  // Add sides
-  Body* right = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,0.5*ditchWidth+th));
-  right->setBodyFixed(true);
-  //right->setCollisionFamily(2);
-  right->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
-  sys->add(right);
-
-  // Add sides
-  Body* left = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,-0.5*ditchWidth-th));
-  left->setBodyFixed(true);
-  //left->setCollisionFamily(2);
-  left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
-  sys->add(left);
+//  // Add ground
+//  Body* groundPtr = new Body(make_double3(0,-R-beltWidth-0.5*depth,0));
+//  groundPtr->setBodyFixed(true);
+//  //groundPtr->setCollisionFamily(2);
+//  groundPtr->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
+//  sys->add(groundPtr);
+//
+//  // Add ground
+//  Body* groundPtr2 = new Body(make_double3(4*R+ditchLength,-R-beltWidth-0.5*depth,0));
+//  groundPtr2->setBodyFixed(true);
+//  //groundPtr2->setCollisionFamily(2);
+//  groundPtr2->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
+//  sys->add(groundPtr2);
+//
+//  // Add ground
+//  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth-th,0));
+//  groundPtr3->setBodyFixed(true);
+//  //groundPtr3->setCollisionFamily(2);
+//  groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
+//  sys->add(groundPtr3);
+//
+//  // Add sides
+//  Body* right = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,0.5*ditchWidth+th));
+//  right->setBodyFixed(true);
+//  //right->setCollisionFamily(2);
+//  right->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
+//  sys->add(right);
+//
+//  // Add sides
+//  Body* left = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,-0.5*ditchWidth-th));
+//  left->setBodyFixed(true);
+//  //left->setCollisionFamily(2);
+//  left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
+//  sys->add(left);
 
 //  Body* body = new Body(make_double3(2,0,0));
 //  body->setGeometry(make_double3(R+0.5*beltWidth,0,0));
@@ -459,40 +471,40 @@ int main(int argc, char** argv)
 //  Body* body3 = new Body(make_double3(2,6.3*(R+0.5*beltWidth),0));
 //  body3->setGeometry(make_double3(R+0.5*beltWidth,0,0));
 //  sys->add(body3);
-
-  double rMin = 0.007;
-  double rMax = 0.007;
-  double density = 2600;
-  double W = ditchWidth;
-  double L_G = ditchLength;
-  double H = 3.0*depth;
-  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
-  Body* bodyPtr;
-  double wiggle = 0.003;//0.1;
-  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
-  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
-  int numBodies = 0;
-  // Add elements in x-direction
-  for (int i = 0; i < (int) numElementsPerSideX; i++) {
-    for (int j = 0; j < (int) numElementsPerSideY; j++) {
-      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
-
-        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
-        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
-        double rRand = getRandomNumber(rMin, rMax);
-        bodyPtr->setMass(4.0*rRand*rRand*rRand*PI/3.0*density);
-        bodyPtr->setGeometry(make_double3(rRand,0,0));
-        //if(j==0)
-        //bodyPtr->setBodyFixed(true);
-        numBodies = sys->add(bodyPtr);
-
-        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
-      }
-    }
-  }
+//
+//  double rMin = 0.007;
+//  double rMax = 0.007;
+//  double density = 2600;
+//  double W = ditchWidth;
+//  double L_G = ditchLength;
+//  double H = 3.0*depth;
+//  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
+//  Body* bodyPtr;
+//  double wiggle = 0.003;//0.1;
+//  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
+//  int numBodies = 0;
+//  // Add elements in x-direction
+//  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+//    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+//      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//
+//        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+//        double rRand = getRandomNumber(rMin, rMax);
+//        bodyPtr->setMass(4.0*rRand*rRand*rRand*PI/3.0*density);
+//        bodyPtr->setGeometry(make_double3(rRand,0,0));
+//        //if(j==0)
+//        //bodyPtr->setBodyFixed(true);
+//        numBodies = sys->add(bodyPtr);
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
 
   double tStart = 1.0;
   double slip = 0;

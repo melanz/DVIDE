@@ -10,6 +10,9 @@ APGD::APGD(System* sys)
   tolerance = 1e-4;
   maxIterations = 100000;
   iterations = 0;
+
+  useWarmStarting = false;
+  useAntiRelaxation = false;
 }
 
 int APGD::setup()
@@ -20,6 +23,7 @@ int APGD::setup()
   y_d = system->a_h;
   yNew_d = system->a_h;
   gammaTmp_d = system->a_h;
+  pOld_d = system->a_h;
 
   thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
   thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
@@ -27,6 +31,7 @@ int APGD::setup()
   thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
   thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
+  thrust::device_ptr<double> wrapped_device_pOld(CASTD1(pOld_d));
 
   gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
   gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
@@ -34,6 +39,7 @@ int APGD::setup()
   y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
   yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
+  pOld = DeviceValueArrayView(wrapped_device_pOld, wrapped_device_pOld + pOld_d.size());
 
   return 0;
 }
@@ -184,12 +190,14 @@ int APGD::solve() {
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   antiRelaxation = DeviceValueArrayView(wrapped_device_antiRelaxation, wrapped_device_antiRelaxation + antiRelaxation_d.size());
 
+  cusp::blas::copy(system->p,pOld);
+
   // (1) gamma_0 = zeros(nc,1)
   cusp::blas::fill(antiRelaxation,0.0);
   //cusp::blas::fill(system->gamma,0);
 
   // Provide an initial guess for gamma
-  //initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
+  if(!useWarmStarting) initializeImpulseVector_APGD<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), system->collisionDetector->numCollisions);
 
   // (2) gamma_hat_0 = ones(nc,1)
   cusp::blas::fill(gammaHat,1.0);
@@ -323,15 +331,19 @@ int APGD::solve() {
     cusp::blas::copy(gammaNew,system->gamma);
     cusp::blas::copy(yNew,y);
 
-//    // Apply anti-relaxation
-//    cusp::blas::axpy(antiRelaxation,system->r,-1.0);
-//    cusp::multiply(system->DT,system->gamma,system->f_contact);
-//    cusp::blas::axpby(system->k,system->f_contact,system->tmp,1.0,1.0);
-//    cusp::multiply(system->mass,system->tmp,system->v);
-//    cusp::multiply(system->D,system->v,gammaTmp);
-//    updateAntiRelaxationVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(system->friction_d), CASTD1(antiRelaxation), system->collisionDetector->numCollisions);
-//    cusp::blas::axpy(antiRelaxation,system->r,1.0);
-//    // End apply anti-relaxation
+    // Apply anti-relaxation
+    if(useAntiRelaxation) {
+      cusp::blas::axpy(antiRelaxation,system->r,-1.0); // r = -1.0*ar+r, removing ar from r
+      cusp::multiply(system->DT,system->gamma,system->f_contact);  // f_contact = DT*gamma
+      cusp::blas::axpby(system->k,system->f_contact,system->tmp,1.0,1.0); // tmp = k+f_contact
+      cusp::multiply(system->mass,system->tmp,system->v); // v = Minv*tmp
+//      cusp::blas::axpby(pOld,system->v,system->p,1.0,system->h); // p = pOld + h*v
+//      system->buildAppliedImpulseVector();
+      cusp::multiply(system->D,system->v,gammaTmp); // gammaTmp = D*v
+      updateAntiRelaxationVector<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(gammaTmp), CASTD1(system->friction_d), CASTD1(antiRelaxation), system->collisionDetector->numCollisions);
+      cusp::blas::axpy(antiRelaxation,system->r,1.0);
+    }
+    // End apply anti-relaxation
 
     // (32) endfor
     //cout << "  Iterations: " << k << " Residual: " << residual << endl;
@@ -341,6 +353,6 @@ int APGD::solve() {
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   iterations = k;
   cusp::blas::copy(gammaHat,system->gamma);
-
+  cusp::blas::copy(pOld,system->p);
   return 0;
 }
