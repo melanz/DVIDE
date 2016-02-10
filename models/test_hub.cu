@@ -178,6 +178,15 @@ void renderSceneAll(){
 //    p0_h = sys->p_d;
     sys->DoTimeStep();
 
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    sys->gamma_h = sys->gamma_d;
+    double weight = sys->f_contact_h[3*0+1];
+    double traction = sys->f_contact_h[3*0];
+    double drawbar = sys->gamma_h[0];
+    double torque = sys->gamma_h[1];
+    cout << "  Weight: " << weight << " Traction: " << traction << " Drawbar: " << drawbar << " Torque: " << torque << endl;
+
 //    // TODO: This is a big no-no, need to enforce motion via constraints
 //    // Apply motion
 //    double offset = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
@@ -274,10 +283,12 @@ int main(int argc, char** argv)
   int binsPerAxis = 10;
   double tolerance = 1e-2;
   double hh = 1e-3;
+  int numDiv = 9;
+  double slip = 0;
 
   if(argc > 1) {
-    numElementsPerSide = atoi(argv[1]);
-    solverTypeQOCC = atoi(argv[2]);
+    numDiv = atoi(argv[1]);
+    slip = atof(argv[2]);
     tolerance = atof(argv[3]);
     hh = atof(argv[4]);
   }
@@ -294,7 +305,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUB_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDirStream << "../TEST_HUB_n" << numDiv << "_slip" << slip << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -345,7 +356,7 @@ int main(int argc, char** argv)
   //sys->solver->maxIterations = 1;
   //sys->gravity = make_double3(0,0,0);
 
-  int numDiv = 9;
+
   double radianInc = 2.0*PI/((double) numDiv);
   double EM = 7.e7;
   double rho = 7810.0;
@@ -506,9 +517,8 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-  double tStart = 1.0;
-  double slip = 0;
-  double omega = 180.0*PI/180.0;
+  double tStart = 2.0;
+  double omega = 17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
@@ -578,7 +588,7 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsHub_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsHub_n" << numDiv << "_slip" << slip << "_h" << hh << "_tol" << tolerance << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)
@@ -594,13 +604,20 @@ int main(int argc, char** argv)
     //sys->exportMatrices(outDir.c_str());
     //cin.get();
 
-    double weight = 0;
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    sys->gamma_h = sys->gamma_d;
+    double weight = sys->f_contact_h[3*0+1];
+    double traction = sys->f_contact_h[3*0];
+    double drawbar = sys->gamma_h[0];
+    double torque = sys->gamma_h[1];
+    cout << "  Weight: " << weight << " Traction: " << traction << " Drawbar: " << drawbar << " Torque: " << torque << endl;
 
     int numKrylovIter = 0;
     if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
     if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
     if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << endl;
+    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << traction << ", " << drawbar << ", " << torque << ", " << numKrylovIter << endl;
   }
   sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;

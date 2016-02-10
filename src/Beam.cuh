@@ -172,6 +172,10 @@ public:
   {
     this->contactGeometry.x = radius;
   }
+  void setNumContactPoints(int numPoints)
+  {
+    this->contactGeometry.z = (double)numPoints;
+  }
   double3 transformNodalToCartesian(double xi);
   int addBeam(int j);
 };
