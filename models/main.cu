@@ -251,9 +251,6 @@ int main(int argc, char** argv)
     dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
     dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
     dynamic_cast<TPAS*>(sys->solver)->setNumPartitions(numPartitions);
-    dynamic_cast<TPAS*>(sys->solver)->alpha = alpha;
-    dynamic_cast<TPAS*>(sys->solver)->beta = beta;
-    dynamic_cast<TPAS*>(sys->solver)->mu_pdip = mu_pdip;
   }
   if(solverTypeQOCC==4) {
     dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);

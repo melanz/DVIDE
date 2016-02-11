@@ -85,7 +85,8 @@ private:
   // end spike stuff
 
   double residual;
-
+  double epsilon;
+/*
   uint numActiveNormalConstraints;
   uint numActiveTangentConstraints;
 
@@ -204,13 +205,52 @@ private:
   int updateNewtonStepVector(DeviceValueArrayView gamma, DeviceValueArrayView lambda, DeviceValueArrayView f, double t);
   int buildAMatrix();
 
-  int performSchurComplementProduct(DeviceValueArrayView src);
   double getResidual(DeviceValueArrayView src);
   int performEQPStage(int currentIterate);
+*/
+
+  // PGB stuff
+  DeviceValueArrayView x;
+  DeviceValueArrayView xNew;
+  DeviceValueArrayView x0;
+  DeviceValueArrayView d;
+  DeviceValueArrayView r;
+  DeviceValueArrayView xTmp;
+  DeviceValueArrayView xTmp2;
+  DeviceView invTx;
+  DeviceView Ty;
+
+  thrust::device_vector<double> x_d;
+  thrust::device_vector<double> xNew_d;
+  thrust::device_vector<double> x0_d;
+  thrust::device_vector<double> d_d;
+  thrust::device_vector<double> r_d;
+  thrust::device_vector<double> xTmp_d;
+  thrust::device_vector<double> xTmp2_d;
+
+  thrust::device_vector<int> invTxI_d;
+  thrust::device_vector<int> invTxJ_d;
+  thrust::device_vector<double> invTx_d;
+
+  thrust::device_vector<int> TyI_d;
+  thrust::device_vector<int> TyJ_d;
+  thrust::device_vector<double> Ty_d;
+
+  thrust::device_vector<double> breakpoints_d;
+  thrust::host_vector<double> breakpoints_h;
+
+  thrust::device_vector<int> W0_d;
+  thrust::device_vector<int> WP_d;
+
+  int initializeScalingMatrices();
+  int performSchurComplementProduct(DeviceValueArrayView src);
+  int PG();
+  int evaluateBreakpoints();
+  int updateWorkingSet();
+  double getDirectionalDerivative();
+  double backtrackLinesearch(double alpha0);
+
 public:
-  double mu_pdip;
-  double alpha;
-  double beta;
   double totalKrylovIterations;
   double tol_p;
 

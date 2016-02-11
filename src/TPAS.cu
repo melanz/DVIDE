@@ -16,15 +16,15 @@ return !x;
 TPAS::TPAS(System* sys)
 {
   system = sys;
+  residual = 10e30;
+  totalKrylovIterations = 0;
 
-  mu_pdip = 50.0;
-  alpha = 0.01; // should be [0.01, 0.1]
-  beta = 0.8; // should be [0.3, 0.8]
   tolerance = 1e-4;
   maxIterations = 1000;
   iterations = 0;
 
   tol_p = 1e-2; // TODO: What is best here?
+  epsilon = 1e-12;
 
   // spike stuff
   partitions = 1;
@@ -42,6 +42,32 @@ TPAS::TPAS(System* sys)
 
 int TPAS::setup()
 {
+  x_d = system->a_h;
+  xNew_d = system->a_h;
+  x0_d = system->a_h;
+  d_d = system->a_h;
+  r_d = system->a_h;
+  xTmp_d = system->a_h;
+  xTmp2_d = system->a_h;
+
+  breakpoints_d = system->a_h;
+
+  thrust::device_ptr<double> wrapped_device_x(CASTD1(x_d));
+  thrust::device_ptr<double> wrapped_device_xNew(CASTD1(xNew_d));
+  thrust::device_ptr<double> wrapped_device_x0(CASTD1(x0_d));
+  thrust::device_ptr<double> wrapped_device_d(CASTD1(d_d));
+  thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+  thrust::device_ptr<double> wrapped_device_xTmp(CASTD1(xTmp_d));
+  thrust::device_ptr<double> wrapped_device_xTmp2(CASTD1(xTmp2_d));
+  x = DeviceValueArrayView(wrapped_device_x, wrapped_device_x + x_d.size());
+  xNew = DeviceValueArrayView(wrapped_device_xNew, wrapped_device_xNew + xNew_d.size());
+  x0 = DeviceValueArrayView(wrapped_device_x0, wrapped_device_x0 + x0_d.size());
+  d = DeviceValueArrayView(wrapped_device_d, wrapped_device_d + d_d.size());
+  r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+  xTmp = DeviceValueArrayView(wrapped_device_xTmp, wrapped_device_xTmp + xTmp_d.size());
+  xTmp2 = DeviceValueArrayView(wrapped_device_xTmp2, wrapped_device_xTmp2 + xTmp2_d.size());
+
+  /*
   f_d = system->a_h;
   lambda_d = system->a_h;
   lambdaTmp_d = system->a_h;
@@ -74,7 +100,7 @@ int TPAS::setup()
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   rhs = DeviceValueArrayView(wrapped_device_rhs, wrapped_device_rhs + rhs_d.size());
   res = DeviceValueArrayView(wrapped_device_res, wrapped_device_res + res_d.size());
-
+*/
   return 0;
 }
 
@@ -116,6 +142,7 @@ void TPAS::printSolverParams()
   printf("----------------------------\n");
 }
 
+/*
 __global__ void initializeImpulseVector2(double* src, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
@@ -429,10 +456,10 @@ int TPAS::buildAMatrix() {
   return 0;
 }
 
-__global__ void project2(double* src, double* friction, uint numCollisions) {
+__global__ void project2(double* src, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  double mu = friction[index];
+  double mu = 1.0;
   double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
   double gamma_n = gamma.x;
   double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
@@ -623,10 +650,368 @@ int TPAS::performEQPStage(int currentIterate) {
   return h;
   // END EQP STAGE
 }
+*/
+
+__global__ void getFeasible_TPAS(double* src, double* dst, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double xn = src[3*index];
+  double xt1 = src[3*index+1];
+  double xt2 = src[3*index+2];
+
+  xn = xn-sqrt(pow(xt1,2.0)+pow(xt2,2.0));
+  if(xn!=xn) xn = 0.0;
+  dst[3*index] = -fmin(0.0,xn);
+  dst[3*index+1] = -10e30;
+  dst[3*index+2] = -10e30;
+}
+
+__global__ void constructScalingMatrices(int* invTxI, int* invTxJ, double* invTx, int* TyI, int* TyJ, double* Ty, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double mu = friction[index];
+
+  invTxI[3*index] = 3*index;
+  invTxJ[3*index] = 3*index;
+  invTx[3*index] = 1.0/mu;
+
+  invTxI[3*index+1] = 3*index+1;
+  invTxJ[3*index+1] = 3*index+1;
+  invTx[3*index+1] = 1.0;
+
+  invTxI[3*index+2] = 3*index+2;
+  invTxJ[3*index+2] = 3*index+2;
+  invTx[3*index+2] = 1.0;
+
+  TyI[3*index] = 3*index;
+  TyJ[3*index] = 3*index;
+  Ty[3*index] = 1.0;
+
+  TyI[3*index+1] = 3*index+1;
+  TyJ[3*index+1] = 3*index+1;
+  Ty[3*index+1] = mu;
+
+  TyI[3*index+2] = 3*index+2;
+  TyJ[3*index+2] = 3*index+2;
+  Ty[3*index+2] = mu;
+}
+
+int TPAS::initializeScalingMatrices() {
+  constructScalingMatrices<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTI1(invTxI_d), CASTI1(invTxJ_d), CASTD1(invTx_d), CASTI1(TyI_d), CASTI1(TyJ_d), CASTD1(Ty_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+
+  {
+    // create invTx using cusp library
+    thrust::device_ptr<int> wrapped_device_I(CASTI1(invTxI_d));
+    DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + invTxI_d.size());
+
+    thrust::device_ptr<int> wrapped_device_J(CASTI1(invTxJ_d));
+    DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + invTxJ_d.size());
+
+    thrust::device_ptr<double> wrapped_device_V(CASTD1(invTx_d));
+    DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + invTx_d.size());
+
+    invTx = DeviceView(3*system->collisionDetector->numCollisions, 3*system->collisionDetector->numCollisions, invTx_d.size(), row_indices, column_indices, values);
+    // end create invTx
+  }
+
+  {
+    // create Ty using cusp library
+    thrust::device_ptr<int> wrapped_device_I(CASTI1(TyI_d));
+    DeviceIndexArrayView row_indices = DeviceIndexArrayView(wrapped_device_I, wrapped_device_I + TyI_d.size());
+
+    thrust::device_ptr<int> wrapped_device_J(CASTI1(TyJ_d));
+    DeviceIndexArrayView column_indices = DeviceIndexArrayView(wrapped_device_J, wrapped_device_J + TyJ_d.size());
+
+    thrust::device_ptr<double> wrapped_device_V(CASTD1(Ty_d));
+    DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + Ty_d.size());
+
+    Ty = DeviceView(3*system->collisionDetector->numCollisions, 3*system->collisionDetector->numCollisions, Ty_d.size(), row_indices, column_indices, values);
+    // end create Ty
+  }
+
+  return 0;
+}
+
+__global__ void initializeImpulseVector_TPAS(double* src, double* dst, double* friction, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  dst[3*index] = friction[index] * src[3*index];
+}
+
+__global__ void project_TPAS(double* src, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double3 gamma = make_double3(src[3*index],src[3*index+1],src[3*index+2]);
+  double gamma_n = gamma.x;
+  double gamma_t = sqrt(pow(gamma.y,2.0)+pow(gamma.z,2.0));
+
+  if(gamma_t < gamma_n) {
+    // Don't touch gamma!
+  }
+  else if((gamma_t < -gamma_n) || (abs(gamma_n) < 10e-15)) {
+    gamma = make_double3(0,0,0);
+  }
+  else {
+    double gamma_n_proj = (gamma_t + gamma_n)/(2.0);
+    double gamma_t_proj = gamma_n_proj;
+    double tproj_div_t = gamma_t_proj/gamma_t;
+    double gamma_u_proj = tproj_div_t * gamma.y;
+    double gamma_v_proj = tproj_div_t * gamma.z;
+    gamma = make_double3(gamma_n_proj, gamma_u_proj, gamma_v_proj);
+  }
+
+  src[3*index  ] = gamma.x;
+  src[3*index+1] = gamma.y;
+  src[3*index+2] = gamma.z;
+}
+
+int TPAS::performSchurComplementProduct(DeviceValueArrayView src) {
+  // NOTE: system->gamma is destroyed! We restore it at the end of the solver
+  cusp::multiply(invTx,src,xTmp);
+  cusp::multiply(system->DT,xTmp,system->f_contact);
+  cusp::multiply(system->mass,system->f_contact,system->tmp);
+  cusp::multiply(system->D,system->tmp,system->gamma);
+  cusp::multiply(Ty,system->gamma,xTmp);
+
+  return 0;
+}
+
+__global__ void processBreakpoints(double* x, double* d, double* breakpoints, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double3 xi = make_double3(x[3*index],x[3*index+1],x[3*index+2]);
+  double3 di = make_double3(d[3*index],d[3*index+1],d[3*index+2]);
+  double xt = sqrt(pow(xi.y,2.0)+pow(xi.z,2.0));
+  double dt = sqrt(pow(di.y,2.0)+pow(di.z,2.0));
+
+  double a = pow(dt,2.0)-pow(di.x,2.0);
+  double b = 2.0*(xi.y*di.y+xi.z*di.z-xi.x*di.x);
+  double c = pow(xt,2.0)-pow(xi.x,2.0);
+  double discriminant = pow(b,2.0)-4.0*a*c;
+
+  if(discriminant < 0) {
+    breakpoints[2*index] = 1.0;
+    breakpoints[2*index+1] = 1.0;
+  } else if (discriminant == 0) {
+    double tmp = -b/(2.0*a);
+    if(tmp<0) tmp = 1.0;
+    breakpoints[2*index] = tmp;
+    breakpoints[2*index+1] = 1.0;
+  } else {
+    double tmp = (-b+sqrt(pow(b,2.0)-4*a*c))/(2.0*a);
+    if(tmp<0) tmp = 1.0;
+    breakpoints[2*index] = tmp;
+    tmp = (-b-sqrt(pow(b,2.0)-4*a*c))/(2.0*a);
+    if(tmp<0) tmp = 1.0;
+    breakpoints[2*index+1] = tmp;
+  }
+}
+
+int TPAS::evaluateBreakpoints() {
+  processBreakpoints<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(d_d), CASTD1(breakpoints_d), system->collisionDetector->numCollisions);
+  thrust::sort(breakpoints_d.begin(),breakpoints_d.end());
+  breakpoints_h = breakpoints_d;
+  breakpoints_h.push_back(1.0);
+
+  return 0;
+}
+
+__global__ void getWorkingSet(double* x, int* W0, int* WP, double epsilon, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  double3 xi = make_double3(x[3*index],x[3*index+1],x[3*index+2]);
+  double xt = sqrt(pow(xi.y,2.0)+pow(xi.z,2.0));
+
+  if( xt >= xi.x - epsilon && xi.x - epsilon > 0 ) {
+    WP[index] = index;
+  } else {
+    WP[index] = 0;
+  }
+
+  if( xt <= xi.x && xi.x <= epsilon ) {
+    W0[index] = index;
+  } else {
+    W0[index] = 0;
+  }
+}
+
+int TPAS::updateWorkingSet() {
+  W0_d.resize(system->collisionDetector->numCollisions);
+  WP_d.resize(system->collisionDetector->numCollisions);
+
+  getWorkingSet<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTI1(W0_d), CASTI1(WP_d), epsilon, system->collisionDetector->numCollisions);
+
+  // Identify the indices of the active constraints (this copies the non-zero elements from the old to the new)
+  int numActiveNormalConstraints = thrust::remove_copy(W0_d.begin(),W0_d.end(), W0_d.begin(), 0)-W0_d.begin();
+  W0_d.resize(numActiveNormalConstraints);
+  int numActiveTangentConstraints = thrust::remove_copy(WP_d.begin(),WP_d.end(), WP_d.begin(), 0)-WP_d.begin();
+  WP_d.resize(numActiveTangentConstraints);
+
+  return 0;
+}
+
+__global__ void cancelOutWorkingSet(double* src, int* W0, uint numWorkingConstraints) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numWorkingConstraints);
+
+  int i = W0[index];
+  //src[3*i  ] = 0;
+  src[3*i+1] = 0;
+  src[3*i+2] = 0;
+}
+
+double TPAS::getDirectionalDerivative() {
+  return 0;
+}
+
+double TPAS::backtrackLinesearch(double alpha0) {
+  double c = 0.5;
+  double alpha = fmin(alpha0,1.0);
+
+  cusp::blas::axpby(x,d,xTmp2,1.0,alpha);
+  project_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(xTmp2_d), system->collisionDetector->numCollisions);
+
+  performSchurComplementProduct(xTmp2); // xTmp = N*xTmp2
+  double obj1 = 0.5 * cusp::blas::dot(xTmp2,xTmp) + cusp::blas::dot(xTmp2,r);
+  performSchurComplementProduct(x); // xTmp = N*x
+  double obj2 = 0.5 * cusp::blas::dot(x,xTmp) + cusp::blas::dot(x,r);
+  cusp::blas::axpby(x,xTmp2,xTmp,1.0,-1.0);
+  obj2 -= 0.5*pow(cusp::blas::nrm2(xTmp),2.0)/alpha;
+  while(obj1>obj2) {
+    alpha = c*alpha;
+
+    cusp::blas::axpby(x,d,xTmp2,1.0,alpha);
+    project_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(xTmp2_d), system->collisionDetector->numCollisions);
+
+    performSchurComplementProduct(xTmp2); // xTmp = N*xTmp2
+    obj1 = 0.5 * cusp::blas::dot(xTmp2,xTmp) + cusp::blas::dot(xTmp2,r);
+    performSchurComplementProduct(x); // xTmp = N*x
+    obj2 = 0.5 * cusp::blas::dot(x,xTmp) + cusp::blas::dot(x,r);
+    cusp::blas::axpby(x,xTmp2,xTmp,1.0,-1.0);
+    obj2 -= 0.5*pow(cusp::blas::nrm2(xTmp),2.0)/alpha;
+  }
+
+  return alpha;
+}
+
+int TPAS::PG() {
+  evaluateBreakpoints();
+  cusp::blas::copy(x,x0);
+  double tau = breakpoints_h[0];
+
+  cusp::blas::axpby(x0,d,x,1.0,tau);
+  project_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), system->collisionDetector->numCollisions);
+
+  performSchurComplementProduct(x); // xTmp = N*x
+  double obj = 0.5 * cusp::blas::dot(x,xTmp) + cusp::blas::dot(x,r);
+
+  for(int j=0; j<breakpoints_h.size()-1; j++) {
+    double tauNew = breakpoints_h[j+1];
+    cusp::blas::axpby(x0,d,xNew,1.0,tauNew);
+    project_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(xNew_d), system->collisionDetector->numCollisions);
+
+    performSchurComplementProduct(xNew); // xTmp = N*xNew
+    double objNew = 0.5 * cusp::blas::dot(xNew,xTmp) + cusp::blas::dot(xNew,r);
+
+    updateWorkingSet();
+
+    cancelOutWorkingSet<<<BLOCKS(W0_d.size()),THREADS>>>(CASTD1(d_d), CASTI1(W0_d), W0_d.size());
+
+    if(getDirectionalDerivative()>0) {
+      break;
+    } else if (objNew > obj) {
+      double t = 1.0;
+      if(!WP_d.size()) {
+        performSchurComplementProduct(x); // xTmp = N*x
+        cusp::blas::axpby(xTmp,r,xTmp,1.0,1.0);
+        t = -cusp::blas::dot(xTmp,d);
+        performSchurComplementProduct(d); // xTmp = N*d
+        t = t/cusp::blas::dot(xTmp,d);
+      } else {
+        t = backtrackLinesearch(tauNew-tau);
+      }
+
+      cusp::blas::axpby(x,d,x,1.0,t);
+      project_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), system->collisionDetector->numCollisions);
+      break;
+    }
+
+    tau = tauNew;
+    obj = objNew;
+    cusp::blas::copy(xNew,x);
+  }
+
+  return 0;
+}
 
 int TPAS::solve() {
-
+  // vectors
   system->gamma_d.resize(3*system->collisionDetector->numCollisions);
+  x_d.resize(3*system->collisionDetector->numCollisions);
+  xNew_d.resize(3*system->collisionDetector->numCollisions);
+  x0_d.resize(3*system->collisionDetector->numCollisions);
+  d_d.resize(3*system->collisionDetector->numCollisions);
+  r_d.resize(3*system->collisionDetector->numCollisions);
+  xTmp_d.resize(3*system->collisionDetector->numCollisions);
+  xTmp2_d.resize(3*system->collisionDetector->numCollisions);
+
+  // matrices: invTx, Ty
+  invTxI_d.resize(3*system->collisionDetector->numCollisions);
+  invTxJ_d.resize(3*system->collisionDetector->numCollisions);
+  invTx_d.resize(3*system->collisionDetector->numCollisions);
+
+  TyI_d.resize(3*system->collisionDetector->numCollisions);
+  TyJ_d.resize(3*system->collisionDetector->numCollisions);
+  Ty_d.resize(3*system->collisionDetector->numCollisions);
+
+  breakpoints_d.resize(2*system->collisionDetector->numCollisions);
+
+  thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
+  thrust::device_ptr<double> wrapped_device_x(CASTD1(x_d));
+  thrust::device_ptr<double> wrapped_device_xNew(CASTD1(xNew_d));
+  thrust::device_ptr<double> wrapped_device_x0(CASTD1(x0_d));
+  thrust::device_ptr<double> wrapped_device_d(CASTD1(d_d));
+  thrust::device_ptr<double> wrapped_device_r(CASTD1(r_d));
+  thrust::device_ptr<double> wrapped_device_xTmp(CASTD1(xTmp_d));
+  thrust::device_ptr<double> wrapped_device_xTmp2(CASTD1(xTmp2_d));
+  system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
+  x = DeviceValueArrayView(wrapped_device_x, wrapped_device_x + x_d.size());
+  xNew = DeviceValueArrayView(wrapped_device_x, wrapped_device_x + x_d.size());
+  x0 = DeviceValueArrayView(wrapped_device_x0, wrapped_device_x0 + x0_d.size());
+  d = DeviceValueArrayView(wrapped_device_d, wrapped_device_d + d_d.size());
+  r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
+  xTmp = DeviceValueArrayView(wrapped_device_xTmp, wrapped_device_xTmp + xTmp_d.size());
+  xTmp2 = DeviceValueArrayView(wrapped_device_xTmp2, wrapped_device_xTmp2 + xTmp2_d.size());
+
+  // initialize matrices and vectors
+  initializeScalingMatrices();
+  cusp::multiply(Ty,system->r,r); // get a scaled version of r
+  initializeImpulseVector_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(system->gamma_d), CASTD1(x_d), CASTD1(system->friction_d), system->collisionDetector->numCollisions);
+
+  int k;
+  for (k=0; k < maxIterations; k++) {
+    performSchurComplementProduct(x); // xTmp = N*x
+    cusp::blas::axpby(xTmp,r,d,-1.0,-1.0);
+    PG();
+
+    // check feasible and optimal
+    getFeasible_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(x_d), CASTD1(xTmp_d), system->collisionDetector->numCollisions);
+    double feasibleX = Thrust_Max(xTmp_d);
+
+    performSchurComplementProduct(x); // xTmp = N*x
+    cusp::blas::axpby(xTmp,r,xTmp,1.0,1.0);
+    double optim = cusp::blas::dot(x,xTmp);
+
+    getFeasible_TPAS<<<BLOCKS(system->collisionDetector->numCollisions),THREADS>>>(CASTD1(xTmp_d), CASTD1(xTmp_d), system->collisionDetector->numCollisions);
+    double feasibleY = Thrust_Max(xTmp_d);
+
+    residual = fmax(feasibleX,feasibleY);
+    residual = fmax(residual,optim);
+    if (residual < tolerance) break;
+  }
+  cout << "  Iterations: " << k << " Residual: " << residual << endl;
+  iterations = k;
+
+  /*
   gammaHat_d.resize(3*system->collisionDetector->numCollisions);
   gammaNew_d.resize(3*system->collisionDetector->numCollisions);
   g_d.resize(3*system->collisionDetector->numCollisions);
@@ -645,14 +1030,14 @@ int TPAS::solve() {
   activeSetTangentEQP_d.resize(system->collisionDetector->numCollisions);
 
   // TODO: There's got to be a better way to do this...
-  thrust::device_ptr<double> wrapped_device_gamma(CASTD1(system->gamma_d));
+
   thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
   thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
   thrust::device_ptr<double> wrapped_device_g(CASTD1(g_d));
   thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
   thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
-  system->gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + system->gamma_d.size());
+
   gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
   gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
   g = DeviceValueArrayView(wrapped_device_g, wrapped_device_g + g_d.size());
@@ -813,6 +1198,8 @@ int TPAS::solve() {
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   iterations = k;
   cusp::blas::copy(gammaHat,system->gamma);
+*/
 
+  cusp::multiply(invTx,x,system->gamma);
   return 0;
 }
