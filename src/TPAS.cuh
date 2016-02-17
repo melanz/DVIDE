@@ -238,6 +238,7 @@ private:
 
   thrust::device_vector<double> breakpoints_d;
   thrust::host_vector<double> breakpoints_h;
+  double numUniqueBreakpoints;
 
   thrust::device_vector<int> W0_d;
   thrust::device_vector<int> WP_d;
