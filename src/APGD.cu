@@ -23,7 +23,7 @@ int APGD::setup()
   y_d = system->a_h;
   yNew_d = system->a_h;
   gammaTmp_d = system->a_h;
-  pOld_d = system->a_h;
+  //pOld_d = system->a_h;
 
   thrust::device_ptr<double> wrapped_device_gammaHat(CASTD1(gammaHat_d));
   thrust::device_ptr<double> wrapped_device_gammaNew(CASTD1(gammaNew_d));
@@ -31,7 +31,7 @@ int APGD::setup()
   thrust::device_ptr<double> wrapped_device_y(CASTD1(y_d));
   thrust::device_ptr<double> wrapped_device_yNew(CASTD1(yNew_d));
   thrust::device_ptr<double> wrapped_device_gammaTmp(CASTD1(gammaTmp_d));
-  thrust::device_ptr<double> wrapped_device_pOld(CASTD1(pOld_d));
+  //thrust::device_ptr<double> wrapped_device_pOld(CASTD1(pOld_d));
 
   gammaHat = DeviceValueArrayView(wrapped_device_gammaHat, wrapped_device_gammaHat + gammaHat_d.size());
   gammaNew = DeviceValueArrayView(wrapped_device_gammaNew, wrapped_device_gammaNew + gammaNew_d.size());
@@ -39,7 +39,7 @@ int APGD::setup()
   y = DeviceValueArrayView(wrapped_device_y, wrapped_device_y + y_d.size());
   yNew = DeviceValueArrayView(wrapped_device_yNew, wrapped_device_yNew + yNew_d.size());
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
-  pOld = DeviceValueArrayView(wrapped_device_pOld, wrapped_device_pOld + pOld_d.size());
+  //pOld = DeviceValueArrayView(wrapped_device_pOld, wrapped_device_pOld + pOld_d.size());
 
   return 0;
 }
@@ -190,7 +190,7 @@ int APGD::solve() {
   gammaTmp = DeviceValueArrayView(wrapped_device_gammaTmp, wrapped_device_gammaTmp + gammaTmp_d.size());
   antiRelaxation = DeviceValueArrayView(wrapped_device_antiRelaxation, wrapped_device_antiRelaxation + antiRelaxation_d.size());
 
-  cusp::blas::copy(system->p,pOld);
+  //cusp::blas::copy(system->p,pOld);
 
   // (1) gamma_0 = zeros(nc,1)
   cusp::blas::fill(antiRelaxation,0.0);
@@ -350,9 +350,12 @@ int APGD::solve() {
   }
   cout << "  Iterations: " << k << " Residual: " << residual << endl;
 
+  performSchurComplementProduct(gammaHat); // gammaTmp = N*gammaHat
+  system->objectiveCCP = 0.5 * cusp::blas::dot(gammaHat,gammaTmp) + cusp::blas::dot(gammaHat,system->r);
+
   // (33) return Value at time step t_(l+1), gamma_(l+1) := gamma_hat
   iterations = k;
   cusp::blas::copy(gammaHat,system->gamma);
-  cusp::blas::copy(pOld,system->p);
+  //cusp::blas::copy(pOld,system->p);
   return 0;
 }

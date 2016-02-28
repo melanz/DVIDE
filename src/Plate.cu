@@ -181,6 +181,7 @@ int Plate::addPlate(int j)
     sys->curvatureDerivativePlate_h.push_back(make_double3(0,0,0));
   }
 
+  sys->strainEnergyPlate_h.push_back(0);
   sys->strainPlate_h.push_back(make_double3(0,0,0));
   for(int k=0;k<sys->wt6.size()*sys->pt6.size();k++) sys->strainPlate0_h.push_back(make_double3(0,0,0));
   for(int k=0;k<sys->wt5.size()*sys->pt5.size();k++) sys->curvaturePlate0_h.push_back(make_double3(0,0,0));

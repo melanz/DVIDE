@@ -44,6 +44,7 @@ public:
   double3 gravity;
   double elapsedTime;
   double totalGPUMemoryUsed;
+  double objectiveCCP;
 
 	// cusp
 	DeviceValueArrayView p;
@@ -163,8 +164,14 @@ public:
   thrust::host_vector<double> strain_h;
   thrust::device_vector<double> strain_d;
 
+  thrust::host_vector<double> strainEnergy_h;
+  thrust::device_vector<double> strainEnergy_d;
+
   thrust::host_vector<double3> strainPlate_h;
   thrust::device_vector<double3> strainPlate_d;
+
+  thrust::host_vector<double> strainEnergyPlate_h;
+  thrust::device_vector<double> strainEnergyPlate_d;
 
   thrust::host_vector<double3> strainDerivativePlate_h;
   thrust::device_vector<double3> strainDerivativePlate_d;
@@ -241,6 +248,10 @@ public:
   int     addBilateralConstraintDOF(int DOFA, int DOFB);
 	int     addBilateralConstraintDOF(int DOFA, int DOFB, double velocity, double startTime);
 	int     pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex);
+	double  getPotentialEnergy();
+	double  getKineticEnergy();
+	double  getStrainEnergy();
+	double  getTotalEnergy();
 };
 
 #endif /* SYSTEM_CUH_ */

@@ -20,67 +20,67 @@ OpenGLCamera oglcamera(camreal3(4,5,-14),camreal3(4,5,0),camreal3(0,1,0),.01);
 
 // OPENGL RENDERING CODE //
 void changeSize(int w, int h) {
-	if(h == 0) {h = 1;}
-	float ratio = 1.0* w / h;
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glViewport(0, 0, w, h);
-	gluPerspective(45,ratio,.1,1000);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	gluLookAt(0.0,0.0,0.0,		0.0,0.0,-7,		0.0f,1.0f,0.0f);
+  if(h == 0) {h = 1;}
+  float ratio = 1.0* w / h;
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glViewport(0, 0, w, h);
+  gluPerspective(45,ratio,.1,1000);
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  gluLookAt(0.0,0.0,0.0,    0.0,0.0,-7,   0.0f,1.0f,0.0f);
 }
 
 void initScene(){
-	GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
-	glClearColor (1.0, 1.0, 1.0, 0.0);
-	glShadeModel (GL_SMOOTH);
-	glEnable(GL_COLOR_MATERIAL);
-	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-	glEnable (GL_POINT_SMOOTH);
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glHint (GL_POINT_SMOOTH_HINT, GL_DONT_CARE);
+  GLfloat light_position[] = { 1.0, 1.0, 1.0, 0.0 };
+  glClearColor (1.0, 1.0, 1.0, 0.0);
+  glShadeModel (GL_SMOOTH);
+  glEnable(GL_COLOR_MATERIAL);
+  glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+  glEnable(GL_LIGHTING);
+  glEnable(GL_LIGHT0);
+  glEnable (GL_POINT_SMOOTH);
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glHint (GL_POINT_SMOOTH_HINT, GL_DONT_CARE);
 }
 
 void drawAll()
 {
-	if(updateDraw){
-	  sys->p_h = sys->p_d;
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_DEPTH_TEST);
-		glFrontFace(GL_CCW);
-		glCullFace(GL_BACK);
-		glEnable(GL_CULL_FACE);
-		glDepthFunc(GL_LEQUAL);
-		glClearDepth(1.0);
+  if(updateDraw){
+    sys->p_h = sys->p_d;
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glDepthFunc(GL_LEQUAL);
+    glClearDepth(1.0);
 
-		glPointSize(2);
-		glLoadIdentity();
+    glPointSize(2);
+    glLoadIdentity();
 
-		oglcamera.Update();
+    oglcamera.Update();
 
-		for(int i=0;i<sys->bodies.size();i++)
-		{
-			if(wireFrame) {
-			  glPushMatrix();
-			  double3 position = sys->bodies[i]->getPosition();
-			  glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
-			  double3 geometry = sys->bodies[i]->getGeometry();
-			  if(geometry.y) {
-			    glColor3f(0.0f,1.0f,0.0f);
-			    glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
-			    glutWireCube(1.0);
-			  }
-			  else {
-			    glColor3f(0.0f,0.0f,1.0f);
-			    glutWireSphere(geometry.x,30,30);
-			  }
-			  glPopMatrix();
-			}
-			else {
+    for(int i=0;i<sys->bodies.size();i++)
+    {
+      if(wireFrame) {
+        glPushMatrix();
+        double3 position = sys->bodies[i]->getPosition();
+        glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
+        double3 geometry = sys->bodies[i]->getGeometry();
+        if(geometry.y) {
+          glColor3f(0.0f,1.0f,0.0f);
+          glScalef(2*geometry.x, 2*geometry.y, 2*geometry.z);
+          glutWireCube(1.0);
+        }
+        else {
+          glColor3f(0.0f,0.0f,1.0f);
+          glutWireSphere(geometry.x,30,30);
+        }
+        glPopMatrix();
+      }
+      else {
         glPushMatrix();
         double3 position = sys->bodies[i]->getPosition();
         glTranslatef(sys->p_h[3*i],sys->p_h[3*i+1],sys->p_h[3*i+2]);
@@ -96,22 +96,22 @@ void drawAll()
         }
         glPopMatrix();
       }
-		}
+    }
 
-		glutSwapBuffers();
-	}
+    glutSwapBuffers();
+  }
 }
 
 void renderSceneAll(){
-	if(OGL){
-		//if(sys->timeIndex%10==0)
-		drawAll();
+  if(OGL){
+    //if(sys->timeIndex%10==0)
+    drawAll();
     std::stringstream dataFileStream;
     dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
     sys->exportSystem(dataFileStream.str());
-		sys->DoTimeStep();
-		double4 violation = sys->getCCPViolation();
-		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
+    sys->DoTimeStep();
+    double4 violation = sys->getCCPViolation();
+    printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -120,50 +120,50 @@ void renderSceneAll(){
       weight += sys->f_contact_h[3*i+1];
     }
     cout << "  Weight: " << weight << endl;
-	}
+  }
 }
 
 void CallBackKeyboardFunc(unsigned char key, int x, int y) {
-	switch (key) {
-	case 'w':
-		oglcamera.Forward();
-		break;
+  switch (key) {
+  case 'w':
+    oglcamera.Forward();
+    break;
 
-	case 's':
-		oglcamera.Back();
-		break;
+  case 's':
+    oglcamera.Back();
+    break;
 
-	case 'd':
-		oglcamera.Right();
-		break;
+  case 'd':
+    oglcamera.Right();
+    break;
 
-	case 'a':
-		oglcamera.Left();
-		break;
+  case 'a':
+    oglcamera.Left();
+    break;
 
-	case 'q':
-		oglcamera.Up();
-		break;
+  case 'q':
+    oglcamera.Up();
+    break;
 
-	case 'e':
-		oglcamera.Down();
-		break;
+  case 'e':
+    oglcamera.Down();
+    break;
 
-	case 'i':
-	  if(wireFrame) {
-	    wireFrame = 0;
-	  }
-	  else {
-	    wireFrame = 1;
-	  }
-	}
+  case 'i':
+    if(wireFrame) {
+      wireFrame = 0;
+    }
+    else {
+      wireFrame = 1;
+    }
+  }
 }
 
 void CallBackMouseFunc(int button, int state, int x, int y) {
-	oglcamera.SetPos(button, state, x, y);
+  oglcamera.SetPos(button, state, x, y);
 }
 void CallBackMotionFunc(int x, int y) {
-	oglcamera.Move2D(x, y);
+  oglcamera.Move2D(x, y);
 }
 #endif
 // END OPENGL RENDERING CODE //
@@ -181,9 +181,9 @@ double getRandomNumber(double min, double max)
 
 int main(int argc, char** argv)
 {
-	// command line arguments
-	// FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
-	// solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
+  // command line arguments
+  // FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
+  // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
   double t_end = 5.0;
   int    precUpdateInterval = -1;
@@ -207,11 +207,11 @@ int main(int argc, char** argv)
   }
 
 #ifdef WITH_GLUT
-	bool visualize = true;
+  bool visualize = true;
 #endif
-	//visualize = false;
+  //visualize = false;
 
-	sys = new System(solverTypeQOCC);
+  sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
   sys->solver->tolerance = tolerance;
 
@@ -344,70 +344,70 @@ int main(int argc, char** argv)
 
   //sys->importSystem("../data/data_500.dat");
 
-	sys->initializeSystem();
-	printf("System initialized!\n");
-	//sys->printSolverParams();
+  sys->initializeSystem();
+  printf("System initialized!\n");
+  //sys->printSolverParams();
 
 #ifdef WITH_GLUT
-	if(visualize)
-	{
-		glutInit(&argc, argv);
-		glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
-		glutInitWindowPosition(0,0);
-		glutInitWindowSize(1024	,512);
-		glutCreateWindow("MAIN");
-		glutDisplayFunc(renderSceneAll);
-		glutIdleFunc(renderSceneAll);
-		glutReshapeFunc(changeSize);
-		glutIgnoreKeyRepeat(0);
-		glutKeyboardFunc(CallBackKeyboardFunc);
-		glutMouseFunc(CallBackMouseFunc);
-		glutMotionFunc(CallBackMotionFunc);
-		initScene();
-		glutMainLoop();
-	}
+  if(visualize)
+  {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
+    glutInitWindowPosition(0,0);
+    glutInitWindowSize(1024 ,512);
+    glutCreateWindow("MAIN");
+    glutDisplayFunc(renderSceneAll);
+    glutIdleFunc(renderSceneAll);
+    glutReshapeFunc(changeSize);
+    glutIgnoreKeyRepeat(0);
+    glutKeyboardFunc(CallBackKeyboardFunc);
+    glutMouseFunc(CallBackMouseFunc);
+    glutMotionFunc(CallBackMotionFunc);
+    initScene();
+    glutMainLoop();
+  }
 #endif
-	
-	// if you don't want to visualize, then output the data
+
+  // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
   statsFileStream << outDir << "statsFillR2_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
-	ofstream statStream(statsFileStream.str().c_str());
+  ofstream statStream(statsFileStream.str().c_str());
 
-	double maxVel = 0;
-	while(sys->time < t_end)
-	{
+  double maxVel = 0;
+  while(sys->time < t_end)
+  {
     std::stringstream dataFileStream;
     dataFileStream << povrayDir << "data_" << sys->timeIndex << ".dat";
     sys->exportSystem(dataFileStream.str());
 
-		sys->DoTimeStep();
-		double4 violation = sys->getCCPViolation();
+    sys->DoTimeStep();
+    double4 violation = sys->getCCPViolation();
 
-		double maxVelNow = Thrust_Max(sys->v_d);
-		if(maxVelNow>maxVel) maxVel = maxVelNow;
+    double maxVelNow = Thrust_Max(sys->v_d);
+    if(maxVelNow>maxVel) maxVel = maxVelNow;
 
-		// Determine contact force on the container
-		sys->f_contact_h = sys->f_contact_d;
-		double weight = 0;
-		for(int i=0; i<6; i++) {
-		  weight += sys->f_contact_h[3*i+1];
-		}
-		cout << "  Weight: " << weight << endl;
-		printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
+    // Determine contact force on the container
+    sys->f_contact_h = sys->f_contact_d;
+    double weight = 0;
+    for(int i=0; i<6; i++) {
+      weight += sys->f_contact_h[3*i+1];
+    }
+    cout << "  Weight: " << weight << endl;
+    printf("  Violation: (%f, %f, %f, %f)\n", violation.x, violation.y, violation.z, violation.w);
 
-		int numKrylovIter = 0;
-		if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
-		if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
-		if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
-		statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << violation.x << ", " << violation.y << ", " << violation.z << ", " << violation.w << ", " << endl;
+    int numKrylovIter = 0;
+    if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+    if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
+    if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
+    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << numKrylovIter << ", " << violation.x << ", " << violation.y << ", " << violation.z << ", " << violation.w << ", " << endl;
 
-	}
-	sys->exportMatrices(outDir.c_str());
+  }
+  sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
   collisionFileStream << outDir << "collisionData.dat";
-	sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
-	cout << "Maximum Velocity = " << maxVel << endl;
+  sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
+  cout << "Maximum Velocity = " << maxVel << endl;
 
-	return 0;
+  return 0;
 }
 

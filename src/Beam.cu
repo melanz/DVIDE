@@ -158,7 +158,7 @@ int Beam::addBeam(int j)
   sys->strainDerivative_h.push_back(0);
 
   sys->strain_h.push_back(0);
-
+  sys->strainEnergy_h.push_back(0);
   for(int k=0;k<sys->wt5.size();k++) sys->strainBeam0_h.push_back(0);
   for(int k=0;k<sys->wt3.size();k++) sys->curvatureBeam0_h.push_back(0);
 

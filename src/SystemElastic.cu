@@ -176,7 +176,7 @@ __global__ void calculateInitialCurvatureBeam(double ptj, double* p, int quadInd
   k[numQuad*index+quadIndex] = f/g;
 }
 
-__global__ void addInternalForceComponent(double* f, double* strainD_shared, double* strainVec, int quadIndex, int numQuad, double* strain0, double3* materials, double3* geometries, double wtl, int numBodies, int numBeams, int check)
+__global__ void addInternalForceComponent(double* f, double* strainEnergy, double* strainD_shared, double* strainVec, int quadIndex, int numQuad, double* strain0, double3* materials, double3* geometries, double wtl, int numBodies, int numBeams, int check)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numBeams);
 
@@ -193,6 +193,7 @@ __global__ void addInternalForceComponent(double* f, double* strainD_shared, dou
   double factor = wtl*A*E*a*.5;
   if(check) factor = wtl*I*E*a*.5;
 
+  strainEnergy[index] += factor * strain * strain;
   f[0] += factor * strain * strainD_shared[0];
   f[1] += factor * strain * strainD_shared[1];
   f[2] += factor * strain * strainD_shared[2];
@@ -743,7 +744,7 @@ __global__ void calculateInitialCurvaturePlate(double ptj, double ptk, double* p
 }
 
 
-__global__ void addInternalForceComponentPlate(double* fint, double3* strainD, double3* strainVec, int quadIndex, int numQuad, double3* strainVec0, double4* materials, double3* geometries, double factor, int numBodies, int numBeams, int numPlates, int check)
+__global__ void addInternalForceComponentPlate(double* fint, double* strainEnergy, double3* strainD, double3* strainVec, int quadIndex, int numQuad, double3* strainVec0, double4* materials, double3* geometries, double factor, int numBodies, int numBeams, int numPlates, int check)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPlates);
 
@@ -761,7 +762,8 @@ __global__ void addInternalForceComponentPlate(double* fint, double3* strainD, d
   fint = &fint[3*numBodies+12*numBeams+36*index];
   factor = factor*a*b*th*.25;
   if(check) factor = factor*th*th/12.0;
-
+  double t0 = -strain.x*((E*strain.x)/(nu*nu-1.0)+(E*nu*strain.y)/(nu*nu-1.0))-strain.y*((E*strain.y)/(nu*nu-1.0)+(E*nu*strain.x)/(nu*nu-1.0))+(E*(strain.z*strain.z)*(nu*0.5-0.5))/(nu*nu-1.0);
+  strainEnergy[index] += factor*t0;
   fint[0] +=  ((-factor * strainD[0].x * E / (-1 + nu * nu) - factor * strainD[0].y * E * nu / (-1 + nu * nu)) * strain.x) +  ((-factor * strainD[0].x * E * nu / (-1 + nu * nu) - factor * strainD[0].y * E / (-1 + nu * nu)) * strain.y) +  (factor * strainD[0].z * E / (nu + 1) * strain.z) / 0.2e1;
   fint[1] +=  ((-factor * strainD[1].x * E / (-1 + nu * nu) - factor * strainD[1].y * E * nu / (-1 + nu * nu)) * strain.x) +  ((-factor * strainD[1].x * E * nu / (-1 + nu * nu) - factor * strainD[1].y * E / (-1 + nu * nu)) * strain.y) +  (factor * strainD[1].z * E / (nu + 1) * strain.z) / 0.2e1;
   fint[2] +=  ((-factor * strainD[2].x * E / (-1 + nu * nu) - factor * strainD[2].y * E * nu / (-1 + nu * nu)) * strain.x) +  ((-factor * strainD[2].x * E * nu / (-1 + nu * nu) - factor * strainD[2].y * E / (-1 + nu * nu)) * strain.y) +  (factor * strainD[2].z * E / (nu + 1) * strain.z) / 0.2e1;
@@ -803,18 +805,20 @@ __global__ void addInternalForceComponentPlate(double* fint, double3* strainD, d
 int System::updateElasticForces()
 {
   thrust::fill(fElastic_d.begin(),fElastic_d.end(),0.0); //Clear internal forces
+  thrust::fill(strainEnergy_d.begin(),strainEnergy_d.end(),0.0); //Clear beam energy
+  thrust::fill(strainEnergyPlate_d.begin(),strainEnergyPlate_d.end(),0.0); //Clear plate energy
 
   if(beams.size()) {
     for(int j=0;j<pt5.size();j++)
     {
       strainDerivativeUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt5[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt5.size(),CASTD1(strainBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainEnergy_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt5.size(),CASTD1(strainBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt5[j],bodies.size(),beams.size(),0);
     }
 
     for(int j=0;j<pt3.size();j++)
     {
       curvatDerivUpdate<<<BLOCKS(beams.size()),THREADS>>>(pt3[j],CASTD1(p_d),CASTD1(strain_d),CASTD1(strainDerivative_d),CASTD3(contactGeometry_d),bodies.size(),beams.size());
-      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt3.size(),CASTD1(curvatureBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
+      addInternalForceComponent<<<BLOCKS(beams.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainEnergy_d),CASTD1(strainDerivative_d),CASTD1(strain_d),j,pt3.size(),CASTD1(curvatureBeam0_d),CASTD3(materialsBeam_d),CASTD3(contactGeometry_d),wt3[j],bodies.size(),beams.size(),1);
     }
   }
 
@@ -824,7 +828,7 @@ int System::updateElasticForces()
       for(int k=0;k<wt6.size();k++)
       {
         strainDerivativeUpdatePlate<<<BLOCKS(plates.size()),THREADS>>>(pt6[j],pt6[k],CASTD1(p_d),CASTD3(strainPlate_d),CASTD3(strainDerivativePlate_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
-        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainPlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt6[j]*wt6[k],bodies.size(),beams.size(),plates.size(),0);
+        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainEnergyPlate_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainPlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt6[j]*wt6[k],bodies.size(),beams.size(),plates.size(),0);
       }
     }
 
@@ -833,7 +837,7 @@ int System::updateElasticForces()
       for(int k=0;k<wt5.size();k++)
       {
         curvatDerivUpdatePlate<<<BLOCKS(plates.size()),THREADS>>>(pt5[j],pt5[k],CASTD1(p_d),CASTD3(strainPlate_d),CASTD3(strainDerivativePlate_d),CASTD3(curvatureDerivativePlate_d),CASTD1(Sx_d),CASTD1(Sy_d),CASTD1(Sxx_d),CASTD1(Syy_d),CASTD3(contactGeometry_d),bodies.size(),beams.size(),plates.size());
-        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvaturePlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt5[j]*wt5[k],bodies.size(),beams.size(),plates.size(),1);
+        addInternalForceComponentPlate<<<BLOCKS(plates.size()),THREADS>>>(CASTD1(fElastic_d),CASTD1(strainEnergyPlate_d),CASTD3(strainDerivativePlate_d),CASTD3(strainPlate_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvaturePlate0_d),CASTD4(materialsPlate_d),CASTD3(contactGeometry_d),wt5[j]*wt5[k],bodies.size(),beams.size(),plates.size(),1);
       }
     }
   }

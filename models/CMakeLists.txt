@@ -59,3 +59,11 @@ add_dependencies(test_hub ImplicitBeamsGPU)
 cuda_add_executable(test_oneBall test_oneBall.cu)
 target_link_libraries(test_oneBall ImplicitBeamsGPU)
 add_dependencies(test_oneBall ImplicitBeamsGPU)
+
+cuda_add_executable(test_compaction test_compaction.cu)
+target_link_libraries(test_compaction ImplicitBeamsGPU)
+add_dependencies(test_compaction ImplicitBeamsGPU)
+
+cuda_add_executable(test_bikeWheel test_bikeWheel.cu)
+target_link_libraries(test_bikeWheel ImplicitBeamsGPU)
+add_dependencies(test_bikeWheel ImplicitBeamsGPU)

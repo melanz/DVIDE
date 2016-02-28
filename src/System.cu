@@ -21,6 +21,7 @@ System::System()
   elapsedTime = 0;
   totalGPUMemoryUsed = 0;
   offsetConstraintsDOF = 0;
+  objectiveCCP = 0;
 
   collisionDetector = new CollisionDetector(this);
   solver = new APGD(this);
@@ -67,6 +68,7 @@ System::System(int solverType)
   elapsedTime = 0;
   totalGPUMemoryUsed = 0;
   offsetConstraintsDOF = 0;
+  objectiveCCP = 0;
 
   collisionDetector = new CollisionDetector(this);
 
@@ -192,7 +194,9 @@ int System::initializeDevice() {
 
   strainDerivative_d = strainDerivative_h;
   strain_d = strain_h;
+  strainEnergy_d = strainEnergy_h;
   strainPlate_d = strainPlate_h;
+  strainEnergyPlate_d = strainEnergyPlate_h;
   strainDerivativePlate_d = strainDerivativePlate_h;
   curvatureDerivativePlate_d = curvatureDerivativePlate_h;
   Sx_d = Sx_h;
@@ -422,6 +426,8 @@ int System::DoTimeStep() {
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start, 0);
+
+  objectiveCCP = 0;
 
   // Perform collision detection
   if(collisionGeometry_d.size()) {
@@ -1340,6 +1346,31 @@ double4 System::getCCPViolation() {
   }
 
   return violationCCP;
+}
+
+double System::getPotentialEnergy() {
+  return -cusp::blas::dot(f,p);
+}
+
+double System::getKineticEnergy() {
+  if(bodies.size()) multiplyByMass<<<BLOCKS(3*bodies.size()),THREADS>>>(CASTD1(mass_d), CASTD1(v_d), CASTD1(tmp_d), 3*bodies.size());
+  if(beams.size()) multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD3(materialsBeam_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size());
+  if(plates.size()) multiplyByPlateMass<<<BLOCKS(plates.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD4(materialsPlate_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size(), plates.size());
+  if(body2Ds.size()) multiplyByBody2DMass<<<BLOCKS(body2Ds.size()),THREADS>>>(CASTD2(materialsBody2D_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size(), plates.size(), body2Ds.size());
+
+  return 0.5*cusp::blas::dot(v,tmp);
+}
+
+double System::getStrainEnergy() {
+  double strainEnergy = 0;
+  if(beams.size()) strainEnergy+=thrust::reduce(strainEnergy_d.begin(),strainEnergy_d.end());
+  if(plates.size()) strainEnergy+=thrust::reduce(strainEnergyPlate_d.begin(),strainEnergyPlate_d.end());
+
+  return strainEnergy;
+}
+
+double System::getTotalEnergy() {
+  return getPotentialEnergy()+getKineticEnergy()+getStrainEnergy();
 }
 
 int System::exportSystem(string filename) {
