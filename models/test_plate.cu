@@ -225,7 +225,7 @@ int main(int argc, char** argv)
   int precondType = 1;
   int numElementsPerSide = 4;
   int solverType = 4;
-  int solverTypeQOCC = 2;
+  int solverTypeQOCC = 1;
   int binsPerAxis = 20;
   double tolerance = 1e-4;
   double hh = 1e-3;
@@ -240,7 +240,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -278,23 +278,67 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   // Add ground
-  Body* groundPtr = new Body(make_double3(0,-1.3,0));
+  Body* groundPtr = new Body(make_double3(0,-0.3,0));
   groundPtr->setBodyFixed(true);
-  groundPtr->setCollisionFamily(2);
-  groundPtr->setGeometry(make_double3(10,1,10));
+  groundPtr->setGeometry(make_double3(0.2,0,0));
   sys->add(groundPtr);
 
   // Add plate element
-  Plate* plate = new Plate();
-  sys->add(plate);
+  double3 unitX = make_double3(1.0,0,0);
+  double3 unitZ = make_double3(0,0,1.0);
+  double3 pos0 = make_double3(-0.5,0,-0.5);
+  double length = 1.0;
+  double width = 1.0;
+  double thickness = 0.001;
+  Plate* plate;
+  length = length/((double) numElementsPerSide);
+  width = width/((double) numElementsPerSide);
+  for(int i=0; i<numElementsPerSide; i++) {
+    for(int j=0; j<numElementsPerSide; j++) {
+      double3 pos = pos0+i*length*unitX+j*width*unitZ;
+      plate = new Plate(length,width,pos,unitX,unitZ,
+                                pos+length*unitX,unitX,unitZ,
+                                pos+length*unitX+width*unitZ,unitX,unitZ,
+                                pos+width*unitZ,unitX,unitZ);
+      plate->setThickness(thickness);
+      plate->setCollisionFamily(1);
+      plate->setNumContactPoints(40);
+      sys->add(plate);
+    }
+  }
 
-//  // Add beam element
-//  Beam* beam = new Beam();
-//  sys->add(beam);
+  // Add j constraints
+  int offset = 3*sys->bodies.size();
+  for(int i=0; i<numElementsPerSide; i++) {
+    for(int j=0; j<numElementsPerSide-1; j++) {
+      int elementA = numElementsPerSide*i+j;
+      int elementB = elementA+1;
 
-//  sys->addBilateralConstraintDOF(3+0,-1);
-//  sys->addBilateralConstraintDOF(3+1,-1);
-//  sys->addBilateralConstraintDOF(3+2,-1);
+      int nodeA = 3;
+      int nodeB = 0;
+      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
+
+      nodeA = 2;
+      nodeB = 1;
+      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
+    }
+  }
+
+  // Add i constraints
+  for(int i=0; i<numElementsPerSide-1; i++) {
+    for(int j=0; j<numElementsPerSide; j++) {
+      int elementA = numElementsPerSide*i+j;
+      int elementB = elementA+numElementsPerSide;
+
+      int nodeA = 1;
+      int nodeB = 0;
+      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
+
+      nodeA = 2;
+      nodeB = 3;
+      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
+    }
+  }
 
   sys->initializeSystem();
   printf("System initialized!\n");
@@ -344,7 +388,8 @@ int main(int argc, char** argv)
     }
     cout << "  Weight: " << weight << endl;
 
-    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << endl;
+    sys->p_h = sys->p_d;
+    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << sys->p_h[3] << ", " << sys->p_h[4] << ", " << sys->p_h[5] << endl;
   }
   sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
