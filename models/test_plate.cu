@@ -219,14 +219,14 @@ int main(int argc, char** argv)
   // FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
   // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 10.0;
+  double t_end = 20.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
   int numElementsPerSide = 4;
   int solverType = 4;
   int solverTypeQOCC = 1;
-  int binsPerAxis = 20;
+  int binsPerAxis = 4;
   double tolerance = 1e-4;
   double hh = 1e-3;
 
@@ -371,7 +371,7 @@ int main(int argc, char** argv)
   int fileIndex = 0;
   while(sys->time < t_end)
   {
-    if(sys->timeIndex%200==0) {
+    if(sys->timeIndex%20==0) {
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());

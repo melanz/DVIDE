@@ -209,7 +209,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
