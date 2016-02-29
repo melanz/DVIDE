@@ -226,7 +226,7 @@ int main(int argc, char** argv)
   int numElementsPerSide = 4;
   int solverType = 4;
   int solverTypeQOCC = 1;
-  int binsPerAxis = 4;
+  int binsPerAxis = 30;
   double tolerance = 1e-4;
   double hh = 1e-3;
 
