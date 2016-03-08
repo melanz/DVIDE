@@ -64,6 +64,9 @@ public:
 	DeviceView DT;
 	DeviceMatrix MinvDT;
 	DeviceMatrix N;
+  DeviceView mass_shellMesh;
+  DeviceValueArrayView v_shellMesh;
+  DeviceValueArrayView k_shellMesh;
 
 	// host vectors
 	thrust::host_vector<double> p_h;
@@ -207,6 +210,28 @@ public:
   thrust::host_vector<double> wt3;
   thrust::host_vector<double> pt3;
 
+  // Shell mesh structures
+  thrust::host_vector<double3> nodes_h;
+  thrust::host_vector<int4> shellConnectivities_h;
+  thrust::host_vector<double4> shellMaterials_h;
+  thrust::host_vector<double4> shellGeometries_h;
+  thrust::host_vector<int> shellMap_h;
+  thrust::host_vector<double> fextMesh_h;
+  thrust::host_vector<int> massShellI_h;
+  thrust::host_vector<int> massShellJ_h;
+  thrust::host_vector<double> massShell_h;
+  thrust::host_vector<int> invMassShellI_h;
+  thrust::host_vector<int> invMassShellJ_h;
+  thrust::host_vector<double> invMassShell_h;
+
+  thrust::device_vector<int4> shellConnectivities_d;
+  thrust::device_vector<double4> shellMaterials_d;
+  thrust::device_vector<double4> shellGeometries_d;
+  thrust::device_vector<int> shellMap_d;
+  thrust::device_vector<int> massShellI_d;
+  thrust::device_vector<int> massShellJ_d;
+  thrust::device_vector<double> massShell_d;
+
   CollisionDetector* collisionDetector;
   thrust::device_vector<int> nonzerosPerContact_d;
 
@@ -252,6 +277,8 @@ public:
 	double  getKineticEnergy();
 	double  getStrainEnergy();
 	double  getTotalEnergy();
+  void    importMesh(string filename);
+  double3 transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta);
 };
 
 #endif /* SYSTEM_CUH_ */

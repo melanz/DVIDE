@@ -12,7 +12,7 @@ bool wireFrame = 1;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
-std::string outDir = "../TEST_PLATE/";
+std::string outDir = "../TEST_PLATEMESH/";
 std::string povrayDir = outDir + "POVRAY/";
 
 #ifdef WITH_GLUT
@@ -132,6 +132,24 @@ void drawAll()
       }
     }
 
+    for(int i=0;i<sys->shellConnectivities_h.size();i++) {
+      int xiDiv = sys->shellGeometries_h[i].w;
+      int etaDiv = sys->shellGeometries_h[i].w;
+      double xiInc = 1/(static_cast<double>(xiDiv-1));
+      double etaInc = 1/(static_cast<double>(etaDiv-1));
+      glColor3f(0.0f,1.0f,1.0f);
+      for(int j=0;j<xiDiv;j++)
+      {
+        for(int k=0;k<etaDiv;k++) {
+          glPushMatrix();
+          double3 position = sys->transformNodalToCartesian_shellMesh(i,xiInc*j,etaInc*k);
+          glTranslatef(position.x,position.y,position.z);
+          glutSolidSphere(0.5*sys->shellGeometries_h[i].z,10,10);
+          glPopMatrix();
+        }
+      }
+    }
+
     glutSwapBuffers();
   }
 }
@@ -140,12 +158,29 @@ void renderSceneAll(){
   if(OGL){
     drawAll();
 
+//    cusp::print(sys->v);
+//    cin.get();
+
+//    cusp::print(sys->v);
+//    cin.get();
+//    cusp::print(sys->v_shellMesh);
+//    cin.get();
+
+//    cusp::print(sys->mass_shellMesh);
+//    cin.get();
+//    cusp::print(sys->mass);
+//    cin.get();
+
     sys->DoTimeStep();
-    sys->exportMatrices(outDir.c_str());
-    cusp::print(sys->mass);
-    cin.get();
-    cusp::print(sys->f);
-    cin.get();
+
+//    cusp::print(sys->mass);
+//    cin.get();
+//
+//    cusp::print(sys->k);
+//    cin.get();
+//
+//    cusp::print(sys->v);
+//    cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -153,7 +188,7 @@ void renderSceneAll(){
     for(int i=0; i<1; i++) {
       weight += sys->f_contact_h[3*i+1];
     }
-    cout << "  Weight: " << weight << endl;
+    cout << "  Weight:           " << weight << endl;
     cout << "  Potential Energy: " << sys->getPotentialEnergy() << endl;
     cout << "  Kinetic Energy:   " << sys->getKineticEnergy() << endl;
     cout << "  Strain Energy:    " << sys->getStrainEnergy() << endl;
@@ -253,7 +288,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_PLATE_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDirStream << "../TEST_PLATEMESH_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -282,85 +317,18 @@ int main(int argc, char** argv)
   //sys->solver->maxIterations = 40;
   //sys->gravity = make_double3(0,0,0);
 
-  double3 unitX = make_double3(1.0,0,0);
-  double3 unitZ = make_double3(0,0,1.0);
-  Plate* plate = new Plate(1.0,1.0,
-      make_double3(0,0,0), unitX, unitZ,
-      make_double3(1,0,0), unitX, unitZ,
-      make_double3(1,0,1), unitX, unitZ,
-      make_double3(0,0,1), unitX, unitZ);
-  plate->setThickness(0.02);
-  plate->setDensity(7200.0);
-  plate->setElasticModulus(2e7);
-  plate->setPoissonRatio(0.25);
-  plate->setCollisionFamily(1);
-  plate->setNumContactPoints(40);
-  sys->add(plate);
-
-/*
   // Add ground
   Body* groundPtr = new Body(make_double3(0,-0.3,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(0.2,0,0));
   sys->add(groundPtr);
 
-  // Add plate element
-  double3 unitX = make_double3(1.0,0,0);
-  double3 unitZ = make_double3(0,0,1.0);
-  double3 pos0 = make_double3(-0.5,0,-0.5);
-  double length = 1.0;
-  double width = 1.0;
-  double thickness = 0.001;
-  Plate* plate;
-  length = length/((double) numElementsPerSide);
-  width = width/((double) numElementsPerSide);
-  for(int i=0; i<numElementsPerSide; i++) {
-    for(int j=0; j<numElementsPerSide; j++) {
-      double3 pos = pos0+i*length*unitX+j*width*unitZ;
-      plate = new Plate(length,width,pos,unitX,unitZ,
-                                pos+length*unitX,unitX,unitZ,
-                                pos+length*unitX+width*unitZ,unitX,unitZ,
-                                pos+width*unitZ,unitX,unitZ);
-      plate->setThickness(thickness);
-      plate->setCollisionFamily(1);
-      plate->setNumContactPoints(40);
-      sys->add(plate);
-    }
-  }
+  sys->importMesh("../shellMesh.txt");
 
-  // Add j constraints
-  int offset = 3*sys->bodies.size();
-  for(int i=0; i<numElementsPerSide; i++) {
-    for(int j=0; j<numElementsPerSide-1; j++) {
-      int elementA = numElementsPerSide*i+j;
-      int elementB = elementA+1;
+  sys->addBilateralConstraintDOF(3,-1);
+  sys->addBilateralConstraintDOF(4,-1);
+  sys->addBilateralConstraintDOF(5,-1);
 
-      int nodeA = 3;
-      int nodeB = 0;
-      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
-
-      nodeA = 2;
-      nodeB = 1;
-      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
-    }
-  }
-
-  // Add i constraints
-  for(int i=0; i<numElementsPerSide-1; i++) {
-    for(int j=0; j<numElementsPerSide; j++) {
-      int elementA = numElementsPerSide*i+j;
-      int elementB = elementA+numElementsPerSide;
-
-      int nodeA = 1;
-      int nodeB = 0;
-      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
-
-      nodeA = 2;
-      nodeB = 3;
-      for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
-    }
-  }
-*/
   sys->initializeSystem();
   printf("System initialized!\n");
   //sys->printSolverParams();

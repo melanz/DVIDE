@@ -221,8 +221,10 @@ int System::initializeDevice() {
   thrust::device_ptr<double> wrapped_device_k(CASTD1(k_d));
   thrust::device_ptr<double> wrapped_device_gamma(CASTD1(gamma_d));
 
+  int offset_shellMesh = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
   p = DeviceValueArrayView(wrapped_device_p, wrapped_device_p + p_d.size());
   v = DeviceValueArrayView(wrapped_device_v, wrapped_device_v + v_d.size());
+  v_shellMesh = DeviceValueArrayView(wrapped_device_v + offset_shellMesh, wrapped_device_v + v_d.size());
   a = DeviceValueArrayView(wrapped_device_a, wrapped_device_a + a_d.size());
   f = DeviceValueArrayView(wrapped_device_f, wrapped_device_f + f_d.size());
   f_contact = DeviceValueArrayView(wrapped_device_f_contact, wrapped_device_f_contact + f_contact_d.size());
@@ -232,6 +234,7 @@ int System::initializeDevice() {
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
   b = DeviceValueArrayView(wrapped_device_b, wrapped_device_b + b_d.size());
   k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
+  k_shellMesh = DeviceValueArrayView(wrapped_device_k + offset_shellMesh, wrapped_device_k + k_d.size());
   gamma = DeviceValueArrayView(wrapped_device_gamma, wrapped_device_gamma + gamma_d.size());
 
   // create mass matrix using cusp library (shouldn't change)
@@ -245,7 +248,22 @@ int System::initializeDevice() {
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + mass_d.size());
 
   mass = DeviceView(a_d.size(), a_d.size(), mass_d.size(), row_indices, column_indices, values);
+  mass.sort_by_row();
   // end create mass matrix
+
+  // create shellMesh mass matrix using cusp
+  thrust::device_ptr<int> wrapped_device_I_shell(CASTI1(massShellI_d));
+  DeviceIndexArrayView row_indices_shell = DeviceIndexArrayView(wrapped_device_I_shell, wrapped_device_I_shell + massShellI_h.size());
+
+  thrust::device_ptr<int> wrapped_device_J_shell(CASTI1(massShellJ_d));
+  DeviceIndexArrayView column_indices_shell = DeviceIndexArrayView(wrapped_device_J_shell, wrapped_device_J_shell + massShellJ_h.size());
+
+  thrust::device_ptr<double> wrapped_device_V_shell(CASTD1(massShell_d));
+  DeviceValueArrayView values_shell = DeviceValueArrayView(wrapped_device_V_shell, wrapped_device_V_shell + massShell_d.size());
+
+  mass_shellMesh = DeviceView(3*nodes_h.size(), 3*nodes_h.size(), massShell_d.size(), row_indices_shell, column_indices_shell, values_shell);
+  mass_shellMesh.sort_by_row();
+  // end create shellMesh mass matrix using cusp
 
   // calculate initialize strains and curvatures
   calculateInitialStrainAndCurvature();
@@ -386,6 +404,44 @@ int System::initializeSystem() {
     body2Ds[j]->addBody2D(j);
   }
 
+  // add shell mesh to system
+  if(nodes_h.size()) {
+    indices_h.push_back(p_h.size());
+
+    // update p
+    for(int i=0; i<nodes_h.size(); i++) {
+      p_h.push_back(nodes_h[i].x);
+      p_h.push_back(nodes_h[i].y);
+      p_h.push_back(nodes_h[i].z);
+    }
+
+    // update fext
+    for(int i=0; i<fextMesh_h.size(); i++) {
+      f_h.push_back(fextMesh_h[i]);
+    }
+
+    // update zero vectors
+    for(int i=0;i<3*nodes_h.size();i++) {
+      v_h.push_back(0);
+      a_h.push_back(0);
+      f_contact_h.push_back(0);
+      fApplied_h.push_back(0);
+      fElastic_h.push_back(0);
+      tmp_h.push_back(0);
+      k_h.push_back(0);
+      r_h.push_back(0);
+    }
+
+    // update the mass inverse
+    int offset = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
+    for(int i=0;i<invMassShellI_h.size();i++) {
+      massI_h.push_back(invMassShellI_h[i]+offset);
+      massJ_h.push_back(invMassShellJ_h[i]+offset);
+      mass_h.push_back(invMassShell_h[i]);
+    }
+
+  }
+
   initializeDevice();
   solver->setup();
 
@@ -458,7 +514,6 @@ int System::DoTimeStep() {
     cusp::blas::fill(f_contact,0.0);
   }
   cusp::blas::axpy(v, p, h);
-
   time += h;
   timeIndex++;
   //p_h = p_d;
@@ -1084,7 +1139,7 @@ int System::buildContactJacobian() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(D_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), D_d.size(), row_indices, column_indices, values);
+  D = DeviceView(3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size()+3*nodes_h.size(), D_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   buildContactJacobianTranspose();
@@ -1107,7 +1162,7 @@ int System::buildContactJacobianTranspose() {
   thrust::device_ptr<double> wrapped_device_V(CASTD1(DT_d));
   DeviceValueArrayView values = DeviceValueArrayView(wrapped_device_V, wrapped_device_V + D_d.size());
 
-  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), DT_d.size(), row_indices, column_indices, values);
+  DT = DeviceView(3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size()+3*nodes_h.size(), 3*collisionDetector->numCollisions+constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), DT_d.size(), row_indices, column_indices, values);
   // end create contact jacobian
 
   DT.sort_by_row(); // TODO: Do I need this?
@@ -1213,6 +1268,7 @@ int System::buildAppliedImpulseVector() {
   if(beams.size()) multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD3(materialsBeam_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size());
   if(plates.size()) multiplyByPlateMass<<<BLOCKS(plates.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD4(materialsPlate_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size(), plates.size());
   if(body2Ds.size()) multiplyByBody2DMass<<<BLOCKS(body2Ds.size()),THREADS>>>(CASTD2(materialsBody2D_d), CASTD1(v_d), CASTD1(k_d), bodies.size(), beams.size(), plates.size(), body2Ds.size());
+  if(nodes_h.size()) cusp::multiply(mass_shellMesh,v_shellMesh,k_shellMesh);
   //cusp::blas::axpy(fElastic,fApplied,-1.0); //TODO: Come up with a fix for applied forces
   cusp::blas::axpbypcz(f,fElastic,k,k,h,-h,1.0);
 
@@ -1463,13 +1519,11 @@ int System::exportSystem(string filename) {
       filestream << v_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
     }
 
-    filestream
-    << "\n";
+    filestream << "\n";
   }
   for (int i = 0; i < body2Ds.size(); i++) {
     // TODO: Need to know collision family information, density, elastic modulus, number of contacts (especially important when importing)
-    filestream
-    << bodies.size()+beams.size()+plates.size()+i << ", ";
+    filestream << bodies.size()+beams.size()+plates.size()+i << ", ";
 
     for(int j=0;j<3;j++) {
       filestream << p_h[3*bodies.size()+12*beams.size()+36*plates.size()+3*i+j] << ", ";
@@ -1559,4 +1613,156 @@ int System::exportMatrices(string directory) {
   cusp::io::write_matrix_market_file(k, filename);
 
   return 0;
+}
+
+void System::importMesh(string filename) {
+  string temp_data;
+  int numShells;
+  int numNodes;
+  int numNonzeros_M;
+  int numNonzeros_invM;
+  double3 node;
+  int4 connectivity;
+  double4 material;
+  double4 geometry;
+  int map;
+  double force;
+  int iVal;
+  int jVal;
+  double val;
+
+  ifstream ifile(filename.c_str());
+  getline(ifile,temp_data);
+  for(int i=0; i<temp_data.size(); ++i){
+    if(temp_data[i]==','){temp_data[i]=' ';}
+  }
+  stringstream ss1(temp_data);
+  ss1>>numNodes>>numShells>>numNonzeros_M>>numNonzeros_invM;
+  //cout << numNodes << " " << numShells << " " << numNonzeros_M << " " << numNonzeros_invM << endl;
+
+  // read nodes
+  for(int i=0; i<3*numNodes; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>node.x>>node.y>>node.z;
+    //cout << "  " << i << " " << node.x << " " << node.y << " " << node.z << endl;
+    nodes_h.push_back(node);
+  }
+  //cout << endl;
+
+  // read shell connectivity
+  for(int i=0; i<numShells; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>connectivity.x>>connectivity.y>>connectivity.z>>connectivity.w;
+    //cout << "  " << i << " " << connectivity.x << " " << connectivity.y << " " << connectivity.z << " " << connectivity.w << endl;
+    shellConnectivities_h.push_back(connectivity);
+  }
+  shellConnectivities_d = shellConnectivities_h;
+  //cout << endl;
+
+  // read shell materials
+  for(int i=0; i<numShells; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>material.x>>material.y>>material.z>>material.w;
+    //cout << "  " << i << " " << material.x << " " << material.y << " " << material.z << " " << material.w << endl;
+    shellMaterials_h.push_back(material);
+  }
+  shellMaterials_d = shellMaterials_h;
+  //cout << endl;
+
+  // read shell geometries
+  for(int i=0; i<numShells; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>geometry.x>>geometry.y>>geometry.z>>geometry.w;
+    //cout << "  " << i << " " << geometry.x << " " << geometry.y << " " << geometry.z << " " << geometry.w << endl;
+    shellGeometries_h.push_back(geometry);
+  }
+  shellGeometries_d = shellGeometries_h;
+  //cout << endl;
+
+  // read shell map
+  for(int i=0; i<numShells*36; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>map;
+    shellMap_h.push_back(map);
+  }
+  shellMap_d = shellMap_h;
+
+  // read shell external force
+  for(int i=0; i<numNodes*9; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>force;
+    fextMesh_h.push_back(force);
+  }
+
+  // read shell mass matrix
+  for(int i=0; i<numNonzeros_M; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>iVal>>jVal>>val;
+    massShellI_h.push_back(iVal-1); // convert from 1-based indexing
+    massShellJ_h.push_back(jVal-1); // convert from 1-based indexing
+    massShell_h.push_back(val);
+  }
+  massShellI_d = massShellI_h;
+  massShellJ_d = massShellJ_h;
+  massShell_d = massShell_h;
+
+  // read shell inverse mass matrix
+  for(int i=0; i<numNonzeros_invM; i++) {
+    getline(ifile,temp_data);
+    for(int j=0; j<temp_data.size(); ++j){
+      if(temp_data[j]==','){temp_data[j]=' ';}
+    }
+    stringstream ss(temp_data);
+    ss>>iVal>>jVal>>val;
+    invMassShellI_h.push_back(iVal-1); // convert from 1-based indexing
+    invMassShellJ_h.push_back(jVal-1); // convert from 1-based indexing
+    invMassShell_h.push_back(val);
+  }
+}
+
+double3 System::transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta)
+{
+  double a = shellGeometries_h[shellIndex].x;
+  double b = shellGeometries_h[shellIndex].y;
+
+  int offset = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
+  double* p0 = &p_h[offset+9*shellConnectivities_h[shellIndex].x];
+  double* p1 = &p_h[offset+9*shellConnectivities_h[shellIndex].y];
+  double* p2 = &p_h[offset+9*shellConnectivities_h[shellIndex].z];
+  double* p3 = &p_h[offset+9*shellConnectivities_h[shellIndex].w];
+
+  double3 pos;
+  pos.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+  pos.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+  pos.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
+
+  return pos;
 }

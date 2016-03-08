@@ -281,7 +281,7 @@ int main(int argc, char** argv)
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 1;
   int binsPerAxis = 10;
-  double tolerance = 1e-2;
+  double tolerance = 1e-1;
   double hh = 1e-3;
   int numDiv = 9;
   double slip = 0;
@@ -420,6 +420,7 @@ int main(int argc, char** argv)
 
   // Add hub
   Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
+  hub->setMass(500);
   sys->add(hub);
 
   // Add ground
@@ -536,27 +537,27 @@ int main(int argc, char** argv)
     int offsetA = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*i);
     int offsetB = 3*sys->bodies.size()+12*sys->beams.size()+36*(numPlates*iNext);
 
-    // node 1 of plate A is fixed to node 0 of plate B
-    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
-    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
-    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
-    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
-    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
-    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
-    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
-    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
-    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
-
-    // node 2 of plate A is fixed to node 3 of plate B
-    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
-    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
-    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
-    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
-    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
-    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
-    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
-    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
-    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
+//    // node 1 of plate A is fixed to node 0 of plate B
+//    sys->addBilateralConstraintDOF(offsetA+9*1, offsetB+9*0);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+1, offsetB+9*0+1);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+2, offsetB+9*0+2);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+3, offsetB+9*0+3);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+4, offsetB+9*0+4);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+5, offsetB+9*0+5);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+6, offsetB+9*0+6);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+7, offsetB+9*0+7);
+//    sys->addBilateralConstraintDOF(offsetA+9*1+8, offsetB+9*0+8);
+//
+//    // node 2 of plate A is fixed to node 3 of plate B
+//    sys->addBilateralConstraintDOF(offsetA+9*2, offsetB+9*3);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+1, offsetB+9*3+1);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+2, offsetB+9*3+2);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+3, offsetB+9*3+3);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+4, offsetB+9*3+4);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+5, offsetB+9*3+5);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+6, offsetB+9*3+6);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+7, offsetB+9*3+7);
+//    sys->addBilateralConstraintDOF(offsetA+9*2+8, offsetB+9*3+8);
   }
 
   sys->initializeSystem();
