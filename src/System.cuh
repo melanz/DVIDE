@@ -203,6 +203,38 @@ public:
   thrust::host_vector<double> Syy_h;
   thrust::device_vector<double> Syy_d;
 
+  // Shell Mesh Elastic Data Structures
+  thrust::host_vector<double> fElasticShellMesh_h;
+  thrust::device_vector<double> fElasticShellMesh_d;
+
+  thrust::host_vector<double3> strainShellMesh_h;
+  thrust::device_vector<double3> strainShellMesh_d;
+
+  thrust::host_vector<double> strainEnergyShellMesh_h;
+  thrust::device_vector<double> strainEnergyShellMesh_d;
+
+  thrust::host_vector<double3> strainDerivativeShellMesh_h;
+  thrust::device_vector<double3> strainDerivativeShellMesh_d;
+
+  thrust::host_vector<double3> curvatureDerivativeShellMesh_h;
+  thrust::device_vector<double3> curvatureDerivativeShellMesh_d;
+
+  thrust::host_vector<double3> strainShellMesh0_h;
+  thrust::device_vector<double3> strainShellMesh0_d;
+
+  thrust::host_vector<double3> curvatureShellMesh0_h;
+  thrust::device_vector<double3> curvatureShellMesh0_d;
+
+  thrust::host_vector<double> Sx_shellMesh_h;
+  thrust::device_vector<double> Sx_shellMesh_d;
+  thrust::host_vector<double> Sxx_shellMesh_h;
+  thrust::device_vector<double> Sxx_shellMesh_d;
+  thrust::host_vector<double> Sy_shellMesh_h;
+  thrust::device_vector<double> Sy_shellMesh_d;
+  thrust::host_vector<double> Syy_shellMesh_h;
+  thrust::device_vector<double> Syy_shellMesh_d;
+  // End Shell Mesh Elastic Data Structures
+
   thrust::host_vector<double> wt6;
   thrust::host_vector<double> pt6;
   thrust::host_vector<double> wt5;
@@ -228,6 +260,7 @@ public:
   thrust::device_vector<double4> shellMaterials_d;
   thrust::device_vector<double4> shellGeometries_d;
   thrust::device_vector<int> shellMap_d;
+  thrust::device_vector<int> shellMap0_d;
   thrust::device_vector<int> massShellI_d;
   thrust::device_vector<int> massShellJ_d;
   thrust::device_vector<double> massShell_d;

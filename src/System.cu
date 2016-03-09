@@ -208,6 +208,20 @@ int System::initializeDevice() {
   strainBeam0_d = strainBeam0_h;
   curvatureBeam0_d = curvatureBeam0_h;
 
+  // Shell Mesh Initialization
+  fElasticShellMesh_d = fElasticShellMesh_h;
+  strainShellMesh_d = strainShellMesh_h;
+  strainEnergyShellMesh_d = strainEnergyShellMesh_h;
+  strainDerivativeShellMesh_d = strainDerivativeShellMesh_h;
+  curvatureDerivativeShellMesh_d = curvatureDerivativeShellMesh_h;
+  Sx_shellMesh_d = Sx_shellMesh_h;
+  Sxx_shellMesh_d = Sxx_shellMesh_h;
+  Sy_shellMesh_d = Sy_shellMesh_h;
+  Syy_shellMesh_d = Syy_shellMesh_h;
+  strainShellMesh0_d = strainShellMesh0_h;
+  curvatureShellMesh0_d = curvatureShellMesh0_h;
+  // End Shell Mesh Initialization
+
   thrust::device_ptr<double> wrapped_device_p(CASTD1(p_d));
   thrust::device_ptr<double> wrapped_device_v(CASTD1(v_d));
   thrust::device_ptr<double> wrapped_device_a(CASTD1(a_d));
@@ -438,6 +452,26 @@ int System::initializeSystem() {
       massI_h.push_back(invMassShellI_h[i]+offset);
       massJ_h.push_back(invMassShellJ_h[i]+offset);
       mass_h.push_back(invMassShell_h[i]);
+    }
+
+    for(int j=0;j<shellConnectivities_h.size();j++) {
+      for(int i=0;i<36;i++) {
+        fElasticShellMesh_h.push_back(0);
+        strainDerivativeShellMesh_h.push_back(make_double3(0,0,0));
+        curvatureDerivativeShellMesh_h.push_back(make_double3(0,0,0));
+      }
+
+      strainEnergyShellMesh_h.push_back(0);
+      strainShellMesh_h.push_back(make_double3(0,0,0));
+      for(int i=0;i<wt6.size()*pt6.size();i++) strainShellMesh0_h.push_back(make_double3(0,0,0));
+      for(int i=0;i<wt5.size()*pt5.size();i++) curvatureShellMesh0_h.push_back(make_double3(0,0,0));
+
+      for(int i=0;i<12;i++) {
+        Sx_shellMesh_h.push_back(0);
+        Sxx_shellMesh_h.push_back(0);
+        Sy_shellMesh_h.push_back(0);
+        Syy_shellMesh_h.push_back(0);
+      }
     }
 
   }
@@ -1421,6 +1455,7 @@ double System::getStrainEnergy() {
   double strainEnergy = 0;
   if(beams.size()) strainEnergy+=thrust::reduce(strainEnergy_d.begin(),strainEnergy_d.end());
   if(plates.size()) strainEnergy+=thrust::reduce(strainEnergyPlate_d.begin(),strainEnergyPlate_d.end());
+  if(nodes_h.size()) strainEnergy+=thrust::reduce(strainEnergyShellMesh_d.begin(),strainEnergyShellMesh_d.end());
 
   return strainEnergy;
 }
@@ -1706,6 +1741,7 @@ void System::importMesh(string filename) {
     shellMap_h.push_back(map);
   }
   shellMap_d = shellMap_h;
+  shellMap0_d = shellMap_h;
 
   // read shell external force
   for(int i=0; i<numNodes*9; i++) {
