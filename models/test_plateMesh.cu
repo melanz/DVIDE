@@ -314,7 +314,7 @@ int main(int argc, char** argv)
     dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(false);
   }
 
-  //sys->solver->maxIterations = 40;
+  //sys->solver->maxIterations = 200;
   //sys->gravity = make_double3(0,0,0);
 
   // Add ground
@@ -328,22 +328,22 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(3,-1);
   sys->addBilateralConstraintDOF(4,-1);
   sys->addBilateralConstraintDOF(5,-1);
-
-  int numEl = 10;
-  int node = numEl;
-  sys->addBilateralConstraintDOF(3+9*node,-1);
-  sys->addBilateralConstraintDOF(4+9*node,-1);
-  sys->addBilateralConstraintDOF(5+9*node,-1);
-
-  node = (numEl+1)*(numEl+1)-1;
-  sys->addBilateralConstraintDOF(3+9*node,-1);
-  sys->addBilateralConstraintDOF(4+9*node,-1);
-  sys->addBilateralConstraintDOF(5+9*node,-1);
-
-  node = (numEl+1)*(numEl+1)-1-numEl;
-  sys->addBilateralConstraintDOF(3+9*node,-1);
-  sys->addBilateralConstraintDOF(4+9*node,-1);
-  sys->addBilateralConstraintDOF(5+9*node,-1);
+//
+//  int numEl = 10;
+//  int node = numEl;
+//  sys->addBilateralConstraintDOF(3+9*node,-1);
+//  sys->addBilateralConstraintDOF(4+9*node,-1);
+//  sys->addBilateralConstraintDOF(5+9*node,-1);
+//
+//  node = (numEl+1)*(numEl+1)-1;
+//  sys->addBilateralConstraintDOF(3+9*node,-1);
+//  sys->addBilateralConstraintDOF(4+9*node,-1);
+//  sys->addBilateralConstraintDOF(5+9*node,-1);
+//
+//  node = (numEl+1)*(numEl+1)-1-numEl;
+//  sys->addBilateralConstraintDOF(3+9*node,-1);
+//  sys->addBilateralConstraintDOF(4+9*node,-1);
+//  sys->addBilateralConstraintDOF(5+9*node,-1);
 
   sys->initializeSystem();
   printf("System initialized!\n");

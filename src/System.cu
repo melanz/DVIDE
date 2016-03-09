@@ -455,6 +455,8 @@ int System::initializeSystem() {
     }
 
     for(int j=0;j<shellConnectivities_h.size();j++) {
+      contactGeometry_h.push_back(make_double3(shellGeometries_h[j].x,shellGeometries_h[j].y,shellGeometries_h[j].w));
+
       for(int i=0;i<36;i++) {
         fElasticShellMesh_h.push_back(0);
         strainDerivativeShellMesh_h.push_back(make_double3(0,0,0));
@@ -472,7 +474,6 @@ int System::initializeSystem() {
         Sy_shellMesh_h.push_back(0);
         Syy_shellMesh_h.push_back(0);
       }
-      int offset = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
       for(int i=0;i<shellGeometries_h[j].w;i++) {
         for(int k=0;k<shellGeometries_h[j].w;k++) {
           collisionGeometry_h.push_back(make_double3(0.5*shellGeometries_h[j].z,0,0));
@@ -532,16 +533,18 @@ int System::DoTimeStep() {
     collisionDetector->detectPossibleCollisions_spatialSubdivision();
     collisionDetector->detectCollisions();
   }
-  if(collisionDetector->numCollisions) {
-    cout << "BOOM!" << endl;
-    cin.get();
-  }
 
   buildAppliedImpulseVector();
   if(collisionDetector->numCollisions||constraintsBilateralDOF_d.size()||constraintsSpherical_ShellNodeToBody2D_d.size()) {
+
     // Set up the QOCC
     buildContactJacobian();
     buildSchurVector();
+    if(collisionDetector->numCollisions) {
+      cusp::print(D);
+      cout << "BOOM!" << endl;
+      cin.get();
+    }
 
     // Solve the QOCC
     solver->solve();
@@ -653,10 +656,15 @@ __global__ void constructSpherical_ShellNodeToBody2DJacobian(int3* constraints, 
   D[7*index+6+offset] = -1.0;
 }
 
-__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, uint offsetConstraintsBilateral, uint numConstraintsBilateral, uint numCollisions) {
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, int4* connectivities, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, int numPlates, int numBodys2D, uint offsetConstraintsBilateral, uint numConstraintsBilateral, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
   friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
+  bool shellMeshA = false;
+  bool shellMeshB = false;
+  int4 connectivityA;
+  int4 connectivityB;
+  int shellOffset = 3*numBodies+12*numBeams+36*numPlates+3*numBodys2D;
 
   int offsetA = (!index) ? 0 : nonzerosPerContact_d[index - 1];
   offsetA+=offsetConstraintsBilateral; // add offset for bilateral constraints
@@ -669,24 +677,40 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
 
   int endA = 3;
   if(bodyIdentifierA<numBodies) {
-    endA = 3;
+    endA = 3; // body
   }
   else if(bodyIdentifierA<(numBodies+numBeams)) {
-    endA = 12;
+    endA = 12; // beam
+  }
+  else if(bodyIdentifierA<(numBodies+numBeams+numPlates)) {
+    endA = 36; // plate
+  }
+  else if(bodyIdentifierA<(numBodies+numBeams+numPlates+numBodys2D)) {
+    endA = 3; // body2D
   }
   else {
-    endA = 36;
+    endA = 36; // shellMesh
+    shellMeshA = true;
+    connectivityA = connectivities[bodyIdentifierA-(numBodies+numBeams+numPlates+numBodys2D)];
   }
 
   int endB = 3;
   if(bodyIdentifierB<numBodies) {
-    endB = 3;
+    endB = 3; // body
   }
   else if(bodyIdentifierB<(numBodies+numBeams)) {
-    endB = 12;
+    endB = 12; // beam
+  }
+  else if(bodyIdentifierB<(numBodies+numBeams+numPlates)) {
+    endB = 36; // plate
+  }
+  else if(bodyIdentifierB<(numBodies+numBeams+numPlates+numBodys2D)) {
+    endB = 3; // body2D
   }
   else {
-    endB = 36;
+    endB = 36; // shellMesh
+    shellMeshB = true;
+    connectivityB = connectivities[bodyIdentifierB-(numBodies+numBeams+numPlates+numBodys2D)];
   }
 
   int indexA = indices[bodyIdentifierA];
@@ -726,14 +750,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   int j = 0;
   for(i=0;i<end;i++) {
     DI[i] = 3*index+0+numConstraintsBilateral;
-    DJ[i] = indexA+j;
+    if(shellMeshA) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityA.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityA.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityA.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityA.w+j;
+      }
+    } else {
+      DJ[i] = indexA+j;
+    }
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
     DI[i] = 3*index+0+numConstraintsBilateral;
-    DJ[i] = indexB+j;
+    if(shellMeshB) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityB.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityB.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityB.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityB.w+j;
+      }
+    } else {
+      DJ[i] = indexB+j;
+    }
     j++;
   }
 
@@ -742,14 +796,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   j = 0;
   for(;i<end;i++) {
     DI[i] = 3*index+1+numConstraintsBilateral;
-    DJ[i] = indexA+j;
+    if(shellMeshA) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityA.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityA.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityA.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityA.w+j;
+      }
+    } else {
+      DJ[i] = indexA+j;
+    }
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
     DI[i] = 3*index+1+numConstraintsBilateral;
-    DJ[i] = indexB+j;
+    if(shellMeshB) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityB.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityB.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityB.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityB.w+j;
+      }
+    } else {
+      DJ[i] = indexB+j;
+    }
     j++;
   }
 
@@ -758,14 +842,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   j = 0;
   for(;i<end;i++) {
     DI[i] = 3*index+2+numConstraintsBilateral;
-    DJ[i] = indexA+j;
+    if(shellMeshA) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityA.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityA.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityA.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityA.w+j;
+      }
+    } else {
+      DJ[i] = indexA+j;
+    }
     j++;
   }
   end+=endB;
   j = 0;
   for(;i<end;i++) {
     DI[i] = 3*index+2+numConstraintsBilateral;
-    DJ[i] = indexB+j;
+    if(shellMeshB) {
+      if(j<9) {
+        DJ[i] = shellOffset+9*connectivityB.x+j;
+      }
+      else if (j<18) {
+        DJ[i] = shellOffset-9+9*connectivityB.y+j;
+      }
+      else if (j<27) {
+        DJ[i] = shellOffset-18+9*connectivityB.z+j;
+      }
+      else {
+        DJ[i] = shellOffset-27+9*connectivityB.w+j;
+      }
+    } else {
+      DJ[i] = indexB+j;
+    }
     j++;
   }
 
@@ -1172,7 +1286,7 @@ int System::buildContactJacobian() {
 
   if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(offsetBilaterals_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
   if(constraintsSpherical_ShellNodeToBody2D_d.size()) constructSpherical_ShellNodeToBody2DJacobian<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size(), offsetConstraintsDOF, constraintsSpherical_ShellNodeToBody2D_d.size());
-  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTI4(shellConnectivities_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), plates.size(), body2Ds.size(), offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
