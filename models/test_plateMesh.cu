@@ -325,9 +325,9 @@ int main(int argc, char** argv)
 
   sys->importMesh("../shellMesh.txt");
 
-  sys->addBilateralConstraintDOF(3,-1);
-  sys->addBilateralConstraintDOF(4,-1);
-  sys->addBilateralConstraintDOF(5,-1);
+//  sys->addBilateralConstraintDOF(3,-1);
+//  sys->addBilateralConstraintDOF(4,-1);
+//  sys->addBilateralConstraintDOF(5,-1);
 //
 //  int numEl = 10;
 //  int node = numEl;
