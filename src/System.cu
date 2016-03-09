@@ -472,6 +472,13 @@ int System::initializeSystem() {
         Sy_shellMesh_h.push_back(0);
         Syy_shellMesh_h.push_back(0);
       }
+      int offset = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
+      for(int i=0;i<shellGeometries_h[j].w;i++) {
+        for(int k=0;k<shellGeometries_h[j].w;k++) {
+          collisionGeometry_h.push_back(make_double3(0.5*shellGeometries_h[j].z,0,0));
+          collisionMap_h.push_back(make_int4(plates.size()+beams.size()+bodies.size()+body2Ds.size()+j,i,k,-2));
+        }
+      }
     }
 
   }
@@ -524,6 +531,10 @@ int System::DoTimeStep() {
     collisionDetector->generateAxisAlignedBoundingBoxes();
     collisionDetector->detectPossibleCollisions_spatialSubdivision();
     collisionDetector->detectCollisions();
+  }
+  if(collisionDetector->numCollisions) {
+    cout << "BOOM!" << endl;
+    cin.get();
   }
 
   buildAppliedImpulseVector();
@@ -1673,7 +1684,6 @@ void System::importMesh(string filename) {
   }
   stringstream ss1(temp_data);
   ss1>>numNodes>>numShells>>numNonzeros_M>>numNonzeros_invM;
-  //cout << numNodes << " " << numShells << " " << numNonzeros_M << " " << numNonzeros_invM << endl;
 
   // read nodes
   for(int i=0; i<3*numNodes; i++) {
@@ -1683,10 +1693,8 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>node.x>>node.y>>node.z;
-    //cout << "  " << i << " " << node.x << " " << node.y << " " << node.z << endl;
     nodes_h.push_back(node);
   }
-  //cout << endl;
 
   // read shell connectivity
   for(int i=0; i<numShells; i++) {
@@ -1696,11 +1704,9 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>connectivity.x>>connectivity.y>>connectivity.z>>connectivity.w;
-    //cout << "  " << i << " " << connectivity.x << " " << connectivity.y << " " << connectivity.z << " " << connectivity.w << endl;
     shellConnectivities_h.push_back(connectivity);
   }
   shellConnectivities_d = shellConnectivities_h;
-  //cout << endl;
 
   // read shell materials
   for(int i=0; i<numShells; i++) {
@@ -1710,11 +1716,9 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>material.x>>material.y>>material.z>>material.w;
-    //cout << "  " << i << " " << material.x << " " << material.y << " " << material.z << " " << material.w << endl;
     shellMaterials_h.push_back(material);
   }
   shellMaterials_d = shellMaterials_h;
-  //cout << endl;
 
   // read shell geometries
   for(int i=0; i<numShells; i++) {
@@ -1724,7 +1728,6 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>geometry.x>>geometry.y>>geometry.z>>geometry.w;
-    //cout << "  " << i << " " << geometry.x << " " << geometry.y << " " << geometry.z << " " << geometry.w << endl;
     shellGeometries_h.push_back(geometry);
   }
   shellGeometries_d = shellGeometries_h;

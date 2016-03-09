@@ -21,7 +21,7 @@ inline uint __device__ getHashIndex(const uint3 &A, const uint3 &binsPerAxis) {
   return A.x+A.y*binsPerAxis.x+A.z*binsPerAxis.x*binsPerAxis.y;
 }
 
-__global__ void generateAabbData(double3* aabbData, int* indices, double* pos, double3* geometries, double3* collisionGeometries, int4* map, double envelope, int numBodies, int numBeams, uint numAABB) {
+__global__ void generateAabbData(double3* aabbData, int* indices, double* pos, double3* geometries, double4* geometries_shellMesh, int4* connectivities_shellMesh, double3* collisionGeometries, int4* map, double envelope, int numBodies, int numBeams, int numPlates, int numBodies2D, uint numAABB) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numAABB);
 
   int identifier = map[index].x;
@@ -37,7 +37,7 @@ __global__ void generateAabbData(double3* aabbData, int* indices, double* pos, d
     position.y = pos[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + pos[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*pos[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*pos[10+offset]*(- xi*xi*xi + xi*xi);
     position.z = pos[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + pos[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*pos[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*pos[11+offset]*(- xi*xi*xi + xi*xi);
   }
-  else {
+  else if (identifier < (numBeams+numBodies+numPlates)) {
     double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometries[identifier].z-1));
     double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometries[identifier].z-1));
     double a = geometries[identifier].x;
@@ -46,6 +46,26 @@ __global__ void generateAabbData(double3* aabbData, int* indices, double* pos, d
     position.x = -eta*pos[18+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-pos[9+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*pos[27+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+pos[0+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*pos[15+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*pos[24+offset]*xi*(eta-1.0)+a*eta*pos[21+offset]*(xi*xi)*(xi-1.0)+a*eta*pos[30+offset]*xi*pow(xi-1.0,2.0)-b*eta*pos[6+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*pos[33+offset]*(eta-1.0)*(xi-1.0)-a*pos[3+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*pos[12+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     position.y = -eta*pos[19+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-pos[10+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*pos[28+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+pos[1+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*pos[16+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*pos[25+offset]*xi*(eta-1.0)+a*eta*pos[22+offset]*(xi*xi)*(xi-1.0)+a*eta*pos[31+offset]*xi*pow(xi-1.0,2.0)-b*eta*pos[7+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*pos[34+offset]*(eta-1.0)*(xi-1.0)-a*pos[4+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*pos[13+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     position.z = -eta*pos[20+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-pos[11+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*pos[29+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+pos[2+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*pos[17+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*pos[26+offset]*xi*(eta-1.0)+a*eta*pos[23+offset]*(xi*xi)*(xi-1.0)+a*eta*pos[32+offset]*xi*pow(xi-1.0,2.0)-b*eta*pos[8+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*pos[35+offset]*(eta-1.0)*(xi-1.0)-a*pos[5+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*pos[14+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
+  }
+  else if (identifier < (numBeams+numBodies+numPlates+numBodies2D)) {
+    // TODO: check body2D collision
+  }
+  else {
+    int shellIndex = identifier-(numBeams+numBodies+numPlates+numBodies2D);
+    int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
+    double4 geometry = geometries_shellMesh[shellIndex];
+    double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometry.w-1));
+    double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometry.w-1));
+    double a = geometry.x;
+    double b = geometry.y;
+    int4 connectivity = connectivities_shellMesh[shellIndex];
+    double* p0 = &pos[offset+9*connectivity.x];
+    double* p1 = &pos[offset+9*connectivity.y];
+    double* p2 = &pos[offset+9*connectivity.z];
+    double* p3 = &pos[offset+9*connectivity.w];
+    position.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    position.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    position.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
   }
 
   double3 geometry = collisionGeometries[index];
@@ -164,7 +184,7 @@ __global__ void convertLongsToInts(long long* potentialCollisions, uint2 * possi
   possibleCollisionPairs[index].y = int(potentialCollisions[index] & 0xffffffff);
 }
 
-__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double3* collisionGeometries, int4* map, double envelope, int numBodies, int numBeams, uint numPossibleCollisions) {
+__global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* geometries_shellMesh, int4* connectivities_shellMesh, double3* collisionGeometries, int4* map, double envelope, int numBodies, int numBeams, int numPlates, int numBodies2D, uint numPossibleCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   double penetration = 0;
@@ -186,7 +206,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     posA.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
     posA.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
   }
-  else {
+  else if (identifierA < (numBeams+numBodies+numPlates)) {
     double xi = static_cast<double>(map[collGeomA].y)/(static_cast<double>(geometries[identifierA].z-1));
     double eta = static_cast<double>(map[collGeomA].z)/(static_cast<double>(geometries[identifierA].z-1));
     double a = geometries[identifierA].x;
@@ -195,6 +215,26 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     posA.x = -eta*p[18+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[9+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[27+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[0+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[15+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[24+offset]*xi*(eta-1.0)+a*eta*p[21+offset]*(xi*xi)*(xi-1.0)+a*eta*p[30+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[6+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[33+offset]*(eta-1.0)*(xi-1.0)-a*p[3+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[12+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posA.y = -eta*p[19+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[10+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[28+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[1+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[16+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[25+offset]*xi*(eta-1.0)+a*eta*p[22+offset]*(xi*xi)*(xi-1.0)+a*eta*p[31+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[7+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[34+offset]*(eta-1.0)*(xi-1.0)-a*p[4+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[13+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posA.z = -eta*p[20+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[11+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[29+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[2+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[17+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[26+offset]*xi*(eta-1.0)+a*eta*p[23+offset]*(xi*xi)*(xi-1.0)+a*eta*p[32+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[8+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[35+offset]*(eta-1.0)*(xi-1.0)-a*p[5+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[14+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
+  }
+  else if (identifierA < (numBeams+numBodies+numPlates+numBodies2D)) {
+    // TODO: check body2D collision
+  }
+  else {
+    int shellIndex = identifierA-(numBeams+numBodies+numPlates+numBodies2D);
+    int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
+    double4 geometry = geometries_shellMesh[shellIndex];
+    double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometry.w-1));
+    double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometry.w-1));
+    double a = geometry.x;
+    double b = geometry.y;
+    int4 connectivity = connectivities_shellMesh[shellIndex];
+    double* p0 = &p[offset+9*connectivity.x];
+    double* p1 = &p[offset+9*connectivity.y];
+    double* p2 = &p[offset+9*connectivity.z];
+    double* p3 = &p[offset+9*connectivity.w];
+    posA.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    posA.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    posA.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
   }
 
   int identifierB = map[collGeomB].x;
@@ -210,7 +250,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     posB.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
     posB.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
   }
-  else {
+  else if (identifierB < (numBeams+numBodies+numPlates)) {
     double xi = static_cast<double>(map[collGeomB].y)/(static_cast<double>(geometries[identifierB].z-1));
     double eta = static_cast<double>(map[collGeomB].z)/(static_cast<double>(geometries[identifierB].z-1));
     double a = geometries[identifierB].x;
@@ -219,6 +259,26 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     posB.x = -eta*p[18+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[9+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[27+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[0+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[15+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[24+offset]*xi*(eta-1.0)+a*eta*p[21+offset]*(xi*xi)*(xi-1.0)+a*eta*p[30+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[6+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[33+offset]*(eta-1.0)*(xi-1.0)-a*p[3+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[12+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posB.y = -eta*p[19+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[10+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[28+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[1+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[16+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[25+offset]*xi*(eta-1.0)+a*eta*p[22+offset]*(xi*xi)*(xi-1.0)+a*eta*p[31+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[7+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[34+offset]*(eta-1.0)*(xi-1.0)-a*p[4+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[13+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posB.z = -eta*p[20+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[11+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[29+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[2+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[17+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[26+offset]*xi*(eta-1.0)+a*eta*p[23+offset]*(xi*xi)*(xi-1.0)+a*eta*p[32+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[8+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[35+offset]*(eta-1.0)*(xi-1.0)-a*p[5+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[14+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
+  }
+  else if (identifierB < (numBeams+numBodies+numPlates+numBodies2D)) {
+    // TODO: check body2D collision
+  }
+  else {
+    int shellIndex = identifierB-(numBeams+numBodies+numPlates+numBodies2D);
+    int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
+    double4 geometry = geometries_shellMesh[shellIndex];
+    double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometry.w-1));
+    double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometry.w-1));
+    double a = geometry.x;
+    double b = geometry.y;
+    int4 connectivity = connectivities_shellMesh[shellIndex];
+    double* p0 = &p[offset+9*connectivity.x];
+    double* p1 = &p[offset+9*connectivity.y];
+    double* p2 = &p[offset+9*connectivity.z];
+    double* p3 = &p[offset+9*connectivity.w];
+    posB.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    posB.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    posB.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
   }
 
   double3 geometryA = collisionGeometries[collGeomA];
@@ -270,7 +330,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   numCollisionsPerPair[index] = numCollisions;
 }
 
-__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double3* collisionGeometries, int4* map, double4* normalsAndPenetrations, uint* collisionIdentifiersA, uint* collisionIdentifiersB, uint numPossibleCollisions, int numBodies, int numBeams, uint numCollisions) {
+__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* geometries_shellMesh, int4* connectivities_shellMesh, double3* collisionGeometries, int4* map, double4* normalsAndPenetrations, uint* collisionIdentifiersA, uint* collisionIdentifiersB, uint numPossibleCollisions, int numBodies, int numBeams, int numPlates, int numBodies2D, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   uint startIndex = (index == 0) ? 0 : numCollisionsPerPair[index - 1];
@@ -294,7 +354,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       posA.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
       posA.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
     }
-    else {
+    else if (identifierA < (numBeams+numBodies+numPlates)) {
       double xi = static_cast<double>(map[collGeomA].y)/(static_cast<double>(geometries[identifierA].z-1));
       double eta = static_cast<double>(map[collGeomA].z)/(static_cast<double>(geometries[identifierA].z-1));
       double a = geometries[identifierA].x;
@@ -303,6 +363,26 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       posA.x = -eta*p[18+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[9+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[27+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[0+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[15+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[24+offset]*xi*(eta-1.0)+a*eta*p[21+offset]*(xi*xi)*(xi-1.0)+a*eta*p[30+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[6+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[33+offset]*(eta-1.0)*(xi-1.0)-a*p[3+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[12+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
       posA.y = -eta*p[19+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[10+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[28+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[1+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[16+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[25+offset]*xi*(eta-1.0)+a*eta*p[22+offset]*(xi*xi)*(xi-1.0)+a*eta*p[31+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[7+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[34+offset]*(eta-1.0)*(xi-1.0)-a*p[4+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[13+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
       posA.z = -eta*p[20+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[11+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[29+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[2+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[17+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[26+offset]*xi*(eta-1.0)+a*eta*p[23+offset]*(xi*xi)*(xi-1.0)+a*eta*p[32+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[8+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[35+offset]*(eta-1.0)*(xi-1.0)-a*p[5+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[14+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    }
+    else if (identifierA < (numBeams+numBodies+numPlates+numBodies2D)) {
+      // TODO: check body2D collision
+    }
+    else {
+      int shellIndex = identifierA-(numBeams+numBodies+numPlates+numBodies2D);
+      int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
+      double4 geometry = geometries_shellMesh[shellIndex];
+      double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometry.w-1));
+      double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometry.w-1));
+      double a = geometry.x;
+      double b = geometry.y;
+      int4 connectivity = connectivities_shellMesh[shellIndex];
+      double* p0 = &p[offset+9*connectivity.x];
+      double* p1 = &p[offset+9*connectivity.y];
+      double* p2 = &p[offset+9*connectivity.z];
+      double* p3 = &p[offset+9*connectivity.w];
+      posA.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+      posA.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+      posA.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
     }
 
     int identifierB = map[collGeomB].x;
@@ -318,7 +398,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       posB.y = p[1+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[7+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[4+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[10+offset]*(- xi*xi*xi + xi*xi);
       posB.z = p[2+offset]*(2*xi*xi*xi - 3*xi*xi + 1) + p[8+offset]*(-2*xi*xi*xi + 3*xi*xi) + l*p[5+offset]*(xi*xi*xi - 2*xi*xi + xi) - l*p[11+offset]*(- xi*xi*xi + xi*xi);
     }
-    else {
+    else if (identifierB < (numBeams+numBodies+numPlates)) {
       double xi = static_cast<double>(map[collGeomB].y)/(static_cast<double>(geometries[identifierB].z-1));
       double eta = static_cast<double>(map[collGeomB].z)/(static_cast<double>(geometries[identifierB].z-1));
       double a = geometries[identifierB].x;
@@ -327,6 +407,26 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       posB.x = -eta*p[18+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[9+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[27+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[0+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[15+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[24+offset]*xi*(eta-1.0)+a*eta*p[21+offset]*(xi*xi)*(xi-1.0)+a*eta*p[30+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[6+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[33+offset]*(eta-1.0)*(xi-1.0)-a*p[3+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[12+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
       posB.y = -eta*p[19+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[10+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[28+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[1+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[16+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[25+offset]*xi*(eta-1.0)+a*eta*p[22+offset]*(xi*xi)*(xi-1.0)+a*eta*p[31+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[7+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[34+offset]*(eta-1.0)*(xi-1.0)-a*p[4+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[13+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
       posB.z = -eta*p[20+offset]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p[11+offset]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p[29+offset]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p[2+offset]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p[17+offset]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p[26+offset]*xi*(eta-1.0)+a*eta*p[23+offset]*(xi*xi)*(xi-1.0)+a*eta*p[32+offset]*xi*pow(xi-1.0,2.0)-b*eta*p[8+offset]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p[35+offset]*(eta-1.0)*(xi-1.0)-a*p[5+offset]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p[14+offset]*(xi*xi)*(eta-1.0)*(xi-1.0);
+    }
+    else if (identifierB < (numBeams+numBodies+numPlates+numBodies2D)) {
+      // TODO: check body2D collision
+    }
+    else {
+      int shellIndex = identifierB-(numBeams+numBodies+numPlates+numBodies2D);
+      int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
+      double4 geometry = geometries_shellMesh[shellIndex];
+      double xi = static_cast<double>(map[index].y)/(static_cast<double>(geometry.w-1));
+      double eta = static_cast<double>(map[index].z)/(static_cast<double>(geometry.w-1));
+      double a = geometry.x;
+      double b = geometry.y;
+      int4 connectivity = connectivities_shellMesh[shellIndex];
+      double* p0 = &p[offset+9*connectivity.x];
+      double* p1 = &p[offset+9*connectivity.y];
+      double* p2 = &p[offset+9*connectivity.z];
+      double* p3 = &p[offset+9*connectivity.w];
+      posB.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
+      posB.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
+      posB.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
     }
 
     double3 geometryA = collisionGeometries[collGeomA];
@@ -443,7 +543,7 @@ int CollisionDetector::detectPossibleCollisions_nSquared()
 int CollisionDetector::generateAxisAlignedBoundingBoxes()
 {
   aabbData_d.resize(2*system->collisionGeometry_d.size());
-  generateAabbData<<<BLOCKS(system->collisionGeometry_d.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), envelope, system->bodies.size(), system->beams.size(), system->collisionGeometry_d.size());
+  generateAabbData<<<BLOCKS(system->collisionGeometry_d.size()),THREADS>>>(CASTD3(aabbData_d), CASTI1(system->indices_d), CASTD1(system->p_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), envelope, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), system->collisionGeometry_d.size());
 
   return 0;
 }
@@ -538,7 +638,7 @@ int CollisionDetector::detectCollisions()
   if(numPossibleCollisions) {
     // Step 1: Detect how many collisions actually occur between each pair
     numCollisionsPerPair_d.resize(numPossibleCollisions);
-    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), envelope, system->bodies.size(), system->beams.size(), numPossibleCollisions);
+    countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), envelope, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), numPossibleCollisions);
     // End Step 1
 
     // Step 2: Figure out where each thread needs to start and end for each collision
@@ -550,7 +650,7 @@ int CollisionDetector::detectCollisions()
 
     if(numCollisions) {
       // Step 3: Store the actual collisions
-      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), CASTD4(normalsAndPenetrations_d), CASTU1(collisionIdentifierA_d), CASTU1(collisionIdentifierB_d), numPossibleCollisions, system->bodies.size(), system->beams.size(), numCollisions);
+      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), CASTD4(normalsAndPenetrations_d), CASTU1(collisionIdentifierA_d), CASTU1(collisionIdentifierB_d), numPossibleCollisions, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), numCollisions);
       // End Step 3
     }
   }

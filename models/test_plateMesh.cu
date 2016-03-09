@@ -329,6 +329,22 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(4,-1);
   sys->addBilateralConstraintDOF(5,-1);
 
+  int numEl = 10;
+  int node = numEl;
+  sys->addBilateralConstraintDOF(3+9*node,-1);
+  sys->addBilateralConstraintDOF(4+9*node,-1);
+  sys->addBilateralConstraintDOF(5+9*node,-1);
+
+  node = (numEl+1)*(numEl+1)-1;
+  sys->addBilateralConstraintDOF(3+9*node,-1);
+  sys->addBilateralConstraintDOF(4+9*node,-1);
+  sys->addBilateralConstraintDOF(5+9*node,-1);
+
+  node = (numEl+1)*(numEl+1)-1-numEl;
+  sys->addBilateralConstraintDOF(3+9*node,-1);
+  sys->addBilateralConstraintDOF(4+9*node,-1);
+  sys->addBilateralConstraintDOF(5+9*node,-1);
+
   sys->initializeSystem();
   printf("System initialized!\n");
   //sys->printSolverParams();
