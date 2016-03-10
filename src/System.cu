@@ -540,11 +540,6 @@ int System::DoTimeStep() {
     // Set up the QOCC
     buildContactJacobian();
     buildSchurVector();
-//    if(collisionDetector->numCollisions) {
-//      cusp::print(D);
-//      cout << "BOOM!" << endl;
-//      cin.get();
-//    }
 
     // Solve the QOCC
     solver->solve();

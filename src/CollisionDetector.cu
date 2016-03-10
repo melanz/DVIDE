@@ -197,7 +197,6 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   double3 posA; // the position of the collision geometry must be calculated differently for different physics items
   if(identifierA<numBodies) {
     posA = make_double3(p[indices[identifierA]],p[indices[identifierA]+1],p[indices[identifierA]+2]);
-    //printf("posA: %f, %f, %f\n",posA.x,posA.y,posA.z);
   }
   else if(identifierA<numBodies+numBeams) {
     double xi = static_cast<double>(map[collGeomA].y)/(static_cast<double>(geometries[identifierA].z-1));
@@ -268,7 +267,6 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     int shellIndex = identifierB-(numBeams+numBodies+numPlates+numBodies2D);
     int offset = numPlates*36+12*numBeams+3*numBodies+3*numBodies2D;
     double4 geometry = geometries_shellMesh[shellIndex];
-    //printf("mapB: %d, %d\n",map[index].y,map[index].z);
     double xi = static_cast<double>(map[collGeomB].y)/(static_cast<double>(geometry.w-1));
     double eta = static_cast<double>(map[collGeomB].z)/(static_cast<double>(geometry.w-1));
     double a = geometry.x;
@@ -281,7 +279,6 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     posB.x = -eta*p2[0]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[0]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[0]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[0]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[6]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[6]*xi*(eta-1.0)+a*eta*p2[3]*(xi*xi)*(xi-1.0)+a*eta*p3[3]*xi*pow(xi-1.0,2.0)-b*eta*p0[6]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[6]*(eta-1.0)*(xi-1.0)-a*p0[3]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[3]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posB.y = -eta*p2[1]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[1]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[1]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[1]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[7]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[7]*xi*(eta-1.0)+a*eta*p2[4]*(xi*xi)*(xi-1.0)+a*eta*p3[4]*xi*pow(xi-1.0,2.0)-b*eta*p0[7]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[7]*(eta-1.0)*(xi-1.0)-a*p0[4]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[4]*(xi*xi)*(eta-1.0)*(xi-1.0);
     posB.z = -eta*p2[2]*xi*(eta*-3.0-xi*3.0+(eta*eta)*2.0+(xi*xi)*2.0+1.0)-p1[2]*xi*(eta-1.0)*(eta+xi*3.0-(eta*eta)*2.0-(xi*xi)*2.0)-eta*p3[2]*(xi-1.0)*(eta*3.0+xi-(eta*eta)*2.0-(xi*xi)*2.0)+p0[2]*(eta-1.0)*(xi-1.0)*(eta+xi-(eta*eta)*2.0-(xi*xi)*2.0+1.0)+b*eta*p1[8]*xi*pow(eta-1.0,2.0)+b*(eta*eta)*p2[8]*xi*(eta-1.0)+a*eta*p2[5]*(xi*xi)*(xi-1.0)+a*eta*p3[5]*xi*pow(xi-1.0,2.0)-b*eta*p0[8]*pow(eta-1.0,2.0)*(xi-1.0)-b*(eta*eta)*p3[8]*(eta-1.0)*(xi-1.0)-a*p0[5]*xi*(eta-1.0)*pow(xi-1.0,2.0)-a*p1[5]*(xi*xi)*(eta-1.0)*(xi-1.0);
-    //printf("posB: %f, %f, %f\n",posB.x,posB.y,posB.z);
   }
 
   double3 geometryA = collisionGeometries[collGeomA];
@@ -639,24 +636,9 @@ int CollisionDetector::detectCollisions()
   collisionStartIndex_d.clear();
 
   if(numPossibleCollisions) {
-//    system->collisionMap_h = system->collisionMap_d;
-//    for(int i=0;i<system->collisionMap_h.size();i++) {
-//      cout << "collisionMap_h[" << i << "] = (" << system->collisionMap_h[i].x << ", " << system->collisionMap_h[i].y << ", " << system->collisionMap_h[i].z << ")" << endl;
-//    }
-//    cin.get();
     // Step 1: Detect how many collisions actually occur between each pair
     numCollisionsPerPair_d.resize(numPossibleCollisions);
-//    thrust::host_vector<uint2> possibleCollisionPairs_h = possibleCollisionPairs_d;
-//    for(int i=0;i<numPossibleCollisions;i++) {
-//      cout << "possibleCollisionPairs_d[" << i << "] = (" << possibleCollisionPairs_h[i].x << ", " << possibleCollisionPairs_h[i].y << ")" << endl;
-//    }
-//    cin.get();
     countActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), envelope, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), numPossibleCollisions);
-//    thrust::host_vector<uint> numCollisionsPerPair_h = numCollisionsPerPair_d;
-//    for(int i=0;i<numPossibleCollisions;i++) {
-//      cout << "numCollisionsPerPair_d[" << i << "] = " << numCollisionsPerPair_h[i] << endl;
-//    }
-//    cin.get();
     // End Step 1
 
     // Step 2: Figure out where each thread needs to start and end for each collision

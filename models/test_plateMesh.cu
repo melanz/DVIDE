@@ -133,8 +133,8 @@ void drawAll()
     }
 
     for(int i=0;i<sys->shellConnectivities_h.size();i++) {
-      int xiDiv = sys->shellGeometries_h[i].w;
-      int etaDiv = sys->shellGeometries_h[i].w;
+      int xiDiv = 10;//sys->shellGeometries_h[i].w;
+      int etaDiv = 10;//sys->shellGeometries_h[i].w;
       double xiInc = 1/(static_cast<double>(xiDiv-1));
       double etaInc = 1/(static_cast<double>(etaDiv-1));
       glColor3f(0.0f,1.0f,1.0f);
@@ -158,29 +158,7 @@ void renderSceneAll(){
   if(OGL){
     drawAll();
 
-//    cusp::print(sys->v);
-//    cin.get();
-
-//    cusp::print(sys->v);
-//    cin.get();
-//    cusp::print(sys->v_shellMesh);
-//    cin.get();
-
-//    cusp::print(sys->mass_shellMesh);
-//    cin.get();
-//    cusp::print(sys->mass);
-//    cin.get();
-
     sys->DoTimeStep();
-
-//    cusp::print(sys->mass);
-//    cin.get();
-//
-//    cusp::print(sys->k);
-//    cin.get();
-//
-//    cusp::print(sys->v);
-//    cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -188,6 +166,8 @@ void renderSceneAll(){
     for(int i=0; i<1; i++) {
       weight += sys->f_contact_h[3*i+1];
     }
+    cout << "Weight: " << weight << ", Pos: (" << sys->p_h[3] << ", " << sys->p_h[4] << ", " << sys->p_h[5] << ")" << endl;
+
     cout << "  Weight:           " << weight << endl;
     cout << "  Potential Energy: " << sys->getPotentialEnergy() << endl;
     cout << "  Kinetic Energy:   " << sys->getKineticEnergy() << endl;
@@ -263,7 +243,7 @@ int main(int argc, char** argv)
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 4;
+  int numElementsPerSide = 3;
   int solverType = 4;
   int solverTypeQOCC = 1;
   int binsPerAxis = 30;
@@ -323,7 +303,9 @@ int main(int argc, char** argv)
   groundPtr->setGeometry(make_double3(0.2,0,0));
   sys->add(groundPtr);
 
-  sys->importMesh("../shellMesh.txt");
+  std::stringstream inputFileStream;
+  inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
+  sys->importMesh(inputFileStream.str());
 
 //  sys->addBilateralConstraintDOF(3,-1);
 //  sys->addBilateralConstraintDOF(4,-1);
