@@ -260,7 +260,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -301,28 +301,30 @@ int main(int argc, char** argv)
   Body* groundPtr = new Body(make_double3(0,-0.3,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(0.2,0,0));
+  //groundPtr->setCollisionFamily(-2);
   sys->add(groundPtr);
 
   std::stringstream inputFileStream;
   inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
-  sys->importMesh(inputFileStream.str());
+  sys->importMesh(inputFileStream.str(),2e6,6);
+//  sys->importMesh("../shellMesh.txt",2e7,4);
 
 //  sys->addBilateralConstraintDOF(3,-1);
 //  sys->addBilateralConstraintDOF(4,-1);
 //  sys->addBilateralConstraintDOF(5,-1);
 //
-//  int numEl = 10;
-//  int node = numEl;
+
+int node = numElementsPerSide;
 //  sys->addBilateralConstraintDOF(3+9*node,-1);
 //  sys->addBilateralConstraintDOF(4+9*node,-1);
 //  sys->addBilateralConstraintDOF(5+9*node,-1);
 //
-//  node = (numEl+1)*(numEl+1)-1;
-//  sys->addBilateralConstraintDOF(3+9*node,-1);
-//  sys->addBilateralConstraintDOF(4+9*node,-1);
-//  sys->addBilateralConstraintDOF(5+9*node,-1);
+  node = (numElementsPerSide+1)*(numElementsPerSide+1)-1;
+  sys->addBilateralConstraintDOF(3+9*node,-1);
+  sys->addBilateralConstraintDOF(4+9*node,-1);
+  sys->addBilateralConstraintDOF(5+9*node,-1);
 //
-//  node = (numEl+1)*(numEl+1)-1-numEl;
+//  node = (numElementsPerSide+1)*(numElementsPerSide+1)-1-numEl;
 //  sys->addBilateralConstraintDOF(3+9*node,-1);
 //  sys->addBilateralConstraintDOF(4+9*node,-1);
 //  sys->addBilateralConstraintDOF(5+9*node,-1);
@@ -353,12 +355,12 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsPlate_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsPlateMesh_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)
   {
-    if(sys->timeIndex%20==0) {
+    if(sys->timeIndex%200==0) {
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());

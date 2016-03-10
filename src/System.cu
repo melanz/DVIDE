@@ -245,6 +245,7 @@ int System::initializeDevice() {
   fApplied = DeviceValueArrayView(wrapped_device_fApplied, wrapped_device_fApplied + fApplied_d.size());
   fElastic = DeviceValueArrayView(wrapped_device_fElastic, wrapped_device_fElastic + fElastic_d.size());
   tmp = DeviceValueArrayView(wrapped_device_tmp, wrapped_device_tmp + tmp_d.size());
+  tmp_shellMesh = DeviceValueArrayView(wrapped_device_tmp + offset_shellMesh, wrapped_device_tmp + tmp_d.size());
   r = DeviceValueArrayView(wrapped_device_r, wrapped_device_r + r_d.size());
   b = DeviceValueArrayView(wrapped_device_b, wrapped_device_b + b_d.size());
   k = DeviceValueArrayView(wrapped_device_k, wrapped_device_k + k_d.size());
@@ -1567,6 +1568,7 @@ double System::getKineticEnergy() {
   if(beams.size()) multiplyByBeamMass<<<BLOCKS(beams.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD3(materialsBeam_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size());
   if(plates.size()) multiplyByPlateMass<<<BLOCKS(plates.size()),THREADS>>>(CASTD3(contactGeometry_d), CASTD4(materialsPlate_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size(), plates.size());
   if(body2Ds.size()) multiplyByBody2DMass<<<BLOCKS(body2Ds.size()),THREADS>>>(CASTD2(materialsBody2D_d), CASTD1(v_d), CASTD1(tmp_d), bodies.size(), beams.size(), plates.size(), body2Ds.size());
+  if(nodes_h.size()) cusp::multiply(mass_shellMesh,v_shellMesh,tmp_shellMesh);
 
   return 0.5*cusp::blas::dot(v,tmp);
 }
@@ -1770,7 +1772,7 @@ int System::exportMatrices(string directory) {
   return 0;
 }
 
-void System::importMesh(string filename) {
+void System::importMesh(string filename, double stiffness, int numContactPointsPerElement) {
   string temp_data;
   int numShells;
   int numNodes;
@@ -1825,6 +1827,7 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>material.x>>material.y>>material.z>>material.w;
+    material.y = stiffness;
     shellMaterials_h.push_back(material);
   }
   shellMaterials_d = shellMaterials_h;
@@ -1837,6 +1840,7 @@ void System::importMesh(string filename) {
     }
     stringstream ss(temp_data);
     ss>>geometry.x>>geometry.y>>geometry.z>>geometry.w;
+    geometry.w = numContactPointsPerElement;
     shellGeometries_h.push_back(geometry);
   }
   shellGeometries_d = shellGeometries_h;

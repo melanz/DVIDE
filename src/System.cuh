@@ -67,6 +67,7 @@ public:
   DeviceView mass_shellMesh;
   DeviceValueArrayView v_shellMesh;
   DeviceValueArrayView k_shellMesh;
+  DeviceValueArrayView tmp_shellMesh;
 
 	// host vectors
 	thrust::host_vector<double> p_h;
@@ -310,7 +311,7 @@ public:
 	double  getKineticEnergy();
 	double  getStrainEnergy();
 	double  getTotalEnergy();
-  void    importMesh(string filename);
+  void    importMesh(string filename, double stiffness, int numContactPointsPerElement);
   double3 transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta);
 };
 
