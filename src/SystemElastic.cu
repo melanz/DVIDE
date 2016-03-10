@@ -1467,7 +1467,7 @@ int System::calculateInitialStrainAndCurvature() {
     {
       for(int k=0;k<wt6.size();k++)
       {
-        calculateInitialStrainShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(pt6[j],pt6[k],CASTD1(p_d),CASTI4(shellConnectivities_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainShellMesh0_d),CASTD1(Sx_shellMesh_d),CASTD1(Sy_shellMesh_d),CASTD4(shellGeometries_d),offset_shellMesh,plates.size());
+        calculateInitialStrainShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(pt6[j],pt6[k],CASTD1(p_d),CASTI4(shellConnectivities_d),j*pt6.size()+k,pt6.size()*wt6.size(),CASTD3(strainShellMesh0_d),CASTD1(Sx_shellMesh_d),CASTD1(Sy_shellMesh_d),CASTD4(shellGeometries_d),offset_shellMesh,shellConnectivities_h.size());
       }
     }
 
@@ -1475,7 +1475,7 @@ int System::calculateInitialStrainAndCurvature() {
     {
       for(int k=0;k<wt5.size();k++)
       {
-        calculateInitialCurvatureShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(pt5[j],pt5[k],CASTD1(p_d),CASTI4(shellConnectivities_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvatureShellMesh0_d),CASTD1(Sx_shellMesh_d),CASTD1(Sy_shellMesh_d),CASTD1(Sxx_shellMesh_d),CASTD1(Syy_shellMesh_d),CASTD4(shellGeometries_d),offset_shellMesh,plates.size());
+        calculateInitialCurvatureShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(pt5[j],pt5[k],CASTD1(p_d),CASTI4(shellConnectivities_d),j*pt5.size()+k,pt5.size()*wt5.size(),CASTD3(curvatureShellMesh0_d),CASTD1(Sx_shellMesh_d),CASTD1(Sy_shellMesh_d),CASTD1(Sxx_shellMesh_d),CASTD1(Syy_shellMesh_d),CASTD4(shellGeometries_d),offset_shellMesh,shellConnectivities_h.size());
       }
     }
   }

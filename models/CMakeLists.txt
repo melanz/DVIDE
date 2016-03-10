@@ -71,3 +71,7 @@ add_dependencies(test_compaction ImplicitBeamsGPU)
 cuda_add_executable(test_plateMesh test_plateMesh.cu)
 target_link_libraries(test_plateMesh ImplicitBeamsGPU)
 add_dependencies(test_plateMesh ImplicitBeamsGPU)
+
+cuda_add_executable(test_tireMesh test_tireMesh.cu)
+target_link_libraries(test_tireMesh ImplicitBeamsGPU)
+add_dependencies(test_tireMesh ImplicitBeamsGPU)
