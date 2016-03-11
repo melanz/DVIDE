@@ -325,14 +325,14 @@ int main(int argc, char** argv)
   }
 
   //sys->solver->maxIterations = 200;
-  //sys->gravity = make_double3(0,0,0);
+  sys->gravity = make_double3(0,0,0);
 
   // Add ground
   Body* groundPtr = new Body(make_double3(0,-0.1,0));
   groundPtr->setBodyFixed(true);
   groundPtr->setGeometry(make_double3(100,0.3,100));
   //groundPtr->setCollisionFamily(-2);
-  sys->add(groundPtr);
+  //sys->add(groundPtr);
 
   // Add hub
   Body2D* hub = new Body2D(make_double3(0,0.5,0),make_double3(0,0,0),1.0,1.0);
@@ -347,18 +347,19 @@ int main(int argc, char** argv)
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
+  sys->addBilateralConstraintDOF(offsetHub+1,-1);
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
 //  std::stringstream inputFileStream;
 //  inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
 //  sys->importMesh(inputFileStream.str(),2e6,6);
-  sys->importMesh("../tireMesh_10.txt",2e6,10);
+  sys->importMesh("../tireMesh_z10.txt",2e7,10);
 
   // Add bilateral constraints
   for(int i=0;i<2*numElementsPerSide;i++)
   {
     //pin tire nodes to hub
-    sys->pinShellNodeToBody2D(sys->plates.size(),i,0);
+    sys->pinShellNodeToBody2D(i,0);
   }
 
 ////  sys->addBilateralConstraintDOF(3,-1);

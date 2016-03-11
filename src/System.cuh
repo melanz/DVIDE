@@ -306,7 +306,8 @@ public:
 	int     calculateInitialStrainAndCurvature();
   int     addBilateralConstraintDOF(int DOFA, int DOFB);
 	int     addBilateralConstraintDOF(int DOFA, int DOFB, double velocity, double startTime);
-	int     pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex);
+	int     pinPlateNodeToBody2D(int plateIndex, int plateNodeIndex, int body2Dindex);
+	int     pinShellNodeToBody2D(int shellNodeIndex, int body2Dindex);
 	double  getPotentialEnergy();
 	double  getKineticEnergy();
 	double  getStrainEnergy();

@@ -312,8 +312,17 @@ int System::processConstraints() {
     int indexA = constraintsSpherical_ShellNodeToBody2D_h[i].x;
     int nodeIndexA = constraintsSpherical_ShellNodeToBody2D_h[i].y;
     int indexB = constraintsSpherical_ShellNodeToBody2D_h[i].z;
-    int offsetA = 3*bodies.size()+12*beams.size()+36*indexA+9*nodeIndexA;
-    int offsetB = 3*bodies.size()+12*beams.size()+36*plates.size()+3*indexB;
+    int offsetA;
+    int offsetB;
+    if(indexA==-1) {
+      // shell mesh
+      offsetA = 3*bodies.size()+12*beams.size()+36*plates.size()+3*body2Ds.size()+9*nodeIndexA;
+      offsetB = 3*bodies.size()+12*beams.size()+36*plates.size()+3*indexB;
+    } else {
+      // plate
+      offsetA = 3*bodies.size()+12*beams.size()+36*indexA+9*nodeIndexA;
+      offsetB = 3*bodies.size()+12*beams.size()+36*plates.size()+3*indexB;
+    }
     constraintsSpherical_ShellNodeToBody2D_h[i].x = offsetA; // NOTE: Reset value to offsets! Easier for later constraint processing
     constraintsSpherical_ShellNodeToBody2D_h[i].y = offsetB; // NOTE: Reset value to offsets! Easier for later constraint processing
     pSpherical_ShellNodeToBody2D_h.push_back(make_double3(p_h[offsetA]-p_h[offsetB],p_h[offsetA+1]-p_h[offsetB+1],p_h[offsetA+2]));
@@ -515,8 +524,13 @@ int System::addBilateralConstraintDOF(int DOFA, int DOFB, double velocity, doubl
   return 0;
 }
 
-int System::pinShellNodeToBody2D(int shellIndex, int shellNodeIndex, int body2Dindex) {
-  constraintsSpherical_ShellNodeToBody2D_h.push_back(make_int3(shellIndex,shellNodeIndex,body2Dindex));
+int System::pinShellNodeToBody2D(int shellNodeIndex, int body2Dindex) {
+  constraintsSpherical_ShellNodeToBody2D_h.push_back(make_int3(-1,shellNodeIndex,body2Dindex));
+  return 0;
+}
+
+int System::pinPlateNodeToBody2D(int plateIndex, int plateNodeIndex, int body2Dindex) {
+  constraintsSpherical_ShellNodeToBody2D_h.push_back(make_int3(plateIndex,plateNodeIndex,body2Dindex));
   return 0;
 }
 

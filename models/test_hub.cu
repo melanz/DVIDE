@@ -526,10 +526,10 @@ int main(int argc, char** argv)
   for(int i=0;i<numDiv;i++)
   {
     //pin tire nodes to hub
-    sys->pinShellNodeToBody2D(i,0,0);
-    sys->pinShellNodeToBody2D(i,1,0);
-    sys->pinShellNodeToBody2D(i,2,0);
-    sys->pinShellNodeToBody2D(i,3,0);
+    sys->pinPlateNodeToBody2D(i,0,0);
+    sys->pinPlateNodeToBody2D(i,1,0);
+    sys->pinPlateNodeToBody2D(i,2,0);
+    sys->pinPlateNodeToBody2D(i,3,0);
 
     int iNext = i+1;
     if(i==numDiv-1) iNext = 0;
