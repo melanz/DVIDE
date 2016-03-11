@@ -132,7 +132,7 @@ void drawAll()
           glPushMatrix();
           double3 position = sys->plates[i]->transformNodalToCartesian(xiInc*j,etaInc*k);
           glTranslatef(position.x,position.y,position.z);
-          glutSolidSphere(sys->plates[i]->getThickness(),10,10);
+          glutSolidSphere(0.5*sys->plates[i]->getThickness(),10,10);
           glPopMatrix();
         }
       }
