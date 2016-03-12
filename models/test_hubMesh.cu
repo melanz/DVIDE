@@ -2,18 +2,24 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "System.cuh"
-#include "APGD.cuh"
 #include "Body.cuh"
 #include "Beam.cuh"
 #include "Plate.cuh"
+#include "Body2D.cuh"
+#include "APGD.cuh"
+#include "PDIP.cuh"
+#include "TPAS.cuh"
+#include "JKIP.cuh"
 
 bool updateDraw = 1;
 bool wireFrame = 1;
+double desiredVelocity = 0.5;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
-std::string outDir = "../TEST_TIREMESH/";
+std::string outDir = "../TEST_HUBMESH/";
 std::string povrayDir = outDir + "POVRAY/";
+thrust::host_vector<double> p0_h;
 
 #ifdef WITH_GLUT
 OpenGLCamera oglcamera(camreal3(1,0,1),camreal3(0,0,0),camreal3(0,1,0),.01);
@@ -28,7 +34,7 @@ void changeSize(int w, int h) {
   gluPerspective(45,ratio,.1,1000);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
-  gluLookAt(0.0,0.0,0.0,    0.0,0.0,-7,   0.0f,1.0f,0.0f);
+  gluLookAt(0.0,0.0,0.0,		0.0,0.0,-7,		0.0f,1.0f,0.0f);
 }
 
 void initScene(){
@@ -126,7 +132,7 @@ void drawAll()
           glPushMatrix();
           double3 position = sys->plates[i]->transformNodalToCartesian(xiInc*j,etaInc*k);
           glTranslatef(position.x,position.y,position.z);
-          glutSolidSphere(sys->plates[i]->getThickness(),10,10);
+          glutSolidSphere(0.5*sys->plates[i]->getThickness(),10,10);
           glPopMatrix();
         }
       }
@@ -186,24 +192,19 @@ void drawAll()
 
 void renderSceneAll(){
   if(OGL){
-    drawAll();
+	  if(sys->timeIndex%20==0) drawAll();
 
     sys->DoTimeStep();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
-    double weight = 0;
-    for(int i=0; i<1; i++) {
-      weight += sys->f_contact_h[3*i+1];
-    }
-    cout << "Weight: " << weight << ", Pos: (" << sys->p_h[3] << ", " << sys->p_h[4] << ", " << sys->p_h[5] << ")" << endl;
+    sys->gamma_h = sys->gamma_d;
+    double weight = sys->f_contact_h[3*0+1];
+    double traction = sys->f_contact_h[3*0];
+    double drawbar = sys->gamma_h[0];
+    double torque = sys->gamma_h[1];
+    cout << "  Weight: " << weight << " Traction: " << traction << " Drawbar: " << drawbar << " Torque: " << torque << endl;
 
-    cout << "  Weight:           " << weight << endl;
-    cout << "  Potential Energy: " << sys->getPotentialEnergy() << endl;
-    cout << "  Kinetic Energy:   " << sys->getKineticEnergy() << endl;
-    cout << "  Strain Energy:    " << sys->getStrainEnergy() << endl;
-    cout << "  Total Energy:     " << sys->getTotalEnergy() << endl;
-    cout << "  Objective CCP:    " << sys->objectiveCCP << endl;
   }
 }
 
@@ -269,36 +270,45 @@ int main(int argc, char** argv)
   // FlexibleNet <numPartitions> <numBeamsPerSide> <solverType> <usePreconditioning>
   // solverType: (0) BiCGStab, (1) BiCGStab1, (2) BiCGStab2, (3) MinRes, (4) CG, (5) CR
 
-  double t_end = 20.0;
+  double t_end = 15.0;
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 3;
+  int numElementsPerSide = 4;
   int solverType = 4;
+  int numPartitions = 1;
+  double mu_pdip = 10.0;
+  double alpha = 0.01; // should be [0.01, 0.1]
+  double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 1;
-  int binsPerAxis = 30;
+  int binsPerAxis = 10;
   double tolerance = 1e-4;
-  double hh = 1e-3;
+  double hh = 1e-4;
+  int numDiv = 10;
+  int numDivW = 1;
+  double slip = 0;
 
   if(argc > 1) {
-    numElementsPerSide = atoi(argv[1]);
-    solverTypeQOCC = atoi(argv[2]);
-    tolerance = atof(argv[3]);
-    hh = atof(argv[4]);
+    numDiv = atoi(argv[1]);
+    numDivW = atoi(argv[2]);
+    slip = atof(argv[3]);
+    tolerance = atof(argv[4]);
+    hh = atof(argv[5]);
   }
 
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
   sys->solver->tolerance = tolerance;
+  //sys->solver->maxIterations = 2000;
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_TIREMESH_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << "/";
+  outDirStream << "../TEST_HUBMESH_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -318,42 +328,158 @@ int main(int argc, char** argv)
     }
   }
 
-  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,binsPerAxis,binsPerAxis));
+  sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,10,binsPerAxis));
   if(solverTypeQOCC==1) {
     dynamic_cast<APGD*>(sys->solver)->setWarmStarting(true);
-    dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(false);
+    dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(true);
+  }
+  if(solverTypeQOCC==2) {
+    dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<PDIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<PDIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<PDIP*>(sys->solver)->alpha = alpha;
+    dynamic_cast<PDIP*>(sys->solver)->beta = beta;
+    dynamic_cast<PDIP*>(sys->solver)->mu_pdip = mu_pdip;
+  }
+  if(solverTypeQOCC==3) {
+    dynamic_cast<TPAS*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<TPAS*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<TPAS*>(sys->solver)->setNumPartitions(numPartitions);
+  }
+  if(solverTypeQOCC==4) {
+    dynamic_cast<JKIP*>(sys->solver)->setPrecondType(precondType);
+    dynamic_cast<JKIP*>(sys->solver)->setSolverType(solverType);
+    dynamic_cast<JKIP*>(sys->solver)->setNumPartitions(numPartitions);
+    dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  //sys->solver->maxIterations = 200;
+  //sys->solver->maxIterations = 1;
   //sys->gravity = make_double3(0,0,0);
 
-  // Add ground
-  Body* groundPtr = new Body(make_double3(0,-0.1,0));
-  groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(100,0.3,100));
-  //groundPtr->setCollisionFamily(-2);
-  sys->add(groundPtr);
+  double radianInc = 2.0*PI/((double) numDiv);
+  double EM = 7.e7;
+  double rho = 7810.0;
+  double th = .01;
+  double R = .2;
+  double nu = .1;
+  double fillet = .04;
+  double beltWidth = .2;
+  double B = .5*PI*beltWidth;//1.5*.5*PI*beltWidth;
+  double L = 2.0*PI*(R+0.5*beltWidth)/((double) numDiv);//2*PI*(R+1.4*0.33*beltWidth)/((double) numDiv);
+  int numContacts = 12;
+  double depth = .2;
+  double ditchLength = 2;
+  double ditchWidth = 3.0*beltWidth;
+
+  double3 center = make_double3(0,0,0);
 
   // Add hub
-  Body2D* hub = new Body2D(make_double3(0,0.5,0),make_double3(0,0,0),1.0,1.0);
-  hub->setMass(1);
+  Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
+  hub->setMass(100);
   sys->add(hub);
 
-  double R = 0.2;
-  double beltWidth = 0.2;
-  double slip = 0;
-  double tStart = 2.0;
+  // Add ground
+  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-0.5*beltWidth-th,0));
+  groundPtr3->setBodyFixed(true);
+  //groundPtr3->setCollisionFamily(2);
+  groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
+  sys->add(groundPtr3);
+
+//  // Add ground
+//  Body* groundPtr = new Body(make_double3(0,-R-beltWidth-0.5*depth,0));
+//  groundPtr->setBodyFixed(true);
+//  //groundPtr->setCollisionFamily(2);
+//  groundPtr->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
+//  sys->add(groundPtr);
+//
+//  // Add ground
+//  Body* groundPtr2 = new Body(make_double3(4*R+ditchLength,-R-beltWidth-0.5*depth,0));
+//  groundPtr2->setBodyFixed(true);
+//  //groundPtr2->setCollisionFamily(2);
+//  groundPtr2->setGeometry(make_double3(2*R,0.5*depth,0.5*ditchWidth));
+//  sys->add(groundPtr2);
+//
+//  // Add ground
+//  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth-th,0));
+//  groundPtr3->setBodyFixed(true);
+//  //groundPtr3->setCollisionFamily(2);
+//  groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
+//  sys->add(groundPtr3);
+//
+//  // Add sides
+//  Body* right = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,0.5*ditchWidth+th));
+//  right->setBodyFixed(true);
+//  //right->setCollisionFamily(2);
+//  right->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
+//  sys->add(right);
+//
+//  // Add sides
+//  Body* left = new Body(make_double3(2*R+0.5*ditchLength,-R-beltWidth-0.5*depth,-0.5*ditchWidth-th));
+//  left->setBodyFixed(true);
+//  //left->setCollisionFamily(2);
+//  left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
+//  sys->add(left);
+
+//  Body* body = new Body(make_double3(2,0,0));
+//  body->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body);
+//
+//  Body* body1 = new Body(make_double3(2,2.1*(R+0.5*beltWidth),0));
+//  body1->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body1);
+//
+//  Body* body2 = new Body(make_double3(2,4.2*(R+0.5*beltWidth),0));
+//  body2->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body2);
+//
+//  Body* body3 = new Body(make_double3(2,6.3*(R+0.5*beltWidth),0));
+//  body3->setGeometry(make_double3(R+0.5*beltWidth,0,0));
+//  sys->add(body3);
+//
+//  double rMin = 0.007;
+//  double rMax = 0.007;
+//  double density = 2600;
+//  double W = ditchWidth;
+//  double L_G = ditchLength;
+//  double H = 3.0*depth;
+//  double3 centerG = make_double3(2*R+0.5*ditchLength,-R-beltWidth-depth,0);
+//  Body* bodyPtr;
+//  double wiggle = 0.003;//0.1;
+//  double numElementsPerSideX = L_G/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideY = H/(2.0*rMax+2.0*wiggle);
+//  double numElementsPerSideZ = W/(2.0*rMax+2.0*wiggle);
+//  int numBodies = 0;
+//  // Add elements in x-direction
+//  for (int i = 0; i < (int) numElementsPerSideX; i++) {
+//    for (int j = 0; j < (int) numElementsPerSideY; j++) {
+//      for (int k = 0; k < (int) numElementsPerSideZ; k++) {
+//
+//        double xWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double yWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        double zWig = 0.8*getRandomNumber(-wiggle, wiggle);
+//        bodyPtr = new Body(centerG+make_double3((rMax+wiggle)*(2.0*((double)i)+1.0)-0.5*L_G+xWig,(rMax+wiggle)*(2.0*((double)j)+1.0)+yWig,(rMax+wiggle)*(2.0*((double)k)+1.0)-0.5*W+zWig));
+//        double rRand = getRandomNumber(rMin, rMax);
+//        bodyPtr->setMass(4.0*rRand*rRand*rRand*PI/3.0*density);
+//        bodyPtr->setGeometry(make_double3(rRand,0,0));
+//        //if(j==0)
+//        //bodyPtr->setBodyFixed(true);
+//        numBodies = sys->add(bodyPtr);
+//
+//        if(numBodies%1000==0) printf("Bodies %d\n",numBodies);
+//      }
+//    }
+//  }
+
+  double tStart = 3.0;
   double omega = 17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
-  double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+  int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
-  //sys->addBilateralConstraintDOF(offsetHub+1,-1);
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
-//  std::stringstream inputFileStream;
-//  inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
-//  sys->importMesh(inputFileStream.str(),2e6,6);
-  sys->importMesh("../tireMesh_z10.txt",2e7,10);
+  std::stringstream inputFileStream;
+  inputFileStream << "../tireMeshes/tireMesh_" << numDiv << "x" << numDivW << ".txt";
+  sys->importMesh(inputFileStream.str(),EM,numContacts);
 
   // Add bilateral constraints
   for(int i=0;i<2*numElementsPerSide;i++)
@@ -361,26 +487,6 @@ int main(int argc, char** argv)
     //pin tire nodes to hub
     sys->pinShellNodeToBody2D(i,0);
   }
-
-////  sys->addBilateralConstraintDOF(3,-1);
-////  sys->addBilateralConstraintDOF(4,-1);
-////  sys->addBilateralConstraintDOF(5,-1);
-////
-//
-//int node = numElementsPerSide;
-////  sys->addBilateralConstraintDOF(3+9*node,-1);
-////  sys->addBilateralConstraintDOF(4+9*node,-1);
-////  sys->addBilateralConstraintDOF(5+9*node,-1);
-////
-//  node = (numElementsPerSide+1)*(numElementsPerSide+1)-1;
-//  sys->addBilateralConstraintDOF(3+9*node,-1);
-//  sys->addBilateralConstraintDOF(4+9*node,-1);
-//  sys->addBilateralConstraintDOF(5+9*node,-1);
-////
-////  node = (numElementsPerSide+1)*(numElementsPerSide+1)-1-numEl;
-////  sys->addBilateralConstraintDOF(3+9*node,-1);
-////  sys->addBilateralConstraintDOF(4+9*node,-1);
-////  sys->addBilateralConstraintDOF(5+9*node,-1);
 
   sys->initializeSystem();
   printf("System initialized!\n");
@@ -392,7 +498,7 @@ int main(int argc, char** argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutInitWindowPosition(0,0);
-    glutInitWindowSize(1024 ,512);
+    glutInitWindowSize(1024	,512);
     glutCreateWindow("MAIN");
     glutDisplayFunc(renderSceneAll);
     glutIdleFunc(renderSceneAll);
@@ -408,12 +514,12 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsTireMesh_n" << numElementsPerSide << "_h" << hh << "_tol" << tolerance << "_sol" << solverTypeQOCC << ".dat";
+  statsFileStream << outDir << "statsHubMesh_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)
   {
-    if(sys->timeIndex%200==0) {
+    if(sys->timeIndex%20==0) {
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());
@@ -421,17 +527,25 @@ int main(int argc, char** argv)
     }
 
     sys->DoTimeStep();
+    //sys->exportMatrices(outDir.c_str());
+    //cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
-    double weight = 0;
-    for(int i=0; i<1; i++) {
-      weight += sys->f_contact_h[3*i+1];
-    }
-    cout << "  Weight: " << weight << endl;
-
+    sys->gamma_h = sys->gamma_d;
     sys->p_h = sys->p_d;
-    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << sys->p_h[3] << ", " << sys->p_h[4] << ", " << sys->p_h[5] << endl;
+    double weight = sys->f_contact_h[3*0+1];
+    double traction = sys->f_contact_h[3*0];
+    double drawbar = sys->gamma_h[0];
+    double torque = sys->gamma_h[1];
+    double3 posHub = make_double3(sys->p_h[offsetHub+0],sys->p_h[offsetHub+1],sys->p_h[offsetHub+2]);
+    cout << "  Weight: " << weight << " Traction: " << traction << " Drawbar: " << drawbar << " Torque: " << torque << " Pos: (" << posHub.x << ", " << posHub.y << ", " << posHub.z << ")" << endl;
+
+    int numKrylovIter = 0;
+    if(solverTypeQOCC==2) numKrylovIter = dynamic_cast<PDIP*>(sys->solver)->totalKrylovIterations;
+    if(solverTypeQOCC==3) numKrylovIter = dynamic_cast<TPAS*>(sys->solver)->totalKrylovIterations;
+    if(solverTypeQOCC==4) numKrylovIter = dynamic_cast<JKIP*>(sys->solver)->totalKrylovIterations;
+    statStream << sys->time << ", " << sys->bodies.size() << ", " << sys->elapsedTime << ", " << sys->totalGPUMemoryUsed << ", " << sys->solver->iterations << ", " << sys->collisionDetector->numCollisions << ", " << weight << ", " << traction << ", " << drawbar << ", " << torque << ", " << posHub.x << ", " << posHub.y << ", " << posHub.z << ", " << numKrylovIter << ", " << endl;
   }
   sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
@@ -440,3 +554,4 @@ int main(int argc, char** argv)
 
   return 0;
 }
+

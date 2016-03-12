@@ -132,6 +132,24 @@ void drawAll()
       }
     }
 
+    for(int i=0;i<sys->shellConnectivities_h.size();i++) {
+      int xiDiv = sys->shellGeometries_h[i].w;
+      int etaDiv = sys->shellGeometries_h[i].w;
+      double xiInc = 1/(static_cast<double>(xiDiv-1));
+      double etaInc = 1/(static_cast<double>(etaDiv-1));
+      glColor3f(0.0f,1.0f,1.0f);
+      for(int j=0;j<xiDiv;j++)
+      {
+        for(int k=0;k<etaDiv;k++) {
+          glPushMatrix();
+          double3 position = sys->transformNodalToCartesian_shellMesh(i,xiInc*j,etaInc*k);
+          glTranslatef(position.x,position.y,position.z);
+          glutSolidSphere(0.5*sys->shellGeometries_h[i].z,10,10);
+          glPopMatrix();
+        }
+      }
+    }
+
     glutSwapBuffers();
   }
 }
@@ -141,11 +159,6 @@ void renderSceneAll(){
     drawAll();
 
     sys->DoTimeStep();
-    sys->exportMatrices(outDir.c_str());
-    cusp::print(sys->mass);
-    cin.get();
-    cusp::print(sys->f);
-    cin.get();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
@@ -282,35 +295,40 @@ int main(int argc, char** argv)
   //sys->solver->maxIterations = 40;
   //sys->gravity = make_double3(0,0,0);
 
-  double3 unitX = make_double3(1.0,0,0);
-  double3 unitZ = make_double3(0,0,1.0);
-  Plate* plate = new Plate(1.0,1.0,
-      make_double3(0,0,0), unitX, unitZ,
-      make_double3(1,0,0), unitX, unitZ,
-      make_double3(1,0,1), unitX, unitZ,
-      make_double3(0,0,1), unitX, unitZ);
-  plate->setThickness(0.02);
-  plate->setDensity(7200.0);
-  plate->setElasticModulus(2e7);
-  plate->setPoissonRatio(0.25);
-  plate->setCollisionFamily(1);
-  plate->setNumContactPoints(40);
-  sys->add(plate);
+//  double3 unitX = make_double3(1.0,0,0);
+//  double3 unitZ = make_double3(0,0,1.0);
+//  Plate* plate = new Plate(1.0,1.0,
+//      make_double3(0,0,0), unitX, unitZ,
+//      make_double3(1,0,0), unitX, unitZ,
+//      make_double3(1,0,1), unitX, unitZ,
+//      make_double3(0,0,1), unitX, unitZ);
+//  plate->setThickness(0.02);
+//  plate->setDensity(7200.0);
+//  plate->setElasticModulus(2e7);
+//  plate->setPoissonRatio(0.25);
+//  plate->setCollisionFamily(1);
+//  plate->setNumContactPoints(40);
+//  sys->add(plate);
 
-/*
-  // Add ground
-  Body* groundPtr = new Body(make_double3(0,-0.3,0));
-  groundPtr->setBodyFixed(true);
-  groundPtr->setGeometry(make_double3(0.2,0,0));
-  sys->add(groundPtr);
+//  // Add ground
+//  Body* groundPtr = new Body(make_double3(0,-0.3,0));
+//  groundPtr->setBodyFixed(true);
+//  groundPtr->setGeometry(make_double3(0.2,0,0));
+//  sys->add(groundPtr);
 
   // Add plate element
+  double EM = 2e7;
+  double rho = 7200;
+  double nu = 0.25;
+  double length = 1.0;
+  double width = 1.0;
+  double thickness = 0.01;
+  int numContactPoints = 3;
+
   double3 unitX = make_double3(1.0,0,0);
   double3 unitZ = make_double3(0,0,1.0);
   double3 pos0 = make_double3(-0.5,0,-0.5);
-  double length = 1.0;
-  double width = 1.0;
-  double thickness = 0.001;
+
   Plate* plate;
   length = length/((double) numElementsPerSide);
   width = width/((double) numElementsPerSide);
@@ -322,11 +340,23 @@ int main(int argc, char** argv)
                                 pos+length*unitX+width*unitZ,unitX,unitZ,
                                 pos+width*unitZ,unitX,unitZ);
       plate->setThickness(thickness);
-      plate->setCollisionFamily(1);
-      plate->setNumContactPoints(40);
+      plate->setCollisionFamily(-2);
+      plate->setNumContactPoints(numContactPoints);
+      plate->setElasticModulus(EM);
+      plate->setDensity(rho);
+      plate->setPoissonRatio(nu);
       sys->add(plate);
     }
   }
+
+  // pin corners to the ground
+  sys->addBilateralConstraintDOF(0, -1);
+  sys->addBilateralConstraintDOF(1, -1);
+  sys->addBilateralConstraintDOF(2, -1);
+
+  sys->addBilateralConstraintDOF(0+3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size()+3*sys->body2Ds.size(), -1);
+  sys->addBilateralConstraintDOF(1+3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size()+3*sys->body2Ds.size(), -1);
+  sys->addBilateralConstraintDOF(2+3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size()+3*sys->body2Ds.size(), -1);
 
   // Add j constraints
   int offset = 3*sys->bodies.size();
@@ -360,7 +390,9 @@ int main(int argc, char** argv)
       for(int k=0;k<9;k++) sys->addBilateralConstraintDOF(36*elementA+9*nodeA+k+offset, 36*elementB+9*nodeB+k+offset);
     }
   }
-*/
+
+  sys->importMesh("../shellMesh2z2.txt",EM,numContactPoints);
+
   sys->initializeSystem();
   printf("System initialized!\n");
   //sys->printSolverParams();

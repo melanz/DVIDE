@@ -168,6 +168,24 @@ void drawAll()
       glEnd();
     }
 
+    for(int i=0;i<sys->shellConnectivities_h.size();i++) {
+      int xiDiv = sys->shellGeometries_h[i].w;
+      int etaDiv = sys->shellGeometries_h[i].w;
+      double xiInc = 1/(static_cast<double>(xiDiv-1));
+      double etaInc = 1/(static_cast<double>(etaDiv-1));
+      glColor3f(0.0f,1.0f,1.0f);
+      for(int j=0;j<xiDiv;j++)
+      {
+        for(int k=0;k<etaDiv;k++) {
+          glPushMatrix();
+          double3 position = sys->transformNodalToCartesian_shellMesh(i,xiInc*j,etaInc*k);
+          glTranslatef(position.x,position.y,position.z);
+          glutSolidSphere(0.5*sys->shellGeometries_h[i].z,10,10);
+          glPopMatrix();
+        }
+      }
+    }
+
     glutSwapBuffers();
   }
 }
