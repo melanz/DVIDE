@@ -1606,7 +1606,7 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
-  filestream << bodies.size() << ", " << beams.size() << ", " << plates.size() << ", " << body2Ds.size() << ", " << endl;
+  filestream << bodies.size() << ", " << beams.size() << ", " << plates.size()+shellConnectivities_h.size() << ", " << body2Ds.size() << ", " << endl;
   for (int i = 0; i < bodies.size(); i++) {
     filestream
         << i << ", "
@@ -1689,6 +1689,36 @@ int System::exportSystem(string filename) {
     for(int j=0;j<36;j++) {
       filestream << v_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
     }
+
+    filestream << "\n";
+  }
+  for (int i = 0; i < shellConnectivities_h.size(); i++) {
+    filestream
+    << bodies.size()+beams.size()+plates.size()+body2Ds.size()+i << ", "
+    << shellGeometries_h[i].x << ", "
+    << shellGeometries_h[i].y << ", "
+    << shellGeometries_h[i].z << ", ";
+
+    int offset = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
+    double* p0 = &p_h[offset+9*shellConnectivities_h[i].x];
+    double* p1 = &p_h[offset+9*shellConnectivities_h[i].y];
+    double* p2 = &p_h[offset+9*shellConnectivities_h[i].z];
+    double* p3 = &p_h[offset+9*shellConnectivities_h[i].w];
+
+    double* v0 = &v_h[offset+9*shellConnectivities_h[i].x];
+    double* v1 = &v_h[offset+9*shellConnectivities_h[i].y];
+    double* v2 = &v_h[offset+9*shellConnectivities_h[i].z];
+    double* v3 = &v_h[offset+9*shellConnectivities_h[i].w];
+
+    for(int j=0;j<9;j++) filestream << p0[j] << ", ";
+    for(int j=0;j<9;j++) filestream << p1[j] << ", ";
+    for(int j=0;j<9;j++) filestream << p2[j] << ", ";
+    for(int j=0;j<9;j++) filestream << p3[j] << ", ";
+
+    for(int j=0;j<9;j++) filestream << v0[j] << ", ";
+    for(int j=0;j<9;j++) filestream << v1[j] << ", ";
+    for(int j=0;j<9;j++) filestream << v2[j] << ", ";
+    for(int j=0;j<9;j++) filestream << v3[j] << ", ";
 
     filestream << "\n";
   }
