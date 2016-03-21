@@ -737,7 +737,6 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   double aB = geometries[bodyIdentifierB].x;
   double bB = geometries[bodyIdentifierB].y;
   double lB = bB;
-  //printf("xiB = %f\netaB = %f\naB = %f\nbB = %f\nlB = %f\n",xiB,etaB,aB,bB,lB);
 
   double4 nAndP;
   double3 n, u, v;

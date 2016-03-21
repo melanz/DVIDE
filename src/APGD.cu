@@ -333,7 +333,6 @@ int APGD::solve() {
 
     // Apply anti-relaxation
     if(useAntiRelaxation) {
-      cout << "ANTIRELAXATION!" << endl;
       cusp::blas::axpy(antiRelaxation,system->r,-1.0); // r = -1.0*ar+r, removing ar from r
       cusp::multiply(system->DT,system->gamma,system->f_contact);  // f_contact = DT*gamma
       cusp::blas::axpby(system->k,system->f_contact,system->tmp,1.0,1.0); // tmp = k+f_contact

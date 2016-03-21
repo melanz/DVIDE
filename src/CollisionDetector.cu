@@ -487,8 +487,6 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       normal = normalize(normal);
       if (geometryA.y == 0 && geometryB.y != 0) normal = -normal;
       penetration = r-sqrt(dmin);
-
-      //printf("  PENETRATION %d: %f (%f, %f, %f)\n", index, penetration, normal.x, normal.y, normal.z);
     }
 
     collisionIdentifiersA[i] = collGeomA;
