@@ -70,5 +70,7 @@ int Body2D::addBody2D(int j)
 
   sys->materialsBody2D_h.push_back(make_double2(mass,inertia));
 
+  sys->contactGeometry_h.push_back(make_double3(0,0,0));
+
   return 0;
 }

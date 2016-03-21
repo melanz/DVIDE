@@ -299,9 +299,9 @@ int main(int argc, char** argv)
   double beta = 0.8; // should be [0.3, 0.8]
   int solverTypeQOCC = 1;
   int binsPerAxis = 10;
-  double tolerance = 1e-1;
+  double tolerance = 1e-4;
   double hh = 1e-3;
-  int numDiv = 9;
+  int numDiv = 7;
   double slip = 0;
 
   if(argc > 1) {
@@ -373,11 +373,11 @@ int main(int argc, char** argv)
 
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 7.e7;
+  double EM = 2.e7;
   double rho = 7810.0;
   double th = .01;
   double R = .2;
-  double nu = .1;
+  double nu = 0;
   double fillet = .04;
   double beltWidth = .2;
   double B = .5*PI*beltWidth;//1.5*.5*PI*beltWidth;
@@ -438,7 +438,7 @@ int main(int argc, char** argv)
 
   // Add hub
   Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
-  hub->setMass(500);
+  hub->setMass(1);
   sys->add(hub);
 
   // Add ground
@@ -533,7 +533,7 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-  double tStart = 2.0;
+  double tStart = 0;//2.0;
   double omega = 17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   double offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();

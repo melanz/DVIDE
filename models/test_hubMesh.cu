@@ -51,6 +51,16 @@ void initScene(){
   glHint (GL_POINT_SMOOTH_HINT, GL_DONT_CARE);
 }
 
+double getRandomNumber(double min, double max)
+{
+  // x is in [0,1[
+  double x = rand()/static_cast<double>(RAND_MAX);
+
+  // [0,1[ * (max - min) + min is in [min,max[
+  double that = min + ( x * (max - min) );
+
+  return that;
+}
 void drawAll()
 {
   if(updateDraw){
@@ -192,8 +202,9 @@ void drawAll()
 
 void renderSceneAll(){
   if(OGL){
-	  if(sys->timeIndex%20==0) drawAll();
-
+	  //if(sys->timeIndex%20==0)
+	    drawAll();
+	  //p0_h = sys->p_d;
     sys->DoTimeStep();
 
     // Determine contact force on the container
@@ -204,6 +215,44 @@ void renderSceneAll(){
     double drawbar = sys->gamma_h[0];
     double torque = sys->gamma_h[1];
     cout << "  Weight: " << weight << " Traction: " << traction << " Drawbar: " << drawbar << " Torque: " << torque << endl;
+
+//    std::string loc = "..";
+//    if(sys->collisionDetector->numCollisions) {//sys->solver->iterations>5000 || sys->time>0.074) {
+//      sys->exportMatrices(loc);
+//      cin.get();
+//    }
+
+
+//    // TODO: This is a big no-no, need to enforce motion via constraints
+//    // Apply motion
+//    double tStart = 0;//1.351;//3.0;
+//    double slip = 0.3;
+//    double omega = 17.0*PI/180.0;
+//    double vel = (0.2+0.5*0.2)*omega*(1.0 - slip);
+//    int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
+//
+//    sys->v_h = sys->v_d;
+//    if(sys->time>tStart) {
+//      //sys->v_h[0] = -vel;
+//      //sys->v_h[1] = 0;
+//      //sys->v_h[2] = 0;
+//      sys->v_h[offsetHub] = 0;//vel;
+//      //sys->v_h[offsetHub+1] = 0;
+//      sys->v_h[offsetHub+2] = 0;//-omega;
+//    }
+//    else {
+//      //sys->v_h[0] = 0;
+//      //sys->v_h[1] = 0;
+//      //sys->v_h[2] = 0;
+//      sys->v_h[offsetHub] = 0;
+//      sys->v_h[offsetHub+1] = 0;
+//      sys->v_h[offsetHub+2] = -omega;
+//    }
+//    sys->p_d = p0_h;
+//    sys->v_d = sys->v_h;
+//    cusp::blas::axpy(sys->v, sys->p, sys->h);
+//    sys->p_h = sys->p_d;
+//    // End apply motion
 
   }
 }
@@ -253,17 +302,6 @@ void CallBackMotionFunc(int x, int y) {
 #endif
 // END OPENGL RENDERING CODE //
 
-double getRandomNumber(double min, double max)
-{
-  // x is in [0,1[
-  double x = rand()/static_cast<double>(RAND_MAX);
-
-  // [0,1[ * (max - min) + min is in [min,max[
-  double that = min + ( x * (max - min) );
-
-  return that;
-}
-
 int main(int argc, char** argv)
 {
   // command line arguments
@@ -274,7 +312,6 @@ int main(int argc, char** argv)
   int    precUpdateInterval = -1;
   float  precMaxKrylov = -1;
   int precondType = 1;
-  int numElementsPerSide = 4;
   int solverType = 4;
   int numPartitions = 1;
   double mu_pdip = 10.0;
@@ -299,7 +336,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  visualize = false;
+  //visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -331,7 +368,7 @@ int main(int argc, char** argv)
   sys->collisionDetector->setBinsPerAxis(make_uint3(binsPerAxis,10,binsPerAxis));
   if(solverTypeQOCC==1) {
     dynamic_cast<APGD*>(sys->solver)->setWarmStarting(true);
-    dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(true);
+    dynamic_cast<APGD*>(sys->solver)->setAntiRelaxation(false);
   }
   if(solverTypeQOCC==2) {
     dynamic_cast<PDIP*>(sys->solver)->setPrecondType(precondType);
@@ -353,11 +390,11 @@ int main(int argc, char** argv)
     dynamic_cast<JKIP*>(sys->solver)->careful = true;
   }
 
-  //sys->solver->maxIterations = 1;
+  //sys->solver->maxIterations = 200;
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 7.e7;
+  double EM = 2.e6;
   double rho = 7810.0;
   double th = .01;
   double R = .2;
@@ -375,8 +412,15 @@ int main(int argc, char** argv)
 
   // Add hub
   Body2D* hub = new Body2D(center,make_double3(0,0,0),1.0,1.0);
-  hub->setMass(100);
+  hub->setMass(1);
   sys->add(hub);
+
+//  // Add ground
+//  Body* groundPtr3 = new Body(make_double3(0,-1.2,0));
+//  groundPtr3->setBodyFixed(true);
+//  //groundPtr3->setCollisionFamily(2);
+//  groundPtr3->setGeometry(make_double3(1,1,1));
+//  sys->add(groundPtr3);
 
   // Add ground
   Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-0.5*beltWidth-th,0));
@@ -470,19 +514,28 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-  double tStart = 3.0;
+  double tStart = 0;//3.0;
   double omega = 17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
+  //sys->addBilateralConstraintDOF(offsetHub+1,-1);
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
   inputFileStream << "../tireMeshes/tireMesh_" << numDiv << "x" << numDivW << ".txt";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
+//  // Add bilateral constraints
+//  for(int i=0;i<numDiv;i++)
+//  {
+//    //pin tire nodes to hub
+//    sys->pinShellNodeToBody2D((numDivW+1)*i,0);
+//    sys->pinShellNodeToBody2D((numDivW+1)*i+numDivW,0);
+//  }
+
   // Add bilateral constraints
-  for(int i=0;i<2*numElementsPerSide;i++)
+  for(int i=0;i<2*numDiv;i++)
   {
     //pin tire nodes to hub
     sys->pinShellNodeToBody2D(i,0);

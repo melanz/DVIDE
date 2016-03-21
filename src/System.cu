@@ -484,8 +484,8 @@ int System::initializeSystem() {
         Sy_shellMesh_h.push_back(0);
         Syy_shellMesh_h.push_back(0);
       }
-      for(int i=0;i<shellGeometries_h[j].w;i++) {
-        for(int k=0;k<shellGeometries_h[j].w;k++) {
+      for(int i=1;i<shellGeometries_h[j].w-1;i++) {
+        for(int k=1;k<shellGeometries_h[j].w-1;k++) {
           collisionGeometry_h.push_back(make_double3(0.5*shellGeometries_h[j].z,0,0));
           collisionMap_h.push_back(make_int4(plates.size()+beams.size()+bodies.size()+body2Ds.size()+j,i,k,-2));
         }
@@ -737,6 +737,7 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   double aB = geometries[bodyIdentifierB].x;
   double bB = geometries[bodyIdentifierB].y;
   double lB = bB;
+  //printf("xiB = %f\netaB = %f\naB = %f\nbB = %f\nlB = %f\n",xiB,etaB,aB,bB,lB);
 
   double4 nAndP;
   double3 n, u, v;
