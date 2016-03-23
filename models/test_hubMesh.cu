@@ -523,7 +523,7 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
-  inputFileStream << "../tireMeshes/tireMeshf_" << numDiv << "x" << numDivW << ".txt";
+  inputFileStream << "../tireMeshes/tireMeshf_" << numDiv << "x" << numDivW << ".dat";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
   // Add bilateral constraints
