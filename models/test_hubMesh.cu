@@ -336,7 +336,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -345,7 +345,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESH_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHB_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -394,10 +394,10 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e6;
+  double EM = 2.e7;
   double rho = 7810.0;
   double th = .01;
-  double R = .2;
+  double R = .3;
   double nu = .1;
   double fillet = .04;
   double beltWidth = .2;
@@ -423,7 +423,7 @@ int main(int argc, char** argv)
 //  sys->add(groundPtr3);
 
   // Add ground
-  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-0.5*beltWidth-th,0));
+  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-3*th,0));
   groundPtr3->setBodyFixed(true);
   //groundPtr3->setCollisionFamily(2);
   groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
@@ -515,7 +515,7 @@ int main(int argc, char** argv)
 //  }
 
   double tStart = 0;//3.0;
-  double omega = 17.0*PI/180.0;
+  double omega = 0;//17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
@@ -523,23 +523,23 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
-  inputFileStream << "../tireMeshes/tireMesh_" << numDiv << "x" << numDivW << ".txt";
+  inputFileStream << "../tireMeshes/tireMeshf_" << numDiv << "x" << numDivW << ".txt";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
-//  // Add bilateral constraints
-//  for(int i=0;i<numDiv;i++)
-//  {
-//    //pin tire nodes to hub
-//    sys->pinShellNodeToBody2D((numDivW+1)*i,0);
-//    sys->pinShellNodeToBody2D((numDivW+1)*i+numDivW,0);
-//  }
-
   // Add bilateral constraints
-  for(int i=0;i<2*numDiv;i++)
+  for(int i=0;i<numDiv;i++)
   {
     //pin tire nodes to hub
-    sys->pinShellNodeToBody2D(i,0);
+    sys->pinShellNodeToBody2D((numDivW+1)*i,0);
+    sys->pinShellNodeToBody2D((numDivW+1)*i+numDivW,0);
   }
+
+//  // Add bilateral constraints
+//  for(int i=0;i<2*numDiv;i++)
+//  {
+//    //pin tire nodes to hub
+//    sys->pinShellNodeToBody2D(i,0);
+//  }
 
   sys->initializeSystem();
   printf("System initialized!\n");
