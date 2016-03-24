@@ -41,6 +41,7 @@ public:
   double time; //current time
   double h; //time step
   double tol;
+  double frictionCoefficient;
   double3 gravity;
   double elapsedTime;
   double totalGPUMemoryUsed;
@@ -283,6 +284,7 @@ public:
 	double  getTolerance() const      {return tol;}
 	int     getTimeIndex() const      {return timeIndex;}
 	void    setTimeStep(double step_size);
+        void    setFrictionCoefficient(double mu);
 	int     add(Body* body);
 	int     add(Beam* beam);
 	int     add(Plate* plate);

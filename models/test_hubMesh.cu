@@ -324,13 +324,17 @@ int main(int argc, char** argv)
   int numDiv = 10;
   int numDivW = 1;
   double slip = 0;
+  int numContacts = 12;
+  double frictionCoefficient = 0.25;
 
   if(argc > 1) {
     numDiv = atoi(argv[1]);
     numDivW = atoi(argv[2]);
     slip = atof(argv[3]);
-    tolerance = atof(argv[4]);
-    hh = atof(argv[5]);
+    frictionCoefficient = atof(argv[4]);
+    numContacts = atoi(argv[5]);
+    tolerance = atof(argv[6]);
+    hh = atof(argv[7]);
   }
 
 #ifdef WITH_GLUT
@@ -340,12 +344,13 @@ int main(int argc, char** argv)
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
+  sys->setFrictionCoefficient(frictionCoefficient);
   sys->solver->tolerance = tolerance;
   //sys->solver->maxIterations = 2000;
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESHR_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHR_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -403,7 +408,6 @@ int main(int argc, char** argv)
   double beltWidth = .2;
   double B = .5*PI*beltWidth;//1.5*.5*PI*beltWidth;
   double L = 2.0*PI*(R+0.5*beltWidth)/((double) numDiv);//2*PI*(R+1.4*0.33*beltWidth)/((double) numDiv);
-  int numContacts = 12;
   double depth = .2;
   double ditchLength = 2;
   double ditchWidth = 3.0*beltWidth;
@@ -567,7 +571,7 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsHubMesh_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_h" << hh << "_tol" << tolerance << ".dat";
+  statsFileStream << outDir << "statsHubMesh_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)

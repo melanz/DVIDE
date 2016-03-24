@@ -14,6 +14,7 @@
 System::System()
 {
   gravity = make_double3(0,-9.81,0);
+  frictionCoefficient = 0.25;
   tol = 1e-8;
   h = 1e-3;
   timeIndex = 0;
@@ -61,6 +62,7 @@ System::System()
 System::System(int solverType)
 {
   gravity = make_double3(0,-9.81,0);
+  frictionCoefficient = 0.25;
   tol = 1e-8;
   h = 1e-3;
   timeIndex = 0;
@@ -133,6 +135,11 @@ System::System(int solverType)
 void System::setTimeStep(double step_size)
 {
   h = step_size;
+}
+
+void System::setFrictionCoefficient(double mu)
+{
+  frictionCoefficient = mu;
 }
 
 int System::add(Body* body) {
@@ -666,10 +673,10 @@ __global__ void constructSpherical_ShellNodeToBody2DJacobian(int3* constraints, 
   D[7*index+6+offset] = -1.0;
 }
 
-__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, int4* connectivities, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, int numPlates, int numBodys2D, uint offsetConstraintsBilateral, uint numConstraintsBilateral, uint numCollisions) {
+__global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collisionMap, int4* connectivities, double3* geometries, double3* collisionGeometry, int* DI, int* DJ, double* D, double* friction, double mu, double4* normalsAndPenetrations, uint* collisionIdentifierA, uint* collisionIdentifierB, int* indices, int numBodies, int numBeams, int numPlates, int numBodys2D, uint offsetConstraintsBilateral, uint numConstraintsBilateral, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
-  friction[index] = 0.25; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
+  friction[index] = mu; // TODO: EDIT THIS TO BE MINIMUM OF FRICTION COEFFICIENTS
   bool shellMeshA = false;
   bool shellMeshB = false;
   int4 connectivityA;
@@ -1296,7 +1303,7 @@ int System::buildContactJacobian() {
 
   if(constraintsBilateralDOF_d.size()) constructBilateralJacobian<<<BLOCKS(constraintsBilateralDOF_d.size()),THREADS>>>(CASTI2(constraintsBilateralDOF_d), CASTI1(offsetBilaterals_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size());
   if(constraintsSpherical_ShellNodeToBody2D_d.size()) constructSpherical_ShellNodeToBody2DJacobian<<<BLOCKS(constraintsSpherical_ShellNodeToBody2D_d.size()),THREADS>>>(CASTI3(constraintsSpherical_ShellNodeToBody2D_d), CASTD3(pSpherical_ShellNodeToBody2D_d), CASTD1(p_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), constraintsBilateralDOF_d.size(), offsetConstraintsDOF, constraintsSpherical_ShellNodeToBody2D_d.size());
-  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTI4(shellConnectivities_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), plates.size(), body2Ds.size(), offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
+  if(collisionDetector->numCollisions) constructContactJacobian<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTI1(nonzerosPerContact_d), CASTI4(collisionMap_d), CASTI4(shellConnectivities_d), CASTD3(contactGeometry_d), CASTD3(collisionGeometry_d), CASTI1(DI_d), CASTI1(DJ_d), CASTD1(D_d), CASTD1(friction_d), frictionCoefficient, CASTD4(collisionDetector->normalsAndPenetrations_d), CASTU1(collisionDetector->collisionIdentifierA_d), CASTU1(collisionDetector->collisionIdentifierB_d), CASTI1(indices_d), bodies.size(), beams.size(), plates.size(), body2Ds.size(), offsetConstraintsDOF+7*constraintsSpherical_ShellNodeToBody2D_d.size(), constraintsBilateralDOF_d.size()+3*constraintsSpherical_ShellNodeToBody2D_d.size(), collisionDetector->numCollisions);
 
   // create contact jacobian using cusp library
   thrust::device_ptr<int> wrapped_device_I(CASTI1(DI_d));
