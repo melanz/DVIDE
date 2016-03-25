@@ -399,7 +399,7 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e7;
+  double EM = 2.e6;
   double rho = 7810.0;
   double th = .01;
   double R = .3;
@@ -527,7 +527,7 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
-  inputFileStream << "../tireMeshes/tireMeshf_" << numDiv << "x" << numDivW << ".dat";
+  inputFileStream << "../tireMeshes/tireMeshf2_" << numDiv << "x" << numDivW << ".dat";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
   // Add bilateral constraints
