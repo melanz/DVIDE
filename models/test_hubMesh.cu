@@ -350,7 +350,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESHR_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHB_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -518,8 +518,8 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-  double tStart = 3.0;
-  double omega = 17.0*PI/180.0;
+  double tStart = 0;//3.0;
+  double omega = 0;//17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
