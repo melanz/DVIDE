@@ -17,7 +17,7 @@ double desiredVelocity = 0.5;
 
 // Create the system (placed outside of main so it is available to the OpenGL code)
 System* sys;
-std::string outDir = "../TEST_HUBMESH/";
+std::string outDir = "../TEST_HUBMESHBOUNCE/";
 std::string povrayDir = outDir + "POVRAY/";
 thrust::host_vector<double> p0_h;
 
@@ -350,7 +350,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESHR_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHB_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -399,7 +399,7 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e7;
+  double EM = 2.e6;
   double rho = 7810.0;
   double th = .01;
   double R = .3;
@@ -518,8 +518,8 @@ int main(int argc, char** argv)
 //    }
 //  }
 
-  double tStart = 3.0;
-  double omega = 17.0*PI/180.0;
+  double tStart = 0;//3.0;
+  double omega = 0;//17.0*PI/180.0;
   double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
   int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
@@ -527,7 +527,7 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
-  inputFileStream << "../tireMeshes/tireMeshf_" << numDiv << "x" << numDivW << ".dat";
+  inputFileStream << "../tireMeshes/tireMeshf2_" << numDiv << "x" << numDivW << ".dat";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
   // Add bilateral constraints
