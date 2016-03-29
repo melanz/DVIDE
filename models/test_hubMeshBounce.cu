@@ -399,7 +399,7 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e6;
+  double EM = 2.e7;
   double rho = 7810.0;
   double th = .01;
   double R = .3;
@@ -427,7 +427,7 @@ int main(int argc, char** argv)
 //  sys->add(groundPtr3);
 
   // Add ground
-  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-3*th,0));
+  Body* groundPtr3 = new Body(make_double3(2*R+0.5*ditchLength,-R-6*th,0));
   groundPtr3->setBodyFixed(true);
   //groundPtr3->setCollisionFamily(2);
   groundPtr3->setGeometry(make_double3(4*R+0.5*ditchLength,th,0.5*ditchWidth));
@@ -527,7 +527,7 @@ int main(int argc, char** argv)
   sys->addBilateralConstraintDOF(offsetHub+2,-1, -omega, tStart);
 
   std::stringstream inputFileStream;
-  inputFileStream << "../tireMeshes/tireMeshf2_" << numDiv << "x" << numDivW << ".dat";
+  inputFileStream << "../tireMeshes/tireMeshf_Ro0.3_Ri0.15_" << numDiv << "x" << numDivW << ".dat";
   sys->importMesh(inputFileStream.str(),EM,numContacts);
 
   // Add bilateral constraints
