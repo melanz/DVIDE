@@ -340,7 +340,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  visualize = false;
+  //visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -399,10 +399,11 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e7;
+  double EM = 2.e6;
   double rho = 7810.0;
   double th = .01;
   double R = .3;
+  double R_o = 0.305;
   double nu = .1;
   double fillet = .04;
   double beltWidth = .2;
@@ -520,7 +521,7 @@ int main(int argc, char** argv)
 
   double tStart = 3.0;
   double omega = 17.0*PI/180.0;
-  double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
+  double vel = R_o*omega*(1.0 - slip);
   int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
   sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
   //sys->addBilateralConstraintDOF(offsetHub+1,-1);

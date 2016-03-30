@@ -405,6 +405,7 @@ int main(int argc, char** argv)
   double rho = 7810.0;
   double th = .01;
   double R = .2;
+  double R_o = 0.305;
   double nu = .1;
   double fillet = .04;
   double beltWidth = .11;
@@ -500,8 +501,11 @@ int main(int argc, char** argv)
     sys->add(hub);
 
     double tStart = 3.0;
-    double omega = 120.0*PI/180.0;
-    double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
+    //double omega = 120.0*PI/180.0;
+    //double vel = R_o*omega*(1.0 - slip);
+    double distance = 8*R+ditchLength;
+    double vel = distance/(t_end-tStart);
+    double omega = vel/(R_o*(1.0-slip));
     int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
     sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
     //sys->addBilateralConstraintDOF(offsetHub+1,-1);
