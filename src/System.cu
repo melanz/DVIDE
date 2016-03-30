@@ -1757,6 +1757,8 @@ int System::importSystem(string filename) {
   string temp_data;
   int numBodies;
   int numBeams;
+  int numPlates;
+  int numBodies2D;
   double blah;
   int index;
   int shape;
@@ -1767,7 +1769,7 @@ int System::importSystem(string filename) {
     if(temp_data[i]==','){temp_data[i]=' ';}
   }
   stringstream ss1(temp_data);
-  ss1>>blah>>numBodies>>numBeams;
+  ss1>>numBodies>>numBeams>>numPlates>>numBodies2D;
 
   Body* bodyPtr;
   for(int i=0; i<numBodies; i++) {
@@ -1790,7 +1792,7 @@ int System::importSystem(string filename) {
     bodyPtr->setGeometry(geometry);
     bodyPtr->setVelocity(vel);
     if(shape == 0) {
-      bodyPtr->setMass(2600*4.0*3.14159*pow(geometry.x,3.0)/3.0);
+      bodyPtr->setMass(3600*4.0*3.14159*pow(geometry.x,3.0)/3.0);
     } else {
       bodyPtr->setMass(1.0);
     }
