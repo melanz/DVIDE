@@ -418,6 +418,7 @@ int main(int argc, char** argv)
 
 
   if(mode==0) {
+    t_end = 3.0;
     sys->setFrictionCoefficient(0);
 
     // Add ground
@@ -455,7 +456,7 @@ int main(int argc, char** argv)
     left->setGeometry(make_double3(4*R+0.5*ditchLength,depth+th,th));
     sys->add(left);
 
-    double scale = 2;
+    double scale = 1;
     double rMin = scale*0.007;
     double rMax = scale*0.007;
     double density = 3600;
@@ -499,7 +500,7 @@ int main(int argc, char** argv)
     sys->add(hub);
 
     double tStart = 3.0;
-    double omega = 60.0*PI/180.0;
+    double omega = 120.0*PI/180.0;
     double vel = (R+0.5*beltWidth)*omega*(1.0 - slip);
     int offsetHub = 3*sys->bodies.size()+12*sys->beams.size()+36*sys->plates.size();
     sys->addBilateralConstraintDOF(offsetHub,-1, vel, tStart);
