@@ -340,7 +340,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -399,7 +399,7 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e6;
+  double EM = 2.e7;
   double rho = 7810.0;
   double th = .01;
   double R = .3;
