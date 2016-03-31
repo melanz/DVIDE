@@ -327,6 +327,7 @@ int main(int argc, char** argv)
   int numContacts = 12;
   double frictionCoefficient = 0.25;
   int mode = 1;
+  double EM = 2.e6;
 
   if(argc > 1) {
     mode = atoi(argv[1]);
@@ -337,6 +338,7 @@ int main(int argc, char** argv)
     numContacts = atoi(argv[6]);
     tolerance = atof(argv[7]);
     hh = atof(argv[8]);
+    EM = atof(argv[9]);
   }
 
 #ifdef WITH_GLUT
@@ -352,7 +354,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESHS_m" << mode << "_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHS_m" << mode << "_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "_E" << EM << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -401,7 +403,6 @@ int main(int argc, char** argv)
   //sys->gravity = make_double3(0,0,0);
 
   double radianInc = 2.0*PI/((double) numDiv);
-  double EM = 2.e6;
   double rho = 7810.0;
   double th = .01;
   double R = .2;
@@ -550,7 +551,7 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsHubMesh_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << ".dat";
+  statsFileStream << outDir << "statsHubMesh_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "_E" << EM << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)
