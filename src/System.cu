@@ -1792,7 +1792,7 @@ int System::importSystem(string filename) {
     bodyPtr->setGeometry(geometry);
     bodyPtr->setVelocity(vel);
     if(shape == 0) {
-      bodyPtr->setMass(3600*4.0*3.14159*pow(geometry.x,3.0)/3.0);
+      bodyPtr->setMass(2600*4.0*3.14159*pow(geometry.x,3.0)/3.0);
     } else {
       bodyPtr->setMass(1.0);
     }
