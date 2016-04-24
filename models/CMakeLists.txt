@@ -87,3 +87,7 @@ add_dependencies(test_hubMeshBounce ImplicitBeamsGPU)
 cuda_add_executable(test_hubMeshSoil test_hubMeshSoil.cu)
 target_link_libraries(test_hubMeshSoil ImplicitBeamsGPU)
 add_dependencies(test_hubMeshSoil ImplicitBeamsGPU)
+
+cuda_add_executable(test_twoPlate test_twoPlate.cu)
+target_link_libraries(test_twoPlate ImplicitBeamsGPU)
+add_dependencies(test_twoPlate ImplicitBeamsGPU)
