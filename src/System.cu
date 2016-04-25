@@ -1613,6 +1613,7 @@ int System::exportSystem(string filename) {
 
   p_h = p_d;
   v_h = v_d;
+  f_contact_h = f_contact_d;
   filestream << bodies.size() << ", " << beams.size() << ", " << plates.size()+shellConnectivities_h.size() << ", " << body2Ds.size() << ", " << endl;
   for (int i = 0; i < bodies.size(); i++) {
     filestream
@@ -1697,6 +1698,10 @@ int System::exportSystem(string filename) {
       filestream << v_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
     }
 
+    for(int j=0;j<36;j++) {
+      filestream << f_contact_h[3*bodies.size()+12*beams.size()+36*i+j] << ", ";
+    }
+
     filestream << "\n";
   }
   for (int i = 0; i < shellConnectivities_h.size(); i++) {
@@ -1717,6 +1722,11 @@ int System::exportSystem(string filename) {
     double* v2 = &v_h[offset+9*shellConnectivities_h[i].z];
     double* v3 = &v_h[offset+9*shellConnectivities_h[i].w];
 
+    double* f0 = &f_contact_h[offset+9*shellConnectivities_h[i].x];
+    double* f1 = &f_contact_h[offset+9*shellConnectivities_h[i].y];
+    double* f2 = &f_contact_h[offset+9*shellConnectivities_h[i].z];
+    double* f3 = &f_contact_h[offset+9*shellConnectivities_h[i].w];
+
     for(int j=0;j<9;j++) filestream << p0[j] << ", ";
     for(int j=0;j<9;j++) filestream << p1[j] << ", ";
     for(int j=0;j<9;j++) filestream << p2[j] << ", ";
@@ -1726,6 +1736,11 @@ int System::exportSystem(string filename) {
     for(int j=0;j<9;j++) filestream << v1[j] << ", ";
     for(int j=0;j<9;j++) filestream << v2[j] << ", ";
     for(int j=0;j<9;j++) filestream << v3[j] << ", ";
+
+    for(int j=0;j<9;j++) filestream << f0[j] << ", ";
+    for(int j=0;j<9;j++) filestream << f1[j] << ", ";
+    for(int j=0;j<9;j++) filestream << f2[j] << ", ";
+    for(int j=0;j<9;j++) filestream << f3[j] << ", ";
 
     filestream << "\n";
   }
