@@ -344,7 +344,7 @@ int main(int argc, char** argv)
 
   // Create output directories
   std::stringstream outDirStream;
-  outDirStream << "../TEST_HUBMESHL_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
+  outDirStream << "../TEST_HUBMESHL_n" << numDiv << "_nW" << numDivW << "_slip" << slipAngle << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << "/";
   outDir = outDirStream.str();
   povrayDir = outDir + "POVRAY/";
   if(mkdir(outDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
@@ -569,7 +569,7 @@ int main(int argc, char** argv)
 
   // if you don't want to visualize, then output the data
   std::stringstream statsFileStream;
-  statsFileStream << outDir << "statsHubMeshL_n" << numDiv << "_nW" << numDivW << "_slip" << slip << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << ".dat";
+  statsFileStream << outDir << "statsHubMeshL_n" << numDiv << "_nW" << numDivW << "_slip" << slipAngle << "_mu" << frictionCoefficient << "_nC" << numContacts << "_h" << hh << "_tol" << tolerance << ".dat";
   ofstream statStream(statsFileStream.str().c_str());
   int fileIndex = 0;
   while(sys->time < t_end)
