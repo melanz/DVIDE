@@ -391,7 +391,7 @@ int main(int argc, char** argv)
     }
   }
 
-  sys->importMesh("../shellMesh2z2.txt",EM,numContactPoints);
+  sys->importMesh("../shellMesh2z2.txt",EM,numContactPoints,0);
 
   sys->initializeSystem();
   printf("System initialized!\n");

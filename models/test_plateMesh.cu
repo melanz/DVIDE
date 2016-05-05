@@ -306,7 +306,7 @@ int main(int argc, char** argv)
 
   std::stringstream inputFileStream;
   inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
-  sys->importMesh(inputFileStream.str(),2e6,6);
+  sys->importMesh(inputFileStream.str(),2e6,6,0);
 //  sys->importMesh("../shellMesh.txt",2e7,4);
 
 //  sys->addBilateralConstraintDOF(3,-1);

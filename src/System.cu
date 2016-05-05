@@ -1840,7 +1840,7 @@ int System::exportMatrices(string directory) {
   return 0;
 }
 
-void System::importMesh(string filename, double stiffness, int numContactPointsPerElement) {
+void System::importMesh(string filename, double stiffness, int numContactPointsPerElement, double pressure) {
   string temp_data;
   int numShells;
   int numNodes;
@@ -1897,8 +1897,10 @@ void System::importMesh(string filename, double stiffness, int numContactPointsP
     ss>>material.x>>material.y>>material.z>>material.w;
     material.y = stiffness;
     shellMaterials_h.push_back(material);
+    pressureShell_h.push_back(pressure);
   }
   shellMaterials_d = shellMaterials_h;
+  pressureShell_d = pressureShell_h;
 
   // read shell geometries
   for(int i=0; i<numShells; i++) {

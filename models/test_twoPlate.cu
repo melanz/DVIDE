@@ -393,7 +393,7 @@ int main(int argc, char** argv)
 
   std::stringstream inputFileStream;
   inputFileStream << "../twoPlate.dat";
-  sys->importMesh(inputFileStream.str(),EM,numContactPoints);
+  sys->importMesh(inputFileStream.str(),EM,numContactPoints,0);
 
   // pin corners to the ground
   sys->addBilateralConstraintDOF(0, -1);

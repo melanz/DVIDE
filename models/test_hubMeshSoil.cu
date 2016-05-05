@@ -328,6 +328,7 @@ int main(int argc, char** argv)
   double frictionCoefficient = 0.25;
   int mode = 1;
   double EM = 2.e6;
+  double tirePressure = 220e3;
 
   if(argc > 1) {
     mode = atoi(argv[1]);
@@ -514,7 +515,7 @@ int main(int argc, char** argv)
 
     std::stringstream inputFileStream;
     inputFileStream << "../tireMeshes/tireMeshf_Ro0.3_Ri0.15_" << numDiv << "x" << numDivW << ".dat";
-    sys->importMesh(inputFileStream.str(),EM,numContacts);
+    sys->importMesh(inputFileStream.str(),EM,numContacts,-tirePressure);
 
     // Add bilateral constraints
     for(int i=0;i<numDiv;i++)

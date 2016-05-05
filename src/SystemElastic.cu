@@ -1357,11 +1357,11 @@ __global__ void addInternalForceComponentShellMesh(double* fint, double* strainE
   fint[35] +=  ((-factor * strainD[35].x * E / (-1 + nu * nu) - factor * strainD[35].y * E * nu / (-1 + nu * nu)) * strain.x) +  ((-factor * strainD[35].x * E * nu / (-1 + nu * nu) - factor * strainD[35].y * E / (-1 + nu * nu)) * strain.y) +  (factor * strainD[35].z * E / (nu + 1) * strain.z) / 0.2e1;
 }
 
-__global__ void addPressureForceShellMesh(double* f, double* p, int4* connectivities, double4* geometries, int offset, int numElements)
+__global__ void addPressureForceShellMesh(double* f, double* pressure, double* p, int4* connectivities, double4* geometries, int offset, int numElements)
 {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numElements);
 
-  double fp = -220e3;
+  double fp = pressure[index];
   int4 connectivity = connectivities[index];
   double* p0 = &p[offset+9*connectivity.x];
   double* p1 = &p[offset+9*connectivity.y];
@@ -1455,7 +1455,7 @@ int System::updateElasticForces()
     int offset_shellMesh = plates.size()*36+12*beams.size()+3*bodies.size()+3*body2Ds.size();
     fElasticShellMesh_d.resize(36*shellConnectivities_h.size());
     //thrust::fill(fElasticShellMesh_d.begin(),fElasticShellMesh_d.end(),0.0); //Clear internal forces
-    addPressureForceShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(CASTD1(fElasticShellMesh_d),CASTD1(p_d),CASTI4(shellConnectivities_d),CASTD4(shellGeometries_d),offset_shellMesh,shellConnectivities_h.size());
+    addPressureForceShellMesh<<<BLOCKS(shellConnectivities_h.size()),THREADS>>>(CASTD1(fElasticShellMesh_d),CASTD1(pressureShell_d),CASTD1(p_d),CASTI4(shellConnectivities_d),CASTD4(shellGeometries_d),offset_shellMesh,shellConnectivities_h.size());
     thrust::fill(strainEnergyShellMesh_d.begin(),strainEnergyShellMesh_d.end(),0.0); //Clear shell mesh energy
     shellMap_d.resize(shellMap0_d.size());
     thrust::copy(shellMap0_d.begin(), shellMap0_d.end(), shellMap_d.begin());

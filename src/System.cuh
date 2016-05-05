@@ -257,6 +257,7 @@ public:
   thrust::host_vector<int> invMassShellI_h;
   thrust::host_vector<int> invMassShellJ_h;
   thrust::host_vector<double> invMassShell_h;
+  thrust::host_vector<double> pressureShell_h;
 
   thrust::device_vector<int4> shellConnectivities_d;
   thrust::device_vector<double4> shellMaterials_d;
@@ -266,6 +267,7 @@ public:
   thrust::device_vector<int> massShellI_d;
   thrust::device_vector<int> massShellJ_d;
   thrust::device_vector<double> massShell_d;
+  thrust::device_vector<double> pressureShell_d;
 
   CollisionDetector* collisionDetector;
   thrust::device_vector<int> nonzerosPerContact_d;
@@ -314,7 +316,7 @@ public:
 	double  getKineticEnergy();
 	double  getStrainEnergy();
 	double  getTotalEnergy();
-  void    importMesh(string filename, double stiffness, int numContactPointsPerElement);
+  void    importMesh(string filename, double stiffness, int numContactPointsPerElement, double pressure);
   double3 transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta);
 };
 

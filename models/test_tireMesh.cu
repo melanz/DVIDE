@@ -279,6 +279,7 @@ int main(int argc, char** argv)
   int binsPerAxis = 30;
   double tolerance = 1e-4;
   double hh = 1e-3;
+  double tirePressure = 220e3;
 
   if(argc > 1) {
     numElementsPerSide = atoi(argv[1]);
@@ -290,7 +291,7 @@ int main(int argc, char** argv)
 #ifdef WITH_GLUT
   bool visualize = true;
 #endif
-  //visualize = false;
+  visualize = false;
 
   sys = new System(solverTypeQOCC);
   sys->setTimeStep(hh);
@@ -353,7 +354,7 @@ int main(int argc, char** argv)
 //  std::stringstream inputFileStream;
 //  inputFileStream << "../shellMeshes/shellMesh" << numElementsPerSide << "x" << numElementsPerSide << ".txt";
 //  sys->importMesh(inputFileStream.str(),2e6,6);
-  sys->importMesh("../tireMesh_z10.txt",2e7,10);
+  sys->importMesh("../tireMesh_z10.txt",2e7,10,-tirePressure);
 
   // Add bilateral constraints
   for(int i=0;i<2*numElementsPerSide;i++)
