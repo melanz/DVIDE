@@ -89,6 +89,7 @@ public:
   uint numCollisions;
   thrust::device_vector<uint> collisionIdentifierA_d;
   thrust::device_vector<uint> collisionIdentifierB_d;
+  thrust::device_vector<double3> collisionLocations_d;
 
 	CollisionDetector(System* sys);
 	int detectPossibleCollisions_spatialSubdivision();

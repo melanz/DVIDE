@@ -330,7 +330,7 @@ __global__ void countActualCollisions(uint* numCollisionsPerPair, uint2* possibl
   numCollisionsPerPair[index] = numCollisions;
 }
 
-__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* geometries_shellMesh, int4* connectivities_shellMesh, double3* collisionGeometries, int4* map, double4* normalsAndPenetrations, uint* collisionIdentifiersA, uint* collisionIdentifiersB, uint numPossibleCollisions, int numBodies, int numBeams, int numPlates, int numBodies2D, uint numCollisions) {
+__global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibleCollisionPairs, double* p, int* indices, double3* geometries, double4* geometries_shellMesh, int4* connectivities_shellMesh, double3* collisionGeometries, int4* map, double4* normalsAndPenetrations, double3* collisionLocations, uint* collisionIdentifiersA, uint* collisionIdentifiersB, uint numPossibleCollisions, int numBodies, int numBeams, int numPlates, int numBodies2D, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numPossibleCollisions);
 
   uint startIndex = (index == 0) ? 0 : numCollisionsPerPair[index - 1];
@@ -433,6 +433,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     double3 geometryB = collisionGeometries[collGeomB];
 
     double3 normal;
+    double3 location;
     normal.x = 1;
     normal.y = 0;
     normal.z = 0;
@@ -442,6 +443,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       // sphere-sphere case
       penetration = (geometryA.x+geometryB.x) - length(posB-posA);
       normal = normalize(posB-posA); // from A to B!
+      location = posA+normal*geometryA.x;
     }
 
     else if((geometryA.y != 0 && geometryB.y == 0) || (geometryA.y == 0 && geometryB.y != 0)) {
@@ -485,6 +487,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
       }
 
       normal = normalize(normal);
+      location = center-r*normal;
       if (geometryA.y == 0 && geometryB.y != 0) normal = -normal;
       penetration = r-sqrt(dmin);
     }
@@ -492,6 +495,7 @@ __global__ void storeActualCollisions(uint* numCollisionsPerPair, uint2* possibl
     collisionIdentifiersA[i] = collGeomA;
     collisionIdentifiersB[i] = collGeomB;
     normalsAndPenetrations[i] = make_double4(-normal.x,-normal.y,-normal.z,-penetration); // from B to A!
+    collisionLocations[i] = location;
     count++;
   }
 }
@@ -633,6 +637,7 @@ int CollisionDetector::detectCollisions()
   collisionIdentifierA_d.clear();
   collisionIdentifierB_d.clear();
   normalsAndPenetrations_d.clear();
+  collisionLocations_d.clear();
   collisionStartIndex_d.clear();
 
   if(numPossibleCollisions) {
@@ -644,13 +649,14 @@ int CollisionDetector::detectCollisions()
     // Step 2: Figure out where each thread needs to start and end for each collision
     Thrust_Inclusive_Scan_Sum(numCollisionsPerPair_d, numCollisions);
     normalsAndPenetrations_d.resize(numCollisions);
+    collisionLocations_d.resize(numCollisions);
     collisionIdentifierA_d.resize(numCollisions);
     collisionIdentifierB_d.resize(numCollisions);
     // End Step 2
 
     if(numCollisions) {
       // Step 3: Store the actual collisions
-      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), CASTD4(normalsAndPenetrations_d), CASTU1(collisionIdentifierA_d), CASTU1(collisionIdentifierB_d), numPossibleCollisions, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), numCollisions);
+      storeActualCollisions<<<BLOCKS(numPossibleCollisions),THREADS>>>(CASTU1(numCollisionsPerPair_d), CASTU2(possibleCollisionPairs_d), CASTD1(system->p_d), CASTI1(system->indices_d), CASTD3(system->contactGeometry_d), CASTD4(system->shellGeometries_d), CASTI4(system->shellConnectivities_d), CASTD3(system->collisionGeometry_d), CASTI4(system->collisionMap_d), CASTD4(normalsAndPenetrations_d), CASTD3(collisionLocations_d), CASTU1(collisionIdentifierA_d), CASTU1(collisionIdentifierB_d), numPossibleCollisions, system->bodies.size(), system->beams.size(), system->plates.size(), system->body2Ds.size(), numCollisions);
       // End Step 3
     }
   }

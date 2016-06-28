@@ -104,6 +104,14 @@ void renderSceneAll(){
 		//sys->exportSystem(filename);
 		sys->DoTimeStep();
 
+    thrust::host_vector<double3> collisionLocations_h = sys->collisionDetector->collisionLocations_d;
+
+    printf("There are %d collisions\n",sys->collisionDetector->numCollisions);
+    for(int i=0; i<sys->collisionDetector->numCollisions; i++) {
+      double3 location = collisionLocations_h[i];
+      printf("Collision #%d: Location: (%f, %f, %f)\n",i,location.x,location.y,location.z);
+    }
+
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
     for(int i=0; i<sys->f_contact_h.size(); i++) {
@@ -216,7 +224,7 @@ int main(int argc, char** argv)
   Body* ball2 = new Body(make_double3(0,1,0));
   ball2->setGeometry(make_double3(1,0,0));
   sys->add(ball2);
-  sys->applyForce(ball2,make_double3(1,0,0));
+//  sys->applyForce(ball2,make_double3(1,0,0));
 
 //  Body* ball3 = new Body(make_double3(-3,1,0));
 //  ball3->setGeometry(make_double3(1,0,0));
@@ -255,6 +263,14 @@ int main(int argc, char** argv)
 	{
 
 		sys->DoTimeStep();
+
+		thrust::host_vector<double3> collisionLocations_h = sys->collisionDetector->collisionLocations_d;
+
+		printf("There are %d collisions\n",sys->collisionDetector->collisionLocations_d.size());
+		for(int i=0; sys->collisionDetector->collisionLocations_d.size(); i++) {
+		  double3 location = sys->collisionDetector->collisionLocations_d[i];
+		  printf("Collision #%d: Location: (%f, %f, %f)\n",i,location.x,location.y,location.z);
+		}
 
     sys->f_contact_h = sys->f_contact_d;
     for(int i=0; i<sys->f_contact_h.size(); i++) {
