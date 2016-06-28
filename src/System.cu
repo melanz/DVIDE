@@ -1256,6 +1256,44 @@ __global__ void constructContactJacobian(int* nonzerosPerContact_d, int4* collis
   }
 }
 
+__global__ void updateContactForcePerCollision(double3* normalForcePerCollision, double3* frictionForcePerCollision, double* gammaGlobal, double4* normalsAndPenetrations, double h, uint numCollisions) {
+  INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
+
+  //int4* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB,
+  //int bodyIdentifierA = collisionMap[collisionIdentifierA[index]].x;
+  //int bodyIdentifierB = collisionMap[collisionIdentifierB[index]].x;
+
+  double4 nAndP;
+  double3 n, u, v;
+  nAndP = normalsAndPenetrations[index];
+  n = make_double3(nAndP.x,nAndP.y,nAndP.z);
+
+  if(n.z != 0) {
+    u = normalize(make_double3(1,0,-n.x/n.z));
+  }
+  else if(n.x != 0) {
+    u = normalize(make_double3(-n.z/n.x,0,1));
+  }
+  else {
+    u = normalize(make_double3(1,-n.x/n.y,0));
+  }
+  v = normalize(cross(n,u));
+
+  double3 gamma = make_double3(gammaGlobal[3*index],gammaGlobal[3*index+1],gammaGlobal[3*index+2]);
+
+  normalForcePerCollision[index] = gamma.x*n/h;
+  frictionForcePerCollision[index] = (gamma.y*u+gamma.z*v)/h;
+}
+
+int System::calculateContactForcePerCollision() {
+  normalForcePerCollision_d.resize(collisionDetector->numCollisions);
+  frictionForcePerCollision_d.resize(collisionDetector->numCollisions);
+
+  if(collisionDetector->numCollisions) updateContactForcePerCollision<<<BLOCKS(collisionDetector->numCollisions),THREADS>>>(CASTD3(normalForcePerCollision_d), CASTD3(frictionForcePerCollision_d), CASTD1(gamma_d), CASTD4(collisionDetector->normalsAndPenetrations_d), h, collisionDetector->numCollisions);
+
+  return 0;
+}
+
 __global__ void updateNonzerosPerContact(int* nonzerosPerContact, int4* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB, int numBodies, int numBeams, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 

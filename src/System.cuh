@@ -272,6 +272,9 @@ public:
   CollisionDetector* collisionDetector;
   thrust::device_vector<int> nonzerosPerContact_d;
 
+  thrust::device_vector<double3> normalForcePerCollision_d;
+  thrust::device_vector<double3> frictionForcePerCollision_d;
+
   int processConstraints();
 public:
 	System();
@@ -286,7 +289,7 @@ public:
 	double  getTolerance() const      {return tol;}
 	int     getTimeIndex() const      {return timeIndex;}
 	void    setTimeStep(double step_size);
-        void    setFrictionCoefficient(double mu);
+  void    setFrictionCoefficient(double mu);
 	int     add(Body* body);
 	int     add(Beam* beam);
 	int     add(Plate* plate);
@@ -318,6 +321,7 @@ public:
 	double  getTotalEnergy();
   void    importMesh(string filename, double stiffness, int numContactPointsPerElement, double pressure);
   double3 transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta);
+  int     calculateContactForcePerCollision();
 };
 
 #endif /* SYSTEM_CUH_ */
