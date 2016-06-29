@@ -104,13 +104,14 @@ void renderSceneAll(){
 		//sys->exportSystem(filename);
 		sys->DoTimeStep();
 
-    thrust::host_vector<double3> collisionLocations_h = sys->collisionDetector->collisionLocations_d;
-
-    printf("There are %d collisions\n",sys->collisionDetector->numCollisions);
-    for(int i=0; i<sys->collisionDetector->numCollisions; i++) {
-      double3 location = collisionLocations_h[i];
-      printf("Collision #%d: Location: (%f, %f, %f)\n",i,location.x,location.y,location.z);
-    }
+//    thrust::host_vector<double3> collisionLocations_h = sys->collisionDetector->collisionLocations_d;
+//
+//    printf("There are %d collisions\n",sys->collisionDetector->numCollisions);
+//    for(int i=0; i<sys->collisionDetector->numCollisions; i++) {
+//      double3 location = collisionLocations_h[i];
+//      printf("Collision #%d: Location: (%f, %f, %f)\n",i,location.x,location.y,location.z);
+//    }
+		sys->outputContactForcePerCollision();
 
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;

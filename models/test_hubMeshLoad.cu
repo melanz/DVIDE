@@ -208,6 +208,11 @@ void renderSceneAll(){
 	  p0_h = sys->p_d;
     sys->DoTimeStep();
 
+    if(sys->collisionDetector->numCollisions) {
+      sys->outputContactForcePerCollision();
+      cin.get();
+    }
+
     // Determine contact force on the container
     sys->f_contact_h = sys->f_contact_d;
     sys->gamma_h = sys->gamma_d;
@@ -321,7 +326,7 @@ int main(int argc, char** argv)
   double frictionCoefficient = 0.25;
   double slipAngle = 0;
   double load = 10; // N
-  double tirePressure = 220e3;
+  double tirePressure = 110e3;
 
   if(argc > 1) {
     numDiv = atoi(argv[1]);
@@ -580,6 +585,11 @@ int main(int argc, char** argv)
       std::stringstream dataFileStream;
       dataFileStream << povrayDir << "data_" << fileIndex << ".dat";
       sys->exportSystem(dataFileStream.str());
+
+      std::stringstream contactFileStream;
+      contactFileStream << povrayDir << "contact_" << fileIndex << ".dat";
+      sys->outputContactForcePerCollision(contactFileStream.str());
+
       fileIndex++;
     }
 
@@ -628,7 +638,8 @@ int main(int argc, char** argv)
   sys->exportMatrices(outDir.c_str());
   std::stringstream collisionFileStream;
   collisionFileStream << outDir << "collisionData.dat";
-  sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
+  //sys->collisionDetector->exportSystem(collisionFileStream.str().c_str());
+  sys->outputContactForcePerCollision(collisionFileStream.str().c_str());
 
   return 0;
 }

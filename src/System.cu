@@ -1294,6 +1294,30 @@ int System::calculateContactForcePerCollision() {
   return 0;
 }
 
+int System::outputContactForcePerCollision() {
+  calculateContactForcePerCollision();
+
+  // copy device data to host
+  thrust::host_vector<double3> collisionLocations_h = collisionDetector->collisionLocations_d;
+  thrust::host_vector<double3> normalForcePerCollision_h = normalForcePerCollision_d;
+  thrust::host_vector<double3> frictionForcePerCollision_h = frictionForcePerCollision_d;
+  thrust::host_vector<int4> collisionMap_h = collisionMap_d;
+  thrust::host_vector<uint> collisionIdentifierA_h = collisionDetector->collisionIdentifierA_d;
+  thrust::host_vector<uint> collisionIdentifierB_h = collisionDetector->collisionIdentifierB_d;
+
+  for(int i=0; i<collisionDetector->numCollisions;i++) {
+    int bodyIdentifierA = collisionMap_h[collisionIdentifierA_h[i]].x;
+    int bodyIdentifierB = collisionMap_h[collisionIdentifierB_h[i]].x;
+
+    printf("Collision #%d: Body %d to %d\n",i,bodyIdentifierA,bodyIdentifierB);
+    printf("  Collision location: (%f, %f, %f)\n", collisionLocations_h[i].x,collisionLocations_h[i].y,collisionLocations_h[i].z);
+    printf("  Collision normal:   (%f, %f, %f)\n", normalForcePerCollision_h[i].x,normalForcePerCollision_h[i].y,normalForcePerCollision_h[i].z);
+    printf("  Collision friction: (%f, %f, %f)\n\n", frictionForcePerCollision_h[i].x,frictionForcePerCollision_h[i].y,frictionForcePerCollision_h[i].z);
+  }
+
+  return 0;
+}
+
 __global__ void updateNonzerosPerContact(int* nonzerosPerContact, int4* collisionMap, uint* collisionIdentifierA, uint* collisionIdentifierB, int numBodies, int numBeams, uint numCollisions) {
   INIT_CHECK_THREAD_BOUNDED(INDEX1D, numCollisions);
 
@@ -1643,6 +1667,33 @@ double System::getStrainEnergy() {
 
 double System::getTotalEnergy() {
   return getPotentialEnergy()+getKineticEnergy()+getStrainEnergy();
+}
+
+int System::outputContactForcePerCollision(string filename) {
+  ofstream filestream;
+  filestream.open(filename.c_str());
+
+  calculateContactForcePerCollision();
+
+  // copy device data to host
+  thrust::host_vector<double3> collisionLocations_h = collisionDetector->collisionLocations_d;
+  thrust::host_vector<double3> normalForcePerCollision_h = normalForcePerCollision_d;
+  thrust::host_vector<double3> frictionForcePerCollision_h = frictionForcePerCollision_d;
+  thrust::host_vector<int4> collisionMap_h = collisionMap_d;
+  thrust::host_vector<uint> collisionIdentifierA_h = collisionDetector->collisionIdentifierA_d;
+  thrust::host_vector<uint> collisionIdentifierB_h = collisionDetector->collisionIdentifierB_d;
+
+  filestream << collisionDetector->numCollisions << ", " << bodies.size() << ", " << beams.size() << ", " << plates.size()+shellConnectivities_h.size() << ", " << body2Ds.size() << ", " << endl;
+
+  for(int i=0; i<collisionDetector->numCollisions;i++) {
+    int bodyIdentifierA = collisionMap_h[collisionIdentifierA_h[i]].x;
+    int bodyIdentifierB = collisionMap_h[collisionIdentifierB_h[i]].x;
+
+    filestream << i << ", " << bodyIdentifierA << ", " << bodyIdentifierB << ", " << collisionLocations_h[i].x << ", " << collisionLocations_h[i].y << ", " << collisionLocations_h[i].z << ", " << normalForcePerCollision_h[i].x << ", " << normalForcePerCollision_h[i].y << ", " << normalForcePerCollision_h[i].z << ", " << frictionForcePerCollision_h[i].x << ", " << frictionForcePerCollision_h[i].y << ", " << frictionForcePerCollision_h[i].z << ", \n";
+  }
+  filestream.close();
+
+  return 0;
 }
 
 int System::exportSystem(string filename) {

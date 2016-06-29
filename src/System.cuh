@@ -322,6 +322,8 @@ public:
   void    importMesh(string filename, double stiffness, int numContactPointsPerElement, double pressure);
   double3 transformNodalToCartesian_shellMesh(int shellIndex, double xi, double eta);
   int     calculateContactForcePerCollision();
+  int     outputContactForcePerCollision();
+  int     outputContactForcePerCollision(string filename);
 };
 
 #endif /* SYSTEM_CUH_ */
